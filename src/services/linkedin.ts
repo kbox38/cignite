@@ -150,6 +150,6 @@ const fileToBase64 = (file: File): Promise<string> => {
 
 export const initiateLinkedInAuth = (type: "basic" | "dma" = "basic") => {
   const authUrl = `${API_BASE}/linkedin-oauth-start?type=${type}`;
-  console.log("Redirecting to:", authUrl);
+
   window.location.href = authUrl;
 };

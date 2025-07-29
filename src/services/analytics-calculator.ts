@@ -6,20 +6,10 @@
 
 // Profile Strength Score Calculator
 export const calculateProfileStrength = (allDomainsData: any) => {
-  console.log("=== PROFILE STRENGTH CALCULATION ===");
-  console.log("Input data:", allDomainsData);
-
   const profile = allDomainsData.PROFILE?.sample || {};
   const education = allDomainsData.EDUCATION || {};
   const skills = allDomainsData.SKILLS || {};
   const positions = allDomainsData.POSITIONS || {};
-
-  console.log("Extracted data:", {
-    profile: Object.keys(profile),
-    educationCount: education.count,
-    skillsCount: skills.count,
-    positionsCount: positions.count,
-  });
 
   let score = 0;
   const breakdown = {
@@ -52,7 +42,6 @@ export const calculateProfileStrength = (allDomainsData: any) => {
     recommendations: generateProfileRecommendations(breakdown),
   };
 
-  console.log("Profile strength calculation result:", result);
   return result;
 };
 
@@ -69,23 +58,13 @@ const generateProfileRecommendations = (breakdown: any) => {
 
 // Network Quality Index Calculator
 export const calculateNetworkQuality = (connectionsData: any) => {
-  console.log("=== NETWORK QUALITY CALCULATION ===");
-  console.log("Input connections data:", connectionsData);
-
   if (!connectionsData?.sample || connectionsData.count === 0) {
-    console.log("No connections data available, returning zero score");
     return { score: 0, analysis: {}, insights: [] };
   }
 
   const connections = Array.isArray(connectionsData.sample)
     ? connectionsData.sample
     : [connectionsData.sample];
-
-  console.log("Processing connections:", {
-    totalConnections: connectionsData.count,
-    sampleConnections: connections.length,
-    firstConnection: connections[0],
-  });
 
   // Calculate industry diversity
   const companies = connections
@@ -133,7 +112,6 @@ export const calculateNetworkQuality = (connectionsData: any) => {
     ],
   };
 
-  console.log("Network quality calculation result:", result);
   return result;
 };
 
@@ -143,21 +121,8 @@ export const calculateSocialActivityScore = (
   connectionsCount: number,
   changelogData: any
 ) => {
-  console.log("=== SOCIAL ACTIVITY CALCULATION ===");
-  console.log("Input data:", {
-    likesData,
-    connectionsCount,
-    changelogDataLength: changelogData?.elements?.length,
-  });
-
   const likesGiven = likesData?.count || 0;
   const activityItems = changelogData?.elements?.length || 0;
-
-  console.log("Extracted values:", {
-    likesGiven,
-    activityItems,
-    connectionsCount,
-  });
 
   // Calculate engagement rate
   const engagementRate = likesGiven / Math.max(connectionsCount, 1);
@@ -186,21 +151,14 @@ export const calculateSocialActivityScore = (
     ],
   };
 
-  console.log("Social activity calculation result:", result);
   return result;
 };
 
 // Content Performance Calculator
 export const calculateContentPerformance = (memberShareData: any) => {
-  console.log("=== CONTENT PERFORMANCE CALCULATION ===");
-  console.log("Input member share data:", memberShareData);
-
   const totalPosts = memberShareData?.count || 0;
 
-  console.log("Total posts:", totalPosts);
-
   if (totalPosts === 0) {
-    console.log("No posts found, returning zero score");
     return {
       score: 0,
       metrics: { totalPosts: 0 },
@@ -212,14 +170,8 @@ export const calculateContentPerformance = (memberShareData: any) => {
     ? memberShareData.sample
     : [memberShareData.sample];
 
-  console.log("Processing posts:", {
-    postsLength: posts.length,
-    firstPost: posts[0],
-  });
-
   // Analyze hashtag usage
   const hashtagAnalysis = analyzeHashtags(posts);
-  console.log("Hashtag analysis:", hashtagAnalysis);
 
   // Calculate posting frequency
   const postDates = posts
@@ -235,12 +187,6 @@ export const calculateContentPerformance = (memberShareData: any) => {
 
   const postsPerWeek =
     daysSinceFirst > 0 ? (totalPosts / daysSinceFirst) * 7 : 0;
-
-  console.log("Posting frequency analysis:", {
-    postDatesLength: postDates.length,
-    daysSinceFirst,
-    postsPerWeek,
-  });
 
   // Calculate content quality score
   const hashtagScore = Math.min(hashtagAnalysis.averagePerPost * 2, 4);
@@ -264,7 +210,6 @@ export const calculateContentPerformance = (memberShareData: any) => {
     ],
   };
 
-  console.log("Content performance calculation result:", result);
   return result;
 };
 

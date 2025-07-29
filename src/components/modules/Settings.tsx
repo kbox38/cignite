@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { User, Bell, Shield, Palette, Download, Trash2 } from 'lucide-react';
-import { Card } from '../ui/Card';
-import { Button } from '../ui/Button';
-import { useAuthStore } from '../../stores/authStore';
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { User, Bell, Shield, Palette, Download, Trash2 } from "lucide-react";
+import { Card } from "../ui/Card";
+import { Button } from "../ui/Button";
+import { useAuthStore } from "../../stores/authStore";
 
 export const Settings = () => {
   const { profile, logout } = useAuthStore();
@@ -11,20 +11,23 @@ export const Settings = () => {
     email: true,
     push: false,
     synergy: true,
-    analytics: true
+    analytics: true,
   });
 
   const handleNotificationChange = (key: string, value: boolean) => {
-    setNotifications(prev => ({ ...prev, [key]: value }));
+    setNotifications((prev) => ({ ...prev, [key]: value }));
   };
 
   const exportData = () => {
     // In real app, would generate and download user data
-    console.log('Exporting user data...');
   };
 
   const deleteAccount = () => {
-    if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+    if (
+      confirm(
+        "Are you sure you want to delete your account? This action cannot be undone."
+      )
+    ) {
       // In real app, would delete user account
       logout();
     }
@@ -55,25 +58,29 @@ export const Settings = () => {
               />
             )}
             <div>
-              <p className="font-medium">{profile?.name || 'User'}</p>
+              <p className="font-medium">{profile?.name || "User"}</p>
               <p className="text-sm text-gray-600">{profile?.email}</p>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">First Name</label>
+              <label className="block text-sm font-medium mb-1">
+                First Name
+              </label>
               <input
                 type="text"
-                value={profile?.given_name || ''}
+                value={profile?.given_name || ""}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 readOnly
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Last Name</label>
+              <label className="block text-sm font-medium mb-1">
+                Last Name
+              </label>
               <input
                 type="text"
-                value={profile?.family_name || ''}
+                value={profile?.family_name || ""}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 readOnly
               />
@@ -101,7 +108,9 @@ export const Settings = () => {
               <input
                 type="checkbox"
                 checked={notifications.email}
-                onChange={(e) => handleNotificationChange('email', e.target.checked)}
+                onChange={(e) =>
+                  handleNotificationChange("email", e.target.checked)
+                }
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -110,13 +119,17 @@ export const Settings = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium">Push Notifications</p>
-              <p className="text-sm text-gray-600">Receive browser notifications</p>
+              <p className="text-sm text-gray-600">
+                Receive browser notifications
+              </p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
                 checked={notifications.push}
-                onChange={(e) => handleNotificationChange('push', e.target.checked)}
+                onChange={(e) =>
+                  handleNotificationChange("push", e.target.checked)
+                }
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -125,13 +138,17 @@ export const Settings = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium">Synergy Alerts</p>
-              <p className="text-sm text-gray-600">Notifications for partner activities</p>
+              <p className="text-sm text-gray-600">
+                Notifications for partner activities
+              </p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
                 checked={notifications.synergy}
-                onChange={(e) => handleNotificationChange('synergy', e.target.checked)}
+                onChange={(e) =>
+                  handleNotificationChange("synergy", e.target.checked)
+                }
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -140,13 +157,17 @@ export const Settings = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium">Analytics Reports</p>
-              <p className="text-sm text-gray-600">Weekly performance summaries</p>
+              <p className="text-sm text-gray-600">
+                Weekly performance summaries
+              </p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
                 checked={notifications.analytics}
-                onChange={(e) => handleNotificationChange('analytics', e.target.checked)}
+                onChange={(e) =>
+                  handleNotificationChange("analytics", e.target.checked)
+                }
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -165,7 +186,9 @@ export const Settings = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium">Data Collection</p>
-              <p className="text-sm text-gray-600">We only collect necessary LinkedIn data</p>
+              <p className="text-sm text-gray-600">
+                We only collect necessary LinkedIn data
+              </p>
             </div>
             <Button variant="outline" size="sm">
               View Details
@@ -174,7 +197,9 @@ export const Settings = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium">API Permissions</p>
-              <p className="text-sm text-gray-600">Manage LinkedIn API access</p>
+              <p className="text-sm text-gray-600">
+                Manage LinkedIn API access
+              </p>
             </div>
             <Button variant="outline" size="sm">
               Review
@@ -203,9 +228,16 @@ export const Settings = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium">Delete Account</p>
-              <p className="text-sm text-gray-600">Permanently delete your account and all data</p>
+              <p className="text-sm text-gray-600">
+                Permanently delete your account and all data
+              </p>
             </div>
-            <Button variant="outline" size="sm" onClick={deleteAccount} className="text-red-600 border-red-300 hover:bg-red-50">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={deleteAccount}
+              className="text-red-600 border-red-300 hover:bg-red-50"
+            >
               Delete Account
             </Button>
           </div>

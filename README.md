@@ -64,7 +64,6 @@ LinkedIn Growth SaaS is a comprehensive platform designed to help professionals 
 │   State Mgmt    │    │   OAuth Flow    │    │   Data Storage  │
 │   (Zustand)     │    │   (LinkedIn)    │    │   (LocalStorage)│
 └─────────────────┘    └─────────────────┘    └─────────────────┘
-```
 
 ### Data Flow
 1. **Authentication**: OAuth 2.0 flow with LinkedIn (Basic + DMA permissions)

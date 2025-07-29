@@ -84,11 +84,6 @@ export const PostGen = () => {
         setOriginalPost(text);
         // Clear the data after using it
         sessionStorage.removeItem(SESSION_STORAGE_KEYS.REPURPOSE_POST);
-        console.log("Loaded repurposed post:", {
-          text,
-          originalDate,
-          engagement,
-        });
       } catch (error) {
         console.error("Error parsing repurpose data:", error);
       }
@@ -104,14 +99,15 @@ export const PostGen = () => {
         setPostTopic(topicText);
         // Clear the data after using it
         sessionStorage.removeItem(SESSION_STORAGE_KEYS.IDEA_CONTENT);
-        console.log("Loaded idea content:", { title, description, category });
       } catch (error) {
         console.error("Error parsing idea data:", error);
       }
     }
 
     // Check for post data from Scheduler
-    const schedulerData = sessionStorage.getItem(SESSION_STORAGE_KEYS.POSTGEN_DATA);
+    const schedulerData = sessionStorage.getItem(
+      SESSION_STORAGE_KEYS.POSTGEN_DATA
+    );
     if (schedulerData) {
       try {
         const { content, media, source } = JSON.parse(schedulerData);
@@ -120,12 +116,10 @@ export const PostGen = () => {
           setOriginalPost(content);
           // If there's media, we could handle it here
           if (media) {
-            // For now, we'll just log it
-            console.log("Media from scheduler:", media);
+            // Handle media here in the future
           }
           // Clear the data after using it
           sessionStorage.removeItem(SESSION_STORAGE_KEYS.POSTGEN_DATA);
-          console.log("Loaded post from scheduler:", { content, media });
         }
       } catch (error) {
         console.error("Error parsing scheduler data:", error);
@@ -162,7 +156,9 @@ export const PostGen = () => {
   useEffect(() => {
     if (originalPost && activeTab === "rewrite" && !rewrittenPost) {
       // Check if this came from scheduler
-      const schedulerData = sessionStorage.getItem(SESSION_STORAGE_KEYS.POSTGEN_DATA);
+      const schedulerData = sessionStorage.getItem(
+        SESSION_STORAGE_KEYS.POSTGEN_DATA
+      );
       if (schedulerData) {
         try {
           const { source } = JSON.parse(schedulerData);
@@ -248,7 +244,7 @@ export const PostGen = () => {
         uploadedFile || undefined
       );
       showNotification("success", "Post successfully published to LinkedIn!");
-      console.log("Post posted:", contentToPost);
+
 
       // Clear generated/rewritten post and file after posting
       setGeneratedPost(null);

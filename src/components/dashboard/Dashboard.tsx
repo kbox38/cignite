@@ -13,8 +13,21 @@ import {
   MessageCircle,
   Share,
   User,
+  Target,
+  Activity,
+  Award,
+  Sparkles,
+  ArrowUpRight,
+  Clock,
+  Star,
+  Briefcase,
+  Globe,
+  Building,
+  CheckCircle,
+  AlertCircle,
+  Info,
+  Lock,
 } from "lucide-react";
-import { StatsCard } from "./StatsCard";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
 import { LoadingSpinner } from "../ui/LoadingSpinner";
@@ -33,14 +46,18 @@ import {
   PieChart,
   Pie,
   Cell,
+  AreaChart,
+  Area,
 } from "recharts";
 
 interface MetricCardProps {
   title: string;
-  value: number | string;
+  value: string | number;
   subtitle: string;
   icon: React.ReactNode;
   trend?: string;
+  trendDirection?: "up" | "down" | "neutral";
+  color: string;
 }
 
 const MetricCard = ({
@@ -49,63 +66,182 @@ const MetricCard = ({
   subtitle,
   icon,
   trend,
+  trendDirection = "neutral",
+  color,
 }: MetricCardProps) => (
-  <Card variant="glass" hover className="p-6">
-    <div className="flex items-center justify-between">
-      <div className="flex-1">
-        <p className="text-sm font-medium text-gray-600">{title}</p>
-        <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
-        <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
-        {trend && <p className="text-sm text-green-600 mt-1">+{trend}%</p>}
-      </div>
-      <div className="p-3 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500">
+  <motion.div whileHover={{ y: -4 }} transition={{ duration: 0.2 }}>
+    <div className="relative">
+      <div
+        className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
+        style={{ backgroundColor: color }}
+      />
+      <Card variant="glass" className="p-6 ml-1">
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <div className="flex items-center space-x-2 mb-2">
+              <div
+                className="p-2 rounded-lg"
+                style={{ backgroundColor: `${color}20` }}
+              >
+                {icon}
+              </div>
+              <p className="text-sm font-medium text-gray-600">{title}</p>
+            </div>
+            <p className="text-3xl font-bold text-gray-900 mb-1">{value}</p>
+            <p className="text-sm text-gray-500 mb-2">{subtitle}</p>
+            {trend && (
+              <div className="flex items-center space-x-1">
+                {trendDirection === "up" && (
+                  <TrendingUp size={14} className="text-green-500" />
+                )}
+                {trendDirection === "down" && (
+                  <TrendingUp size={14} className="text-red-500 rotate-180" />
+                )}
+                <span
+                  className={`text-sm font-medium ${
+                    trendDirection === "up"
+                      ? "text-green-600"
+                      : trendDirection === "down"
+                      ? "text-red-600"
+                      : "text-gray-600"
+                  }`}
+                >
+                  {trend}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
+    </div>
+  </motion.div>
+);
+
+const InsightCard = ({
+  title,
+  insights,
+  icon,
+  color,
+  emptyMessage,
+}: {
+  title: string;
+  insights?: string[];
+  icon: React.ReactNode;
+  color: string;
+  emptyMessage: string;
+}) => (
+  <Card variant="glass" className="p-6">
+    <div className="flex items-center space-x-3 mb-4">
+      <div className="p-2 rounded-lg" style={{ backgroundColor: `${color}20` }}>
         {icon}
       </div>
+      <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+    </div>
+    <div className="space-y-3">
+      {insights && insights.length > 0 ? (
+        insights.map((insight, index) => (
+          <motion.div
+            key={index}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: index * 0.1 }}
+            className="flex items-start space-x-3"
+          >
+            <div
+              className="w-2 h-2 rounded-full mt-2"
+              style={{ backgroundColor: color }}
+            ></div>
+            <span className="text-sm text-gray-700 leading-relaxed">
+              {insight}
+            </span>
+          </motion.div>
+        ))
+      ) : (
+        <div className="flex items-center space-x-2 text-gray-500">
+          <Info size={16} />
+          <span className="text-sm">{emptyMessage}</span>
+        </div>
+      )}
     </div>
   </Card>
 );
 
-const ActivityItem = ({
-  label,
-  value,
+const QuickActionButton = ({
+  title,
+  description,
+  icon,
+  gradient,
+  onClick,
 }: {
-  label: string;
-  value: number | string;
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  gradient: string;
+  onClick: () => void;
 }) => (
-  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-    <span className="text-sm font-medium text-gray-700">{label}</span>
-    <span className="text-lg font-bold text-blue-600">{value}</span>
-  </div>
+  <motion.button
+    whileHover={{ scale: 1.02, y: -2 }}
+    whileTap={{ scale: 0.98 }}
+    className={`w-full p-4 rounded-xl text-white transition-all duration-200 ${gradient}`}
+    onClick={onClick}
+  >
+    <div className="flex items-center space-x-3">
+      <div className="p-2 bg-white bg-opacity-20 rounded-lg">{icon}</div>
+      <div className="text-left">
+        <h4 className="font-semibold">{title}</h4>
+        <p className="text-sm opacity-90">{description}</p>
+      </div>
+      <ArrowUpRight size={20} className="ml-auto" />
+    </div>
+  </motion.button>
 );
 
-const PostPreview = ({ post, rank }: { post: any; rank: number }) => (
-  <div className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
-    <div className="w-8 h-8 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center text-white font-bold">
-      {rank}
-    </div>
-    <div className="flex-1">
-      <p className="text-sm font-medium text-gray-900 line-clamp-2">
-        {post.commentary || "Post content..."}
-      </p>
-      <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
-        <span className="flex items-center space-x-1">
-          <Heart size={12} className="text-red-500" />
-          <span>{post.engagement.likes}</span>
-        </span>
-        <span className="flex items-center space-x-1">
-          <MessageCircle size={12} className="text-blue-500" />
-          <span>{post.engagement.comments}</span>
-        </span>
-        <span className="flex items-center space-x-1">
-          <Share size={12} className="text-green-500" />
-          <span>{post.engagement.shares}</span>
-        </span>
+const ProgressRing = ({
+  percentage,
+  size = 80,
+  strokeWidth = 8,
+  color = "#3B82F6",
+}: {
+  percentage: number;
+  size?: number;
+  strokeWidth?: number;
+  color?: string;
+}) => {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = radius * 2 * Math.PI;
+  const strokeDasharray = circumference;
+  const strokeDashoffset = circumference - (percentage / 100) * circumference;
+
+  return (
+    <div className="relative inline-flex items-center justify-center">
+      <svg width={size} height={size} className="transform -rotate-90">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="#E5E7EB"
+          strokeWidth={strokeWidth}
+          fill="transparent"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={color}
+          strokeWidth={strokeWidth}
+          fill="transparent"
+          strokeDasharray={strokeDasharray}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          className="transition-all duration-1000 ease-out"
+        />
+      </svg>
+      <div className="absolute text-center">
+        <div className="text-lg font-bold text-gray-900">{percentage}%</div>
       </div>
     </div>
-  </div>
-);
-
-const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"];
+  );
+};
 
 export const Dashboard = () => {
   const { dmaToken, accessToken, isBasicAuthenticated, isFullyAuthenticated } =
@@ -124,7 +260,6 @@ export const Dashboard = () => {
     postsCreated: 0,
     commentsGiven: 0,
     likesGiven: 0,
-    // New analytics metrics
     profileStrength: 0,
     networkQuality: 0,
     socialActivity: 0,
@@ -149,35 +284,7 @@ export const Dashboard = () => {
         setError(null);
 
         const service = new LinkedInDataService();
-
-        console.log("=== DASHBOARD DEBUG ===");
-        console.log("DMA Token available:", !!dmaToken);
-        console.log(
-          "Token preview:",
-          dmaToken ? `${dmaToken.substring(0, 20)}...` : "No token"
-        );
-
-        // Load all metrics using the new analytics service
-        console.log("Fetching profile metrics...");
         const profileMetrics = await service.getProfileMetrics();
-
-        console.log("Raw LinkedIn data from getProfileMetrics:", {
-          profileMetrics,
-          profileViews: profileMetrics.profileViews,
-          searchAppearances: profileMetrics.searchAppearances,
-          uniqueViewers: profileMetrics.uniqueViewers,
-          totalConnections: profileMetrics.totalConnections,
-          totalPosts: profileMetrics.totalPosts,
-          likesGiven: profileMetrics.likesGiven,
-          profileStrength: profileMetrics.profileStrength,
-          networkQuality: profileMetrics.networkQuality,
-          socialActivity: profileMetrics.socialActivity,
-          contentPerformance: profileMetrics.contentPerformance,
-          profileAnalysis: profileMetrics.profileAnalysis,
-          networkAnalysis: profileMetrics.networkAnalysis,
-          socialAnalysis: profileMetrics.socialAnalysis,
-          contentAnalysis: profileMetrics.contentAnalysis,
-        });
 
         const newMetrics = {
           profileViews: profileMetrics.profileViews || 0,
@@ -187,14 +294,13 @@ export const Dashboard = () => {
           connectionGrowth:
             profileMetrics.networkAnalysis?.analysis?.recentGrowth || 0,
           totalEngagement: profileMetrics.totalEngagement || 0,
-          avgPerPost: "0", // Will be calculated from posts
+          avgPerPost: "0",
           totalLikes: profileMetrics.totalLikes || 0,
           totalComments: profileMetrics.totalComments || 0,
           totalPosts: profileMetrics.totalPosts || 0,
           postsCreated: profileMetrics.totalPosts || 0,
           commentsGiven: profileMetrics.likesGiven || 0,
           likesGiven: profileMetrics.likesGiven || 0,
-          // New analytics metrics
           profileStrength: profileMetrics.profileStrength || 0,
           networkQuality: profileMetrics.networkQuality || 0,
           socialActivity: profileMetrics.socialActivity || 0,
@@ -204,23 +310,6 @@ export const Dashboard = () => {
           socialAnalysis: profileMetrics.socialAnalysis || null,
           contentAnalysis: profileMetrics.contentAnalysis || null,
         };
-
-        console.log("Calculated metrics for dashboard:", {
-          profileStrength: newMetrics.profileStrength,
-          networkQuality: newMetrics.networkQuality,
-          socialActivity: newMetrics.socialActivity,
-          contentPerformance: newMetrics.contentPerformance,
-          connections: newMetrics.connections,
-          totalPosts: newMetrics.totalPosts,
-          likesGiven: newMetrics.likesGiven,
-        });
-
-        console.log("StatsCard values that will be rendered:", {
-          profileStrength: `${newMetrics.profileStrength || 0}%`,
-          networkQuality: `${newMetrics.networkQuality || 0}/10`,
-          socialActivity: `${newMetrics.socialActivity || 0}/10`,
-          contentPerformance: `${newMetrics.contentPerformance || 0}/10`,
-        });
 
         setMetrics(newMetrics);
       } catch (err) {
@@ -246,17 +335,25 @@ export const Dashboard = () => {
         className="space-y-6"
       >
         <div className="text-center py-12">
-          <h2 className="text-2xl font-bold mb-4">Limited Access Mode</h2>
-          <p className="text-gray-600 mb-6">
-            You have basic LinkedIn access. Enable data access permissions for
-            full analytics and insights.
-          </p>
-          <Button
-            variant="primary"
-            onClick={() => (window.location.href = "/")}
-          >
-            Enable Full Access
-          </Button>
+          <div className="max-w-md mx-auto">
+            <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Lock size={32} className="text-white" />
+            </div>
+            <h2 className="text-2xl font-bold mb-4 text-gray-900">
+              Limited Access Mode
+            </h2>
+            <p className="text-gray-600 mb-6 leading-relaxed">
+              You have basic LinkedIn access. Enable data access permissions for
+              full analytics and insights.
+            </p>
+            <Button
+              variant="primary"
+              onClick={() => (window.location.href = "/")}
+              className="w-full"
+            >
+              Enable Full Access
+            </Button>
+          </div>
         </div>
       </motion.div>
     );
@@ -277,19 +374,7 @@ export const Dashboard = () => {
           <div className="max-w-md mx-auto">
             <div className="mb-6">
               <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg
-                  className="w-8 h-8 text-orange-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-                  />
-                </svg>
+                <AlertCircle size={32} className="text-orange-600" />
               </div>
               <h2 className="text-xl font-bold text-gray-900 mb-2">
                 LinkedIn API Rate Limit Exceeded
@@ -347,191 +432,238 @@ export const Dashboard = () => {
     );
   }
 
-  const prepareEngagementTrends = (posts: any[]) => {
-    const trends = posts.slice(0, 10).map((post) => ({
-      date: new Date(post.date).toLocaleDateString(),
-      likes: post.engagement.likes,
-      comments: post.engagement.comments,
-      shares: post.engagement.shares,
-    }));
-    return trends.reverse();
-  };
-
-  const prepareContentMixData = (contentMix: Record<string, number>) => {
-    return Object.entries(contentMix).map(([type, count]) => ({
-      name: type,
-      value: count,
-    }));
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="space-y-6"
+      className="space-y-8"
     >
-      {/* Key Metrics Cards */}
+      {/* Header Section */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+          <p className="text-gray-600">Your LinkedIn performance at a glance</p>
+        </div>
+        <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1 text-sm text-gray-500">
+            <Clock size={16} />
+            <span>Last updated: {new Date().toLocaleTimeString()}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Key Performance Indicators */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatsCard
+        <MetricCard
           title="Profile Strength"
           value={`${metrics.profileStrength || 0}%`}
-          change={metrics.profileStrength >= 80 ? "Excellent" : "Good"}
-          icon={User}
-          color="blue"
+          subtitle="Overall profile quality"
+          icon={<Target size={20} className="text-blue-600" />}
+          trend={metrics.profileStrength >= 80 ? "Excellent" : "Good"}
+          trendDirection={metrics.profileStrength >= 80 ? "up" : "neutral"}
+          color="#3B82F6"
         />
 
-        <StatsCard
+        <MetricCard
           title="Network Quality"
           value={`${metrics.networkQuality || 0}/10`}
-          change={`${
+          subtitle="Connection strength"
+          icon={<Users size={20} className="text-green-600" />}
+          trend={`${
             metrics.networkAnalysis?.analysis?.recentGrowth || 0
           } new this month`}
-          icon={Users}
-          color="green"
+          trendDirection="up"
+          color="#10B981"
         />
 
-        <StatsCard
+        <MetricCard
           title="Social Activity"
           value={`${metrics.socialActivity || 0}/10`}
-          change={`${
+          subtitle="Engagement level"
+          icon={<Activity size={20} className="text-purple-600" />}
+          trend={`${
             metrics.socialAnalysis?.metrics?.likesGiven || 0
           } interactions`}
-          icon={Heart}
-          color="purple"
+          trendDirection="up"
+          color="#8B5CF6"
         />
 
-        <StatsCard
+        <MetricCard
           title="Content Performance"
           value={`${metrics.contentPerformance || 0}/10`}
-          change={`${
+          subtitle="Post effectiveness"
+          icon={<BarChart3 size={20} className="text-orange-600" />}
+          trend={`${
             metrics.contentAnalysis?.metrics?.totalPosts || 0
           } posts published`}
-          icon={FileText}
-          color="orange"
+          trendDirection="up"
+          color="#F59E0B"
         />
       </div>
 
-      {/* Activity Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card variant="glass" className="p-6">
-          <h3 className="text-xl font-bold mb-4">
-            Your Activity (Past 28 days)
-          </h3>
-          <div className="space-y-4">
-            <ActivityItem label="Posts Created" value={metrics.postsCreated} />
-            <ActivityItem
-              label="Comments Given"
-              value={metrics.commentsGiven}
-            />
-            <ActivityItem label="Likes Given" value={metrics.likesGiven} />
-            <ActivityItem label="Total Posts" value={metrics.totalPosts} />
-          </div>
-        </Card>
-
-        <Card variant="glass" className="p-6">
-          <h3 className="text-xl font-bold mb-4">Professional Insights</h3>
-          <div className="space-y-4">
-            <div className="space-y-4">
-              <h4 className="text-lg font-semibold text-gray-800">
-                Profile Development
-              </h4>
-              {metrics.profileAnalysis?.recommendations?.map(
-                (rec: string, index: number) => (
-                  <div key={index} className="flex items-center space-x-3">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <span className="text-gray-600">{rec}</span>
-                  </div>
-                )
-              ) || (
-                <span className="text-gray-500">Profile looking strong!</span>
-              )}
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Left Column - Analytics & Progress */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Activity Overview */}
+          <Card variant="glass" className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900">
+                Activity Overview
+              </h3>
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <Calendar size={16} />
+                <span>Past 28 days</span>
+              </div>
             </div>
-
-            <div className="space-y-4">
-              <h4 className="text-lg font-semibold text-gray-800">
-                Network Insights
-              </h4>
-              {metrics.networkAnalysis?.insights?.map(
-                (insight: string, index: number) => (
-                  <div key={index} className="flex items-center space-x-3">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-gray-600">{insight}</span>
-                  </div>
-                )
-              ) || (
-                <span className="text-gray-500">Building your network...</span>
-              )}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600 mb-1">
+                  {metrics.postsCreated}
+                </div>
+                <div className="text-sm text-gray-600">Posts Created</div>
+              </div>
+              <div className="text-center p-4 bg-green-50 rounded-lg">
+                <div className="text-2xl font-bold text-green-600 mb-1">
+                  {metrics.commentsGiven}
+                </div>
+                <div className="text-sm text-gray-600">Comments Given</div>
+              </div>
+              <div className="text-center p-4 bg-purple-50 rounded-lg">
+                <div className="text-2xl font-bold text-purple-600 mb-1">
+                  {metrics.likesGiven}
+                </div>
+                <div className="text-sm text-gray-600">Likes Given</div>
+              </div>
+              <div className="text-center p-4 bg-orange-50 rounded-lg">
+                <div className="text-2xl font-bold text-orange-600 mb-1">
+                  {metrics.totalPosts}
+                </div>
+                <div className="text-sm text-gray-600">Total Posts</div>
+              </div>
             </div>
+          </Card>
 
-            <div className="space-y-4">
-              <h4 className="text-lg font-semibold text-gray-800">
-                Content Strategy
-              </h4>
-              {metrics.contentAnalysis?.insights?.map(
-                (insight: string, index: number) => (
-                  <div key={index} className="flex items-center space-x-3">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                    <span className="text-gray-600">{insight}</span>
-                  </div>
-                )
-              ) || (
-                <span className="text-gray-500">Start publishing content!</span>
-              )}
+          {/* Performance Chart */}
+          <Card variant="glass" className="p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-6">
+              Performance Trends
+            </h3>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={[
+                    { name: "Profile", value: metrics.profileStrength },
+                    { name: "Network", value: metrics.networkQuality * 10 },
+                    { name: "Social", value: metrics.socialActivity * 10 },
+                    { name: "Content", value: metrics.contentPerformance * 10 },
+                  ]}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#3B82F6"
+                    fill="#3B82F6"
+                    fillOpacity={0.3}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
+          </Card>
+        </div>
 
-            <div className="space-y-4">
-              <h4 className="text-lg font-semibold text-gray-800">
-                Social Engagement
-              </h4>
-              {metrics.socialAnalysis?.insights?.map(
-                (insight: string, index: number) => (
-                  <div key={index} className="flex items-center space-x-3">
-                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                    <span className="text-gray-600">{insight}</span>
-                  </div>
-                )
-              ) || (
-                <span className="text-gray-500">Engage with your network!</span>
-              )}
+        {/* Right Column - Insights & Actions */}
+        <div className="space-y-6">
+          {/* Profile Progress */}
+          <Card variant="glass" className="p-6 text-center">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Profile Progress
+            </h3>
+            <div className="flex justify-center mb-4">
+              <ProgressRing
+                percentage={metrics.profileStrength || 0}
+                size={120}
+                color="#3B82F6"
+              />
             </div>
-          </div>
-        </Card>
+            <p className="text-sm text-gray-600">
+              {metrics.profileStrength >= 80
+                ? "Excellent profile strength!"
+                : metrics.profileStrength >= 60
+                ? "Good progress, keep it up!"
+                : "Room for improvement"}
+            </p>
+          </Card>
+
+          {/* Quick Actions */}
+          <Card variant="glass" className="p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <Zap className="mr-2" size={20} />
+              Quick Actions
+            </h3>
+            <div className="space-y-3">
+              <QuickActionButton
+                title="Find Synergy Partners"
+                description="Discover potential collaborators"
+                icon={<Users size={20} />}
+                gradient="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
+                onClick={() => (window.location.href = "/?module=synergy")}
+              />
+              <QuickActionButton
+                title="Generate Post"
+                description="Create engaging content"
+                icon={<FileText size={20} />}
+                gradient="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                onClick={() => (window.location.href = "/?module=postgen")}
+              />
+              <QuickActionButton
+                title="View Analytics"
+                description="Detailed performance insights"
+                icon={<BarChart3 size={20} />}
+                gradient="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
+                onClick={() => (window.location.href = "/?module=analytics")}
+              />
+            </div>
+          </Card>
+        </div>
       </div>
 
-      {/* Quick Actions */}
-      <Card variant="glass" className="p-6">
-        <h3 className="text-lg font-semibold mb-4 flex items-center">
-          <Zap className="mr-2" size={20} />
-          Quick Actions
-        </h3>
-        <div className="space-y-3">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="w-full p-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all"
-            onClick={() => (window.location.href = "/?module=synergy")}
-          >
-            Check Synergy Partners
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="w-full p-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all"
-            onClick={() => (window.location.href = "/?module=postgen")}
-          >
-            Generate New Post
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="w-full p-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all"
-            onClick={() => (window.location.href = "/?module=analytics")}
-          >
-            View Analytics
-          </motion.button>
-        </div>
-      </Card>
+      {/* Insights Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <InsightCard
+          title="Profile Development"
+          insights={metrics.profileAnalysis?.recommendations}
+          icon={<User size={20} className="text-blue-600" />}
+          color="#3B82F6"
+          emptyMessage="Your profile is looking strong!"
+        />
+        <InsightCard
+          title="Network Insights"
+          insights={metrics.networkAnalysis?.insights}
+          icon={<Building size={20} className="text-green-600" />}
+          color="#10B981"
+          emptyMessage="Keep building your network!"
+        />
+        <InsightCard
+          title="Content Strategy"
+          insights={metrics.contentAnalysis?.insights}
+          icon={<FileText size={20} className="text-purple-600" />}
+          color="#8B5CF6"
+          emptyMessage="Start publishing content!"
+        />
+        <InsightCard
+          title="Social Engagement"
+          insights={metrics.socialAnalysis?.insights}
+          icon={<Heart size={20} className="text-orange-600" />}
+          color="#F59E0B"
+          emptyMessage="Engage with your network!"
+        />
+      </div>
     </motion.div>
   );
 };

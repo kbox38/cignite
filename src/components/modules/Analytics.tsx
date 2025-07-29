@@ -1,24 +1,51 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Calendar, TrendingUp, Users, MessageCircle, Eye, BarChart3, Search, Heart } from 'lucide-react';
-import { Card } from '../ui/Card';
-import { Button } from '../ui/Button';
-import { LoadingSpinner } from '../ui/LoadingSpinner';
-import { useAuthStore } from '../../stores/authStore';
-import { AnalyticsProcessor } from '../../services/analytics-processor';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import {
+  Calendar,
+  TrendingUp,
+  Users,
+  MessageCircle,
+  Eye,
+  BarChart3,
+  Search,
+  Heart,
+} from "lucide-react";
+import { Card } from "../ui/Card";
+import { Button } from "../ui/Button";
+import { LoadingSpinner } from "../ui/LoadingSpinner";
+import { useAuthStore } from "../../stores/authStore";
+import { AnalyticsProcessor } from "../../services/analytics-processor";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  AreaChart,
+  Area,
+} from "recharts";
 
-type TimeRange = '7d' | '30d' | '90d' | '365d' | 'custom';
+type TimeRange = "7d" | "30d" | "90d" | "365d" | "custom";
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
+const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"];
 
 export const Analytics = () => {
-  const [timeRange, setTimeRange] = useState<TimeRange>('30d');
-  const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' });
+  const [timeRange, setTimeRange] = useState<TimeRange>("30d");
+  const [customDateRange, setCustomDateRange] = useState({
+    start: "",
+    end: "",
+  });
   const [metrics, setMetrics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   const { dmaToken } = useAuthStore();
 
   useEffect(() => {
@@ -31,15 +58,16 @@ export const Analytics = () => {
       try {
         setLoading(true);
         setError(null);
-        
+
         const processor = new AnalyticsProcessor();
         const data = await processor.calculateAllMetrics(dmaToken);
-        
-        console.log('Analytics data loaded:', data);
+
         setMetrics(data);
       } catch (err) {
-        console.error('Error fetching analytics:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load analytics');
+        console.error("Error fetching analytics:", err);
+        setError(
+          err instanceof Error ? err.message : "Failed to load analytics"
+        );
       } finally {
         setLoading(false);
       }
@@ -76,26 +104,34 @@ export const Analytics = () => {
   }
 
   const prepareEngagementData = () => {
-    return metrics.content.slice(0, 10).map((post: any) => ({
-      date: new Date(post.date).toLocaleDateString(),
-      engagement: post.engagement.likes + post.engagement.comments + post.engagement.shares,
-      likes: post.engagement.likes,
-      comments: post.engagement.comments,
-      shares: post.engagement.shares
-    })).reverse();
+    return metrics.content
+      .slice(0, 10)
+      .map((post: any) => ({
+        date: new Date(post.date).toLocaleDateString(),
+        engagement:
+          post.engagement.likes +
+          post.engagement.comments +
+          post.engagement.shares,
+        likes: post.engagement.likes,
+        comments: post.engagement.comments,
+        shares: post.engagement.shares,
+      }))
+      .reverse();
   };
 
   const prepareContentMixData = () => {
-    return Object.entries(metrics.calculated.contentMix).map(([type, count]) => ({
-      name: type,
-      value: count as number
-    }));
+    return Object.entries(metrics.calculated.contentMix).map(
+      ([type, count]) => ({
+        name: type,
+        value: count as number,
+      })
+    );
   };
 
   const preparePostingTimesData = () => {
     return metrics.calculated.bestPostingTimes.map((time: any) => ({
       hour: `${time.hour}:00`,
-      engagement: parseFloat(time.avgEngagement)
+      engagement: parseFloat(time.avgEngagement),
     }));
   };
 
@@ -109,10 +145,10 @@ export const Analytics = () => {
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Analytics</h2>
         <div className="flex space-x-2">
-          {(['7d', '30d', '90d', '365d'] as TimeRange[]).map((range) => (
+          {(["7d", "30d", "90d", "365d"] as TimeRange[]).map((range) => (
             <Button
               key={range}
-              variant={timeRange === range ? 'primary' : 'outline'}
+              variant={timeRange === range ? "primary" : "outline"}
               size="sm"
               onClick={() => setTimeRange(range)}
             >
@@ -120,9 +156,9 @@ export const Analytics = () => {
             </Button>
           ))}
           <Button
-            variant={timeRange === 'custom' ? 'primary' : 'outline'}
+            variant={timeRange === "custom" ? "primary" : "outline"}
             size="sm"
-            onClick={() => setTimeRange('custom')}
+            onClick={() => setTimeRange("custom")}
           >
             Custom
           </Button>
@@ -130,7 +166,7 @@ export const Analytics = () => {
       </div>
 
       {/* Custom Date Range */}
-      {timeRange === 'custom' && (
+      {timeRange === "custom" && (
         <Card variant="glass" className="p-4">
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
@@ -139,7 +175,12 @@ export const Analytics = () => {
               <input
                 type="date"
                 value={customDateRange.start}
-                onChange={(e) => setCustomDateRange(prev => ({ ...prev, start: e.target.value }))}
+                onChange={(e) =>
+                  setCustomDateRange((prev) => ({
+                    ...prev,
+                    start: e.target.value,
+                  }))
+                }
                 className="px-2 py-1 border border-gray-300 rounded text-sm"
               />
             </div>
@@ -148,7 +189,12 @@ export const Analytics = () => {
               <input
                 type="date"
                 value={customDateRange.end}
-                onChange={(e) => setCustomDateRange(prev => ({ ...prev, end: e.target.value }))}
+                onChange={(e) =>
+                  setCustomDateRange((prev) => ({
+                    ...prev,
+                    end: e.target.value,
+                  }))
+                }
                 className="px-2 py-1 border border-gray-300 rounded text-sm"
               />
             </div>
@@ -162,7 +208,9 @@ export const Analytics = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Profile Views</p>
-              <p className="text-2xl font-bold">{metrics.profile.profileViews}</p>
+              <p className="text-2xl font-bold">
+                {metrics.profile.profileViews}
+              </p>
               <p className="text-sm text-gray-500">Last 90 days</p>
             </div>
             <div className="p-3 bg-blue-500 rounded-xl">
@@ -174,8 +222,12 @@ export const Analytics = () => {
         <Card variant="glass" className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Search Appearances</p>
-              <p className="text-2xl font-bold">{metrics.profile.searchAppearances}</p>
+              <p className="text-sm font-medium text-gray-600">
+                Search Appearances
+              </p>
+              <p className="text-2xl font-bold">
+                {metrics.profile.searchAppearances}
+              </p>
               <p className="text-sm text-gray-500">In LinkedIn search</p>
             </div>
             <div className="p-3 bg-green-500 rounded-xl">
@@ -187,9 +239,13 @@ export const Analytics = () => {
         <Card variant="glass" className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Connections</p>
+              <p className="text-sm font-medium text-gray-600">
+                Total Connections
+              </p>
               <p className="text-2xl font-bold">{metrics.network.total}</p>
-              <p className="text-sm text-gray-500">+{metrics.network.monthlyGrowth} this month</p>
+              <p className="text-sm text-gray-500">
+                +{metrics.network.monthlyGrowth} this month
+              </p>
             </div>
             <div className="p-3 bg-purple-500 rounded-xl">
               <Users size={24} className="text-white" />
@@ -200,9 +256,15 @@ export const Analytics = () => {
         <Card variant="glass" className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Engagement</p>
-              <p className="text-2xl font-bold">{metrics.calculated.totalEngagement}</p>
-              <p className="text-sm text-gray-500">{metrics.calculated.avgEngagementPerPost} avg per post</p>
+              <p className="text-sm font-medium text-gray-600">
+                Total Engagement
+              </p>
+              <p className="text-2xl font-bold">
+                {metrics.calculated.totalEngagement}
+              </p>
+              <p className="text-sm text-gray-500">
+                {metrics.calculated.avgEngagementPerPost} avg per post
+              </p>
             </div>
             <div className="p-3 bg-orange-500 rounded-xl">
               <Heart size={24} className="text-white" />
@@ -223,7 +285,13 @@ export const Analytics = () => {
                 <XAxis dataKey="date" />
                 <YAxis />
                 <Tooltip />
-                <Area type="monotone" dataKey="engagement" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.3} />
+                <Area
+                  type="monotone"
+                  dataKey="engagement"
+                  stroke="#3B82F6"
+                  fill="#3B82F6"
+                  fillOpacity={0.3}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </Card>
@@ -263,7 +331,10 @@ export const Analytics = () => {
                   label={({ name, value }) => `${name}: ${value}`}
                 >
                   {prepareContentMixData().map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={COLORS[index % COLORS.length]}
+                    />
                   ))}
                 </Pie>
                 <Tooltip />
@@ -296,25 +367,44 @@ export const Analytics = () => {
         <Card variant="glass" className="p-6">
           <h3 className="text-lg font-semibold mb-4">Top Performing Posts</h3>
           <div className="space-y-3">
-            {metrics.calculated.topPerformingPosts.map((post: any, index: number) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
-                    index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : 'bg-orange-500'
-                  }`}>
-                    {index + 1}
+            {metrics.calculated.topPerformingPosts.map(
+              (post: any, index: number) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
+                        index === 0
+                          ? "bg-yellow-500"
+                          : index === 1
+                          ? "bg-gray-400"
+                          : "bg-orange-500"
+                      }`}
+                    >
+                      {index + 1}
+                    </div>
+                    <div>
+                      <p className="font-medium line-clamp-1">
+                        {post.commentary || "Post content..."}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {new Date(post.date).toLocaleDateString()}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium line-clamp-1">{post.commentary || 'Post content...'}</p>
-                    <p className="text-sm text-gray-500">{new Date(post.date).toLocaleDateString()}</p>
+                  <div className="text-right">
+                    <p className="font-bold">
+                      {post.engagement.likes +
+                        post.engagement.comments +
+                        post.engagement.shares}
+                    </p>
+                    <p className="text-sm text-gray-500">total engagement</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-bold">{post.engagement.likes + post.engagement.comments + post.engagement.shares}</p>
-                  <p className="text-sm text-gray-500">total engagement</p>
-                </div>
-              </div>
-            ))}
+              )
+            )}
           </div>
         </Card>
       )}
@@ -323,14 +413,23 @@ export const Analytics = () => {
       {metrics.network.topCompanies.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card variant="glass" className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Top Companies in Network</h3>
+            <h3 className="text-lg font-semibold mb-4">
+              Top Companies in Network
+            </h3>
             <div className="space-y-3">
-              {metrics.network.topCompanies.map((company: any, index: number) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <span className="font-medium">{company.company}</span>
-                  <span className="text-blue-600 font-bold">{company.count}</span>
-                </div>
-              ))}
+              {metrics.network.topCompanies.map(
+                (company: any, index: number) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                  >
+                    <span className="font-medium">{company.company}</span>
+                    <span className="text-blue-600 font-bold">
+                      {company.count}
+                    </span>
+                  </div>
+                )
+              )}
             </div>
           </Card>
 
@@ -339,19 +438,27 @@ export const Analytics = () => {
             <div className="space-y-3">
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <span>Posts Created</span>
-                <span className="font-bold text-blue-600">{metrics.activity.postsCreated}</span>
+                <span className="font-bold text-blue-600">
+                  {metrics.activity.postsCreated}
+                </span>
               </div>
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <span>Comments Given</span>
-                <span className="font-bold text-green-600">{metrics.activity.commentsGiven}</span>
+                <span className="font-bold text-green-600">
+                  {metrics.activity.commentsGiven}
+                </span>
               </div>
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <span>Likes Given</span>
-                <span className="font-bold text-red-600">{metrics.activity.likesGiven}</span>
+                <span className="font-bold text-red-600">
+                  {metrics.activity.likesGiven}
+                </span>
               </div>
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <span>Invitations Sent</span>
-                <span className="font-bold text-purple-600">{metrics.activity.invitationsSent}</span>
+                <span className="font-bold text-purple-600">
+                  {metrics.activity.invitationsSent}
+                </span>
               </div>
             </div>
           </Card>
