@@ -460,20 +460,24 @@ export const Dashboard = () => {
           value={`${metrics.profileStrength || 0}%`}
           subtitle="Overall profile quality"
           icon={<Target size={20} className="text-blue-600" />}
-          trend={metrics.profileStrength >= 80 ? "Excellent" : "Good"}
-          trendDirection={metrics.profileStrength >= 80 ? "up" : "neutral"}
+          trend={getProfileStrengthTrend(metrics.profileStrength)}
+          trendDirection={
+            metrics.profileStrength >= 80
+              ? "up"
+              : metrics.profileStrength >= 50
+              ? "neutral"
+              : "down"
+          }
           color="#3B82F6"
         />
 
         <MetricCard
           title="Network Quality"
           value={`${metrics.networkQuality || 0}/10`}
-          subtitle="Connection strength"
+          subtitle={`${metrics.connections || 0} connections`}
           icon={<Users size={20} className="text-green-600" />}
-          trend={`${
-            metrics.networkAnalysis?.analysis?.recentGrowth || 0
-          } new this month`}
-          trendDirection="up"
+          trend={getNetworkTrend(metrics.connections)}
+          trendDirection={metrics.connections > 100 ? "up" : "neutral"}
           color="#10B981"
         />
 
@@ -482,10 +486,12 @@ export const Dashboard = () => {
           value={`${metrics.socialActivity || 0}/10`}
           subtitle="Engagement level"
           icon={<Activity size={20} className="text-purple-600" />}
-          trend={`${
-            metrics.socialAnalysis?.metrics?.likesGiven || 0
-          } interactions`}
-          trendDirection="up"
+          trend={getSocialTrend(metrics.likesGiven, metrics.commentsGiven)}
+          trendDirection={
+            metrics.likesGiven > 0 || metrics.commentsGiven > 0
+              ? "up"
+              : "neutral"
+          }
           color="#8B5CF6"
         />
 
@@ -494,10 +500,8 @@ export const Dashboard = () => {
           value={`${metrics.contentPerformance || 0}/10`}
           subtitle="Post effectiveness"
           icon={<BarChart3 size={20} className="text-orange-600" />}
-          trend={`${
-            metrics.contentAnalysis?.metrics?.totalPosts || 0
-          } posts published`}
-          trendDirection="up"
+          trend={getContentTrend(metrics.totalPosts)}
+          trendDirection={metrics.totalPosts > 0 ? "up" : "neutral"}
           color="#F59E0B"
         />
       </div>
@@ -520,27 +524,47 @@ export const Dashboard = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-4 bg-blue-50 rounded-lg">
                 <div className="text-2xl font-bold text-blue-600 mb-1">
-                  {metrics.postsCreated}
+                  {metrics.postsCreated || 0}
                 </div>
                 <div className="text-sm text-gray-600">Posts Created</div>
+                <div className="text-xs text-blue-500 mt-1">
+                  {metrics.postsCreated > 0
+                    ? "Great activity!"
+                    : "Start posting"}
+                </div>
               </div>
               <div className="text-center p-4 bg-green-50 rounded-lg">
                 <div className="text-2xl font-bold text-green-600 mb-1">
-                  {metrics.commentsGiven}
+                  {metrics.commentsGiven || 0}
                 </div>
                 <div className="text-sm text-gray-600">Comments Given</div>
+                <div className="text-xs text-green-500 mt-1">
+                  {metrics.commentsGiven > 0
+                    ? "Engaging well!"
+                    : "Start commenting"}
+                </div>
               </div>
               <div className="text-center p-4 bg-purple-50 rounded-lg">
                 <div className="text-2xl font-bold text-purple-600 mb-1">
-                  {metrics.likesGiven}
+                  {metrics.likesGiven || 0}
                 </div>
                 <div className="text-sm text-gray-600">Likes Given</div>
+                <div className="text-xs text-purple-500 mt-1">
+                  {metrics.likesGiven > 0
+                    ? "Active engagement!"
+                    : "Start liking posts"}
+                </div>
               </div>
               <div className="text-center p-4 bg-orange-50 rounded-lg">
                 <div className="text-2xl font-bold text-orange-600 mb-1">
-                  {metrics.totalPosts}
+                  {metrics.totalPosts || 0}
                 </div>
                 <div className="text-sm text-gray-600">Total Posts</div>
+                <div className="text-xs text-orange-500 mt-1">
+                  {metrics.totalPosts > 0
+                    ? "Content published!"
+                    : "No posts yet"}
+                </div>
               </div>
             </div>
           </Card>
@@ -637,28 +661,28 @@ export const Dashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <InsightCard
           title="Profile Development"
-          insights={metrics.profileAnalysis?.recommendations}
+          insights={generateProfileInsights(metrics)}
           icon={<User size={20} className="text-blue-600" />}
           color="#3B82F6"
           emptyMessage="Your profile is looking strong!"
         />
         <InsightCard
           title="Network Insights"
-          insights={metrics.networkAnalysis?.insights}
+          insights={generateNetworkInsights(metrics)}
           icon={<Building size={20} className="text-green-600" />}
           color="#10B981"
           emptyMessage="Keep building your network!"
         />
         <InsightCard
           title="Content Strategy"
-          insights={metrics.contentAnalysis?.insights}
+          insights={generateContentInsights(metrics)}
           icon={<FileText size={20} className="text-purple-600" />}
           color="#8B5CF6"
           emptyMessage="Start publishing content!"
         />
         <InsightCard
           title="Social Engagement"
-          insights={metrics.socialAnalysis?.insights}
+          insights={generateSocialInsights(metrics)}
           icon={<Heart size={20} className="text-orange-600" />}
           color="#F59E0B"
           emptyMessage="Engage with your network!"
@@ -666,4 +690,119 @@ export const Dashboard = () => {
       </div>
     </motion.div>
   );
+};
+
+// Helper functions for trend calculations
+const getProfileStrengthTrend = (strength: number) => {
+  if (strength >= 80) return "Excellent profile!";
+  if (strength >= 60) return "Good progress";
+  if (strength >= 40) return "Needs improvement";
+  return "Complete your profile";
+};
+
+const getNetworkTrend = (connections: number) => {
+  if (connections >= 500) return "Strong network!";
+  if (connections >= 100) return "Growing network";
+  if (connections >= 50) return "Building connections";
+  return "Start connecting";
+};
+
+const getSocialTrend = (likes: number, comments: number) => {
+  const total = likes + comments;
+  if (total >= 100) return "Very active!";
+  if (total >= 50) return "Good engagement";
+  if (total >= 10) return "Getting started";
+  return "Start engaging";
+};
+
+const getContentTrend = (posts: number) => {
+  if (posts >= 20) return "Content creator!";
+  if (posts >= 10) return "Regular poster";
+  if (posts >= 5) return "Getting started";
+  return "Start posting";
+};
+
+// Helper functions to generate actionable insights
+const generateProfileInsights = (metrics: any) => {
+  const insights = [];
+
+  if (metrics.profileStrength < 50) {
+    insights.push("Complete your profile with a professional headline");
+    insights.push("Add your current position and company");
+    insights.push("Include a professional profile photo");
+  } else if (metrics.profileStrength < 80) {
+    insights.push("Add more skills to increase your visibility");
+    insights.push("Include education and certifications");
+    insights.push("Write a compelling summary section");
+  } else {
+    insights.push("Your profile is well-optimized!");
+    insights.push("Consider adding industry-specific keywords");
+    insights.push("Keep your experience section updated");
+  }
+
+  return insights;
+};
+
+const generateNetworkInsights = (metrics: any) => {
+  const insights = [];
+  const connections = metrics.connections || 0;
+
+  if (connections < 100) {
+    insights.push("Start connecting with colleagues and classmates");
+    insights.push("Join industry-specific LinkedIn groups");
+    insights.push("Engage with posts from your target companies");
+  } else if (connections < 500) {
+    insights.push("Focus on quality connections over quantity");
+    insights.push("Personalize your connection requests");
+    insights.push("Attend industry events and connect afterward");
+  } else {
+    insights.push("Strong network! Focus on engagement");
+    insights.push("Share valuable content with your network");
+    insights.push("Help others by making introductions");
+  }
+
+  return insights;
+};
+
+const generateContentInsights = (metrics: any) => {
+  const insights = [];
+  const totalPosts = metrics.totalPosts || 0;
+
+  if (totalPosts === 0) {
+    insights.push("Start by sharing industry insights");
+    insights.push("Post about your professional achievements");
+    insights.push("Share relevant articles with your thoughts");
+  } else if (totalPosts < 10) {
+    insights.push("Aim to post 2-3 times per week");
+    insights.push("Mix original content with curated posts");
+    insights.push("Use relevant hashtags to increase reach");
+  } else {
+    insights.push("Great content consistency!");
+    insights.push("Try different content formats (video, carousel)");
+    insights.push("Engage with comments on your posts");
+  }
+
+  return insights;
+};
+
+const generateSocialInsights = (metrics: any) => {
+  const insights = [];
+  const likesGiven = metrics.likesGiven || 0;
+  const commentsGiven = metrics.commentsGiven || 0;
+
+  if (likesGiven === 0 && commentsGiven === 0) {
+    insights.push("Start by liking posts from your network");
+    insights.push("Leave thoughtful comments on relevant posts");
+    insights.push("Congratulate connections on their achievements");
+  } else if (likesGiven < 50) {
+    insights.push("Increase your daily engagement activity");
+    insights.push("Comment on posts to start conversations");
+    insights.push("Share posts that resonate with your audience");
+  } else {
+    insights.push("Excellent engagement level!");
+    insights.push("Continue building meaningful relationships");
+    insights.push("Consider creating your own thought leadership content");
+  }
+
+  return insights;
 };
