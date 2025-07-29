@@ -21,7 +21,7 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { useAuthStore } from '../../stores/authStore';
-import { LinkedInDataService, debugLinkedInData } from '../../services/linkedin-data-service';
+import { LinkedInDataService } from '../../services/linkedin-data-service';
 
 interface TestResult {
   name: string;
@@ -379,21 +379,13 @@ export const DMATestPage = () => {
     
     setDebugOutput('Running comprehensive LinkedIn data analysis...\n');
     
-    // Capture console.log output
-    const originalLog = console.log;
-    let output = '';
-    console.log = (...args) => {
-      output += args.join(' ') + '\n';
-      originalLog(...args);
-    };
-    
     try {
-      await debugLinkedInData(dmaToken);
-      setDebugOutput(output);
+      const service = new LinkedInDataService();
+      const metrics = await service.getProfileMetrics();
+      
+      setDebugOutput(JSON.stringify(metrics, null, 2));
     } catch (error) {
-      setDebugOutput(output + '\nError: ' + (error instanceof Error ? error.message : 'Unknown error'));
-    } finally {
-      console.log = originalLog;
+      setDebugOutput('Error: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
