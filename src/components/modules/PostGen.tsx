@@ -16,6 +16,7 @@ import {
   generateKevinBoxHooks,
   rewriteKevinBoxPost,
   generateKevinBoxPost,
+  summarizeArticleToPost,
 } from "../../services/openai";
 import { createLinkedInPost } from "../../services/linkedin";
 
@@ -51,7 +52,7 @@ export const PostGen = () => {
   const location = useLocation();
   const { accessToken } = useAuthStore();
   const { setCurrentModule } = useAppStore();
-  const [activeTab, setActiveTab] = useState<"create" | "rewrite">("create");
+  const [activeTab, setActiveTab] = useState<"create" | "rewrite" | "summarize">("create");
 
   // Create New Post Section
   const [postTopic, setPostTopic] = useState("");
@@ -76,6 +77,11 @@ export const PostGen = () => {
   const [originalPost, setOriginalPost] = useState("");
   const [rewrittenPost, setRewrittenPost] = useState("");
   const [isRewriting, setIsRewriting] = useState(false);
+
+  // Summarize Section
+  const [articleContent, setArticleContent] = useState("");
+  const [summarizedPost, setSummarizedPost] = useState("");
+  const [isSummarizing, setIsSummarizing] = useState(false);
 
   const showNotification = (type: "success" | "error", message: string) => {
     setNotification({ type, message });
@@ -263,6 +269,21 @@ export const PostGen = () => {
     }
   };
 
+  const handleSummarizeArticle = async () => {
+    if (!articleContent.trim()) return;
+    setIsSummarizing(true);
+
+    try {
+      const content = await summarizeArticleToPost(articleContent);
+      setSummarizedPost(content);
+    } catch (error) {
+      console.error("Failed to summarize article:", error);
+      showNotification("error", "Failed to summarize article. Please try again.");
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
   const handlePostNow = async () => {
     if (!generatedPost?.content && !rewrittenPost.trim()) return;
     if (!accessToken) {
@@ -353,6 +374,8 @@ export const PostGen = () => {
     setGeneratedHooks([]);
     setSelectedHook("");
     setShowHooks(false);
+    setArticleContent("");
+    setSummarizedPost("");
   };
 
   return (
@@ -459,6 +482,17 @@ export const PostGen = () => {
           >
             <Edit3 size={16} className="inline mr-2" />
             Rewrite Post
+          </Button>
+          <Button
+            onClick={() => setActiveTab("summarize")}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === "summarize"
+                ? "bg-blue-500 text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            <Upload size={16} className="inline mr-2" />
+            Summarize Article
           </Button>
         </div>
 
@@ -568,17 +602,47 @@ export const PostGen = () => {
             </div>
           </div>
         )}
+
+        {/* Summarize Article Section */}
+        {activeTab === "summarize" && (
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Article Content
+              </label>
+              <textarea
+                value={articleContent}
+                onChange={(e) => setArticleContent(e.target.value)}
+                placeholder="Paste the article content here to summarize and convert to a LinkedIn post..."
+                className="w-full h-48 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              />
+              <div className="flex justify-between items-center mt-2">
+                <p className="text-sm text-gray-500">
+                  {articleContent.length}/5000 characters
+                </p>
+                <Button
+                  variant="primary"
+                  onClick={handleSummarizeArticle}
+                  disabled={!articleContent.trim() || isSummarizing}
+                >
+                  <Upload size={16} className="mr-2" />
+                  {isSummarizing ? "Summarizing..." : "Summarize & Convert"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Generated Content Display */}
-      {(generatedPost || rewrittenPost) && (
+      {(generatedPost || rewrittenPost || summarizedPost) && (
         <Card variant="glass" className="p-6">
           <h3 className="text-lg font-semibold mb-4">
-            {activeTab === "create" ? "Generated Post" : "Rewritten Post"}
+            {activeTab === "create" ? "Generated Post" : activeTab === "rewrite" ? "Rewritten Post" : "Summarized Post"}
           </h3>
           <div className="p-4 bg-gray-50 rounded-lg mb-4">
             <p className="whitespace-pre-line text-gray-700">
-              {activeTab === "create" ? generatedPost?.content : rewrittenPost}
+              {activeTab === "create" ? generatedPost?.content : activeTab === "rewrite" ? rewrittenPost : summarizedPost}
             </p>
           </div>
 
@@ -636,7 +700,9 @@ export const PostGen = () => {
                 copyToClipboard(
                   activeTab === "create"
                     ? generatedPost?.content || ""
-                    : rewrittenPost
+                    : activeTab === "rewrite"
+                    ? rewrittenPost
+                    : summarizedPost
                 )
               }
               disabled={isPosting}

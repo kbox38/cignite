@@ -185,58 +185,68 @@ Make it specific and actionable.
 // Kevin Box Content Engine Functions
 
 // Kevin Box System Prompt
-const KEVIN_BOX_SYSTEM = `You are Kevin Box's AI content strategist, trained to create viral hooks and rewrite posts in Kevin's bold, pithy, and no-nonsense style.  
-Rules:  
-- Avoid emojis, filler, or politeness.  
-- Tone must be confident, emotionally charged, and attention-grabbing.  
-- Hooks and rewrites must evoke curiosity, fear, surprise, or identity.`;
+const KEVIN_BOX_SYSTEM = `You are Kevin Box's AI content strategist.`;
 
-// Generate Kevin Box style hooks
+// Generate Kevin Box style hooks - EXACT PROMPT 1
 export const generateKevinBoxHooks = async (
   postText: string
 ): Promise<string> => {
-  const prompt = `Generate 5 viral hooks for the following post.  
-Guidelines:  
-- Hooks must be 10–20 words, pithy, bold, and emotionally charged.  
-- Use curiosity, fear, and surprise to drive attention.  
-- Match the tone of these examples:
+  const prompt = `Generate 5 viral hooks for the following post. 
+The hooks should:
+- Match the tone, character length, and structure of these examples:  
   1. Leaving a toxic workplace is not an act of defeat, but a sign of bravery.  
   2. You don't get what you deserve, you get what you negotiate.  
   3. The worst part of a toxic boss isn't behavior, it's how they make you doubt your own self-worth.  
   4. Politeness is the poison of collaboration (Not joking).  
   5. Before you fix your productivity, fix the people killing it.  
+- Hooks must be short (10–20 words), direct, and emotionally charged.  
+- Use patterns like:  
+  * "Most people get this wrong…"  
+  * "This might get me in trouble, but…"  
+  * "The one thing I wish I learned 10 years ago…"
 
 Post: ${postText}`;
 
   return await generateContent(prompt, KEVIN_BOX_SYSTEM);
 };
 
-// Rewrite post using Kevin Box framework
+// Rewrite post using Kevin Box framework - EXACT PROMPT 2
 export const rewriteKevinBoxPost = async (
   postText: string
 ): Promise<string> => {
-  const prompt = `Rewrite this post using Kevin Box's framework:
-- Start with a scroll-stopping hook (bold, punchy opening).  
-- Add a sub-hook with tension or curiosity.  
-- Include a credibility element (quote/stat).  
-- Use a list (1/, 2/, 3/ with ↳ sub-points) if applicable.  
-- End with a short, powerful engagement question.  
-- Tone: bold, confident, and no-nonsense.  
+  const prompt = `Rewrite this post using the following structure:
+- Start with a scroll-stopping hook (one bold, punchy sentence).  
+- Follow with a sub-hook that adds tension or curiosity.  
+- Include a quote, stat, or study for credibility.  
+- Use a list format (1/, 2/, 3/ with ↳ for sub-points) when appropriate.  
+- Conclude with a short, powerful question to provoke engagement.  
+- Match Kevin Box's style: pithy, bold, no-nonsense.
 
 Post: ${postText}`;
 
   return await generateContent(prompt, KEVIN_BOX_SYSTEM);
 };
 
-// Generate new post using Kevin Box style
+// Generate new post using Kevin Box style - EXACT PROMPT 2 adapted
 export const generateKevinBoxPost = async (topic: string): Promise<string> => {
-  const prompt = `Create a professional LinkedIn post about: ${topic}. Use Kevin Box's framework:
-- Start with a scroll-stopping hook (bold, punchy opening).  
-- Add a sub-hook with tension or curiosity.  
-- Include a credibility element (quote/stat).  
-- Use a list (1/, 2/, 3/ with ↳ sub-points) if applicable.  
-- End with a short, powerful engagement question.  
-- Tone: bold, confident, and no-nonsense.`;
+  const prompt = `Create a LinkedIn post about: ${topic} using the following structure:
+- Start with a scroll-stopping hook (one bold, punchy sentence).  
+- Follow with a sub-hook that adds tension or curiosity.  
+- Include a quote, stat, or study for credibility.  
+- Use a list format (1/, 2/, 3/ with ↳ for sub-points) when appropriate.  
+- Conclude with a short, powerful question to provoke engagement.  
+- Match Kevin Box's style: pithy, bold, no-nonsense.`;
+
+  return await generateContent(prompt, KEVIN_BOX_SYSTEM);
+};
+
+// Article summarization - EXACT PROMPT 4
+export const summarizeArticleToPost = async (
+  articleContent: string
+): Promise<string> => {
+  const prompt = `Summarize the following article into 3-5 core points and rewrite it into a LinkedIn post using Kevin Box's style:
+
+${articleContent}`;
 
   return await generateContent(prompt, KEVIN_BOX_SYSTEM);
 };
