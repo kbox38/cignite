@@ -20,7 +20,7 @@ export const useLinkedInChangelog = (count: number = 50) => {
     queryKey: ['linkedin-changelog', count],
     queryFn: () => fetchLinkedInChangelog(dmaToken!, count),
     enabled: !!dmaToken,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 2 * 60 * 1000, // 2 minutes
     retry: 1,
     refetchOnWindowFocus: false,
   });
@@ -33,8 +33,8 @@ export const useLinkedInSnapshot = (domain?: string) => {
     queryKey: ['linkedin-snapshot', domain],
     queryFn: () => fetchLinkedInSnapshot(dmaToken!, domain),
     enabled: !!dmaToken,
-    staleTime: 15 * 60 * 1000,
-    gcTime: 60 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 30 * 60 * 1000, // 30 minutes
     retry: 1,
     refetchOnWindowFocus: false,
   });

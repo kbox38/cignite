@@ -12,6 +12,7 @@ export class LinkedInDataService {
   private getCachedData(key: string): any | null {
     const cached = this.cache.get(key);
     if (cached && Date.now() - cached.timestamp < this.CACHE_DURATION) {
+      console.log(`Using cached data for: ${key}`);
       return cached.data;
     }
     return null;
@@ -19,6 +20,7 @@ export class LinkedInDataService {
 
   private setCachedData(key: string, data: any): void {
     this.cache.set(key, { data, timestamp: Date.now() });
+    console.log(`Cached data for: ${key}`);
   }
 
   async fetchProfileViews(token: string) {
@@ -312,7 +314,11 @@ export class LinkedInDataService {
 
   async getProfileMetrics(): Promise<any> {
     try {
+      console.log("=== LINKEDIN DATA SERVICE DEBUG ===");
+      console.log("Starting getProfileMetrics...");
+
       // Fetch all required domain data
+      console.log("Fetching domain data...");
       const [
         profileData,
         connectionsData,
@@ -333,7 +339,31 @@ export class LinkedInDataService {
         this.fetchChangelogData(),
       ]);
 
+      console.log("Raw domain data received:", {
+        profileData: { count: profileData?.count, sample: profileData?.sample },
+        connectionsData: {
+          count: connectionsData?.count,
+          sample: connectionsData?.sample,
+        },
+        memberShareData: {
+          count: memberShareData?.count,
+          sample: memberShareData?.sample,
+        },
+        likesData: { count: likesData?.count, sample: likesData?.sample },
+        educationData: {
+          count: educationData?.count,
+          sample: educationData?.sample,
+        },
+        skillsData: { count: skillsData?.count, sample: skillsData?.sample },
+        positionsData: {
+          count: positionsData?.count,
+          sample: positionsData?.sample,
+        },
+        changelogData: { elements: changelogData?.elements?.length },
+      });
+
       // Calculate advanced metrics
+      console.log("Calculating analytics metrics...");
 
       try {
         const profileStrength = calculateProfileStrength({
@@ -342,16 +372,20 @@ export class LinkedInDataService {
           SKILLS: skillsData,
           POSITIONS: positionsData,
         });
+        console.log("Profile strength calculated:", profileStrength);
 
         const networkQuality = calculateNetworkQuality(connectionsData);
+        console.log("Network quality calculated:", networkQuality);
 
         const socialActivity = calculateSocialActivityScore(
           likesData,
           connectionsData?.count || 0,
           changelogData
         );
+        console.log("Social activity calculated:", socialActivity);
 
         const contentPerformance = calculateContentPerformance(memberShareData);
+        console.log("Content performance calculated:", contentPerformance);
 
         const result = {
           // Keep original zeros for now
@@ -377,6 +411,7 @@ export class LinkedInDataService {
           likesGiven: likesData?.count || 0,
         };
 
+        console.log("Final metrics result:", result);
         return result;
       } catch (analyticsError) {
         console.error("Analytics calculation error:", analyticsError);
@@ -400,36 +435,62 @@ export class LinkedInDataService {
 
   private async fetchDomainData(domain: string): Promise<any> {
     try {
+      console.log(`Fetching domain data for: ${domain}`);
       const response = await fetch(
         `/.netlify/functions/linkedin-snapshot?domain=${domain}`
       );
-
+      
       if (!response.ok) {
+        console.error(`Error fetching ${domain}: HTTP ${response.status} ${response.statusText}`);
         return { count: 0, sample: null };
       }
-
+      
       const data = await response.json();
+      console.log(`${domain} API response:`, {
+        status: response.status,
+        hasElements: !!data.elements,
+        elementsLength: data.elements?.length,
+        firstElement: data.elements?.[0],
+        snapshotDataLength: data.elements?.[0]?.snapshotData?.length
+      });
+      
       const result = data.elements?.[0] || { count: 0, sample: null };
-
+      console.log(`${domain} processed result:`, {
+        count: result.count,
+        hasSample: !!result.sample,
+        sampleKeys: result.sample ? Object.keys(result.sample) : []
+      });
+      
       return result;
     } catch (error) {
+      console.error(`Error fetching ${domain} domain data:`, error);
       return { count: 0, sample: null };
     }
   }
 
   private async fetchChangelogData(): Promise<any> {
     try {
+      console.log('Fetching changelog data...');
       const response = await fetch(
         "/.netlify/functions/linkedin-changelog?count=100"
       );
-
+      
       if (!response.ok) {
+        console.error(`Error fetching changelog: HTTP ${response.status} ${response.statusText}`);
         return { elements: [] };
       }
-
+      
       const data = await response.json();
+      console.log('Changelog API response:', {
+        status: response.status,
+        hasElements: !!data.elements,
+        elementsLength: data.elements?.length,
+        firstElement: data.elements?.[0]
+      });
+      
       return data;
     } catch (error) {
+      console.error('Error fetching changelog data:', error);
       return { elements: [] };
     }
   }
@@ -450,4 +511,59 @@ export class LinkedInDataService {
   }
 }
 
+// Debug function to explore all available data
+export async function debugLinkedInData(token: string) {
+  console.log("=== LinkedIn Data Debug ===");
 
+  // Check Profile domain
+  try {
+    const profileResponse = await fetch(
+      "/.netlify/functions/linkedin-snapshot?domain=PROFILE",
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+    const profileData = await profileResponse.json();
+    console.log("PROFILE Domain:", profileData);
+
+    // List all available keys
+    if (profileData.elements?.[0]?.snapshotData) {
+      const allKeys = new Set<string>();
+      profileData.elements[0].snapshotData.forEach((item: any) => {
+        Object.keys(item).forEach((key) => allKeys.add(key));
+      });
+      console.log("All available profile keys:", Array.from(allKeys));
+    }
+  } catch (error) {
+    console.error("Error debugging profile data:", error);
+  }
+
+  // Check other domains
+  const domains = [
+    "MEMBER_SHARE_INFO",
+    "CONNECTIONS",
+    "ALL_LIKES",
+    "ALL_COMMENTS",
+    "SKILLS",
+    "POSITIONS",
+  ];
+  for (const domain of domains) {
+    try {
+      const response = await fetch(
+        `/.netlify/functions/linkedin-snapshot?domain=${domain}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const data = await response.json();
+      console.log(`${domain} Domain:`, data);
+
+      if (data.elements?.[0]?.snapshotData) {
+        console.log(`${domain} sample data:`, data.elements[0].snapshotData[0]);
+        console.log(`${domain} count:`, data.elements[0].snapshotData.length);
+      }
+    } catch (error) {
+      console.error(`Error debugging ${domain} data:`, error);
+    }
+  }
+}

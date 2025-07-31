@@ -18,6 +18,7 @@ export interface ProcessedPost {
   repurposeGrade: "red" | "blue";
   media?: any;
   thumbnail?: string;
+  mediaAssetId?: string | null;
   canRepost: boolean;
   daysSincePosted: number;
   resourceName?: string;

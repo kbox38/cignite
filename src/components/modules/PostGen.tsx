@@ -3,17 +3,22 @@ import { motion } from "framer-motion";
 import {
   Wand2,
   Copy,
-  Calendar,
-  RefreshCw,
-  Upload,
   Send,
+  Upload,
+  RefreshCw,
   Clock,
   Edit3,
 } from "lucide-react";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
-import { generateContent } from "../../services/openai";
+import {
+  generateContent,
+  generateKevinBoxHooks,
+  rewriteKevinBoxPost,
+  generateKevinBoxPost,
+} from "../../services/openai";
 import { createLinkedInPost } from "../../services/linkedin";
+
 import { useAuthStore } from "../../stores/authStore";
 import { useAppStore } from "../../stores/appStore";
 import { useLocation } from "react-router-dom";
@@ -60,6 +65,12 @@ export const PostGen = () => {
     type: "success" | "error";
     message: string;
   } | null>(null);
+  
+  // Kevin Box state variables
+  const [generatedHooks, setGeneratedHooks] = useState<string[]>([]);
+  const [selectedHook, setSelectedHook] = useState<string>("");
+  const [isGeneratingHooks, setIsGeneratingHooks] = useState(false);
+  const [showHooks, setShowHooks] = useState(false);
 
   // Rewrite Section
   const [originalPost, setOriginalPost] = useState("");
@@ -84,6 +95,11 @@ export const PostGen = () => {
         setOriginalPost(text);
         // Clear the data after using it
         sessionStorage.removeItem(SESSION_STORAGE_KEYS.REPURPOSE_POST);
+        console.log("Loaded repurposed post:", {
+          text,
+          originalDate,
+          engagement,
+        });
       } catch (error) {
         console.error("Error parsing repurpose data:", error);
       }
@@ -99,6 +115,7 @@ export const PostGen = () => {
         setPostTopic(topicText);
         // Clear the data after using it
         sessionStorage.removeItem(SESSION_STORAGE_KEYS.IDEA_CONTENT);
+        console.log("Loaded idea content:", { title, description, category });
       } catch (error) {
         console.error("Error parsing idea data:", error);
       }
@@ -116,10 +133,12 @@ export const PostGen = () => {
           setOriginalPost(content);
           // If there's media, we could handle it here
           if (media) {
-            // Handle media here in the future
+            // For now, we'll just log it
+            console.log("Media from scheduler:", media);
           }
           // Clear the data after using it
           sessionStorage.removeItem(SESSION_STORAGE_KEYS.POSTGEN_DATA);
+          console.log("Loaded post from scheduler:", { content, media });
         }
       } catch (error) {
         console.error("Error parsing scheduler data:", error);
@@ -178,20 +197,17 @@ export const PostGen = () => {
 
   const handleGeneratePost = async () => {
     if (!postTopic.trim()) return;
-
     setIsGenerating(true);
 
     try {
-      const prompt = `Create a professional LinkedIn post about: ${postTopic}. Make it engaging, authentic, and valuable to the professional community. Include relevant hashtags.`;
-      const content = await generateContent(prompt);
-
+      const content = await generateKevinBoxPost(postTopic);
       setGeneratedPost({
         content,
         timestamp: Date.now(),
       });
     } catch (error) {
       console.error("Failed to generate post:", error);
-      // Fallback content
+      // Keep existing fallback
       setGeneratedPost({
         content: `Here's my take on ${postTopic}:\n\nThis topic is incredibly relevant in today's professional landscape. From my experience, the key is to approach it with both strategic thinking and authentic execution.\n\nWhat's your perspective on this? I'd love to hear your thoughts in the comments.\n\n#LinkedIn #Professional #Growth`,
         timestamp: Date.now(),
@@ -203,17 +219,15 @@ export const PostGen = () => {
 
   const handleRewritePost = async () => {
     if (!originalPost.trim()) return;
-
     setIsRewriting(true);
 
     try {
-      const prompt = `Rewrite this LinkedIn post to make it more engaging and professional while keeping the core message. Original post: "${originalPost}"`;
-      const content = await generateContent(prompt);
+      const content = await rewriteKevinBoxPost(originalPost);
       setRewrittenPost(content);
     } catch (error) {
       console.error("Failed to rewrite post:", error);
       setRewrittenPost(
-        `Here's a fresh take on your original post:\n\n${originalPost}\n\n[This would be rewritten with AI to be more engaging while maintaining your core message]`
+        `Here's a fresh take on your original post:\n\n${originalPost}\n\n[This would be rewritten with Kevin Box AI to be more engaging while maintaining your core message]`
       );
     } finally {
       setIsRewriting(false);
@@ -224,6 +238,28 @@ export const PostGen = () => {
     const file = e.target.files?.[0];
     if (file) {
       setUploadedFile(file);
+    }
+  };
+
+  // Add new hook generation function
+  const handleGenerateHooks = async () => {
+    if (!postTopic.trim()) return;
+    setIsGeneratingHooks(true);
+
+    try {
+      const hooksResponse = await generateKevinBoxHooks(postTopic);
+      const hooks = hooksResponse
+        .split('\n')
+        .filter(line => line.trim() && /^\d+\./.test(line.trim()))
+        .map(line => line.replace(/^\d+\.\s*/, '').trim());
+      
+      setGeneratedHooks(hooks);
+      setShowHooks(true);
+    } catch (error) {
+      console.error("Failed to generate hooks:", error);
+      showNotification("error", "Failed to generate hooks. Please try again.");
+    } finally {
+      setIsGeneratingHooks(false);
     }
   };
 
@@ -244,7 +280,7 @@ export const PostGen = () => {
         uploadedFile || undefined
       );
       showNotification("success", "Post successfully published to LinkedIn!");
-
+      console.log("Post posted:", contentToPost);
 
       // Clear generated/rewritten post and file after posting
       setGeneratedPost(null);
@@ -314,6 +350,9 @@ export const PostGen = () => {
     setUploadedFile(null);
     setOriginalPost("");
     setRewrittenPost("");
+    setGeneratedHooks([]);
+    setSelectedHook("");
+    setShowHooks(false);
   };
 
   return (
@@ -440,16 +479,63 @@ export const PostGen = () => {
                 <p className="text-sm text-gray-500">
                   {postTopic.length}/500 characters
                 </p>
-                <Button
-                  variant="primary"
-                  onClick={handleGeneratePost}
-                  disabled={!postTopic.trim() || isGenerating}
-                >
-                  <Wand2 size={16} className="mr-2" />
-                  {isGenerating ? "Generating..." : "Generate Post"}
-                </Button>
+                <div className="flex space-x-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleGenerateHooks}
+                    disabled={!postTopic.trim() || isGeneratingHooks}
+                  >
+                    <Wand2 size={16} className="mr-2" />
+                    {isGeneratingHooks ? "Generating..." : "Generate Viral Hooks"}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={handleGeneratePost}
+                    disabled={!postTopic.trim() || isGenerating}
+                  >
+                    <Wand2 size={16} className="mr-2" />
+                    {isGenerating ? "Generating..." : "Generate Post"}
+                  </Button>
+                </div>
               </div>
             </div>
+
+            {/* Viral Hooks Display */}
+            {showHooks && generatedHooks.length > 0 && (
+              <Card variant="glass" className="p-4">
+                <h4 className="text-lg font-semibold mb-3">Viral Hooks Generated</h4>
+                <p className="text-sm text-gray-600 mb-4">
+                  Choose a hook that resonates with your message (Kevin Box style: bold, emotional, attention-grabbing):
+                </p>
+                <div className="space-y-3">
+                  {generatedHooks.map((hook, index) => (
+                    <div
+                      key={index}
+                      className={`p-3 border rounded-lg cursor-pointer transition-all duration-200 ${
+                        selectedHook === hook
+                          ? "border-blue-500 bg-blue-50 shadow-md"
+                          : "border-gray-300 hover:border-gray-400 hover:bg-gray-50"
+                      }`}
+                      onClick={() => setSelectedHook(hook)}
+                    >
+                      <div className="flex items-start">
+                        <span className="text-sm font-medium text-gray-500 mr-3">
+                          {index + 1}.
+                        </span>
+                        <p className="text-sm font-medium text-gray-800 flex-1">
+                          {hook}
+                        </p>
+                        {selectedHook === hook && (
+                          <div className="ml-2">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
           </div>
         )}
 

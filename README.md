@@ -1,58 +1,48 @@
-# LinkedIn Growth SaaS - Project Structure Documentation
-
-## 📋 Table of Contents
-1. [Project Overview](#project-overview)
-2. [Technology Stack](#technology-stack)
-3. [Project Architecture](#project-architecture)
-4. [Directory Structure](#directory-structure)
-5. [Core Components](#core-components)
-6. [Module Features](#module-features)
-7. [Services & APIs](#services--apis)
-8. [State Management](#state-management)
-9. [Authentication Flow](#authentication-flow)
-10. [Data Processing](#data-processing)
-11. [Deployment & Infrastructure](#deployment--infrastructure)
-
-## 🎯 Project Overview  :
-
+LinkedIn Growth SaaS - Project Structure Documentation
+📋 Table of Contents
+Project Overview
+Technology Stack
+Project Architecture
+Directory Structure
+Core Components
+Module Features
+Services & APIs
+State Management
+Authentication Flow
+Data Processing
+Deployment & Infrastructure
+🎯 Project Overview :
 LinkedIn Growth SaaS is a comprehensive platform designed to help professionals grow their LinkedIn presence through advanced analytics, AI-powered content creation, and strategic engagement tools. The application leverages LinkedIn's DMA (Data Member Agreement) APIs to provide real-time insights and actionable recommendations.
 
-### Key Features
-- **Real-time LinkedIn Analytics**: Profile views, search appearances, engagement metrics
-- **AI-Powered Content Generation**: Smart post creation and rewriting
-- **Synergy Partner Management**: Strategic connection building
-- **Post Scheduling & Management**: Content calendar and automation
-- **Algorithm Insights**: LinkedIn algorithm optimization recommendations
-- **Historical Post Analysis**: Performance tracking and repurposing
-
-## 🛠 Technology Stack
-
-### Frontend
-- **React 18.3.1**: Modern React with hooks and concurrent features
-- **TypeScript**: Type-safe development
-- **Vite 5.4.2**: Fast build tool and development server
-- **Tailwind CSS 3.4.1**: Utility-first CSS framework
-- **Framer Motion 12.23.6**: Animation and gesture library
-- **React Router DOM 7.7.0**: Client-side routing
-- **React Query (@tanstack/react-query 5.83.0)**: Server state management
-- **Recharts 3.1.0**: Data visualization library
-- **Zustand 5.0.6**: Lightweight state management
-
-### Backend & APIs
-- **Netlify Functions**: Serverless backend functions
-- **LinkedIn DMA APIs**: Data access and analytics
-- **OpenAI API**: AI content generation
-- **Stripe API**: Payment processing (future implementation)
-
-### Development Tools
-- **ESLint**: Code linting and quality
-- **TypeScript ESLint**: TypeScript-specific linting
-- **PostCSS & Autoprefixer**: CSS processing
-- **Lucide React**: Icon library
-
-## 🏗 Project Architecture :
-
-```
+Key Features
+Real-time LinkedIn Analytics: Profile views, search appearances, engagement metrics
+AI-Powered Content Generation: Smart post creation and rewriting
+Synergy Partner Management: Strategic connection building
+Post Scheduling & Management: Content calendar and automation
+Algorithm Insights: LinkedIn algorithm optimization recommendations
+Historical Post Analysis: Performance tracking and repurposing
+🛠 Technology Stack
+Frontend
+React 18.3.1: Modern React with hooks and concurrent features
+TypeScript: Type-safe development
+Vite 5.4.2: Fast build tool and development server
+Tailwind CSS 3.4.1: Utility-first CSS framework
+Framer Motion 12.23.6: Animation and gesture library
+React Router DOM 7.7.0: Client-side routing
+React Query (@tanstack/react-query 5.83.0): Server state management
+Recharts 3.1.0: Data visualization library
+Zustand 5.0.6: Lightweight state management
+Backend & APIs
+Netlify Functions: Serverless backend functions
+LinkedIn DMA APIs: Data access and analytics
+OpenAI API: AI content generation
+Stripe API: Payment processing (future implementation)
+Development Tools
+ESLint: Code linting and quality
+TypeScript ESLint: TypeScript-specific linting
+PostCSS & Autoprefixer: CSS processing
+Lucide React: Icon library
+🏗 Project Architecture :
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Frontend      │    │   Netlify       │    │   LinkedIn      │
 │   (React/Vite)  │◄──►│   Functions     │◄──►│   DMA APIs      │
@@ -74,7 +64,397 @@ LinkedIn Growth SaaS is a comprehensive platform designed to help professionals 
 
 ## 📁 Directory Structure
 
-```
+linkedin-growth-saas/ ├── 📁 public/ # Static assets │ ├── vite.svg # Vite logo │ └── favicon.ico # Site favicon │ ├── 📁 src/ # Source code │ ├── 📁 components/ # React components │ │ ├── 📁 auth/ # Authentication components │ │ │ └── AuthFlow.tsx # OAuth flow management │ │ ├── 📁 dashboard/ # Dashboard components │ │ │ ├── Dashboard.tsx # Main dashboard │ │ │ └── StatsCard.tsx # Metric display cards │ │ ├── 📁 landing/ # Landing page components │ │ │ └── LandingPage.tsx # Marketing landing page │ │ ├── 📁 layout/ # Layout components │ │ │ ├── Header.tsx # App header │ │ │ ├── Sidebar.tsx # Navigation sidebar │ │ │ └── NavItem.tsx # Navigation items │ │ ├── 📁 modules/ # Feature modules │ │ │ ├── Analytics.tsx # Analytics dashboard │ │ │ ├── CreationEngine.tsx # Content creation tools │ │ │ ├── DMATestPage.tsx # API testing interface │ │ │ ├── PostGen.tsx # AI post generation │ │ │ ├── PostPulse.tsx # Historical post management │ │ │ ├── Scheduler.tsx # Content scheduling │ │ │ ├── Settings.tsx # User settings │ │ │ ├── Synergy.tsx # Partner management │ │ │ └── TheAlgo.tsx # Algorithm insights │ │ └── 📁 ui/ # Reusable UI components │ │ ├── Button.tsx # Button component │ │ ├── Card.tsx # Card component │ │ └── LoadingSpinner.tsx # Loading indicator │ │ │ ├── 📁 hooks/ # Custom React hooks │ │ └── useLinkedInData.ts # LinkedIn data fetching hooks │ │ │ ├── 📁 services/ # Business logic services │ │ ├── analytics-processor.ts # Data analytics processing │ │ ├── linkedin.ts # LinkedIn API client │ │ ├── linkedin-data-service.ts # LinkedIn data service │ │ └── openai.ts # OpenAI integration │ │ │ ├── 📁 stores/ # State management │ │ ├── appStore.ts # App-wide state │ │ └── authStore.ts # Authentication state │ │ │ ├── 📁 types/ # TypeScript definitions │ │ └── linkedin.ts # LinkedIn API types │ │ │ ├── App.tsx # Main app component │ ├── AppContent.tsx # App content router │ ├── main.tsx # App entry point │ ├── index.css # Global styles │ └── vite-env.d.ts # Vite type definitions │ ├── 📁 netlify/ # Netlify configuration │ └── 📁 functions/ # Serverless functions │ ├── linkedin-oauth-start.js # OAuth initiation │ ├── linkedin-oauth-callback.js # OAuth callback handler │ ├── linkedin-profile.js # Profile data fetching │ ├── linkedin-changelog.js # Activity data fetching │ ├── linkedin-snapshot.js # Historical data fetching │ └── fetch-profile-metrics.js # Profile metrics extraction │ ├── 📄 Configuration Files ├── .env.example # Environment variables template ├── netlify.toml # Netlify deployment config ├── package.json # Dependencies and scripts ├── tailwind.config.js # Tailwind CSS configuration ├── tsconfig.json # TypeScript configuration ├── tsconfig.app.json # App-specific TypeScript config ├── tsconfig.node.json # Node-specific TypeScript config ├── vite.config.ts # Vite build configuration ├── postcss.config.js # PostCSS configuration └── eslint.config.js # ESLint configuration
+
+
+## 🧩 Core Components
+
+### 1. App.tsx
+**Purpose**: Main application component and routing logic
+**Features**:
+- Authentication state management
+- Route protection and redirection
+- OAuth callback parameter handling
+- Layout rendering based on auth state
+
+```typescript
+// Key responsibilities:
+- Check authentication status (basic + DMA)
+- Handle OAuth callback parameters
+- Render appropriate component (Landing/Auth/Dashboard)
+- Manage loading states during auth transitions
+2. AppContent.tsx
+Purpose: Content router for authenticated users Features:
+
+Module navigation handling
+URL parameter processing
+Dynamic component rendering
+3. AuthFlow.tsx
+Purpose: Manages LinkedIn OAuth authentication process Features:
+
+Two-step OAuth flow (Basic + DMA permissions)
+Visual progress indicators
+Error handling and retry logic
+Automatic redirection after completion
+🎯 Module Features
+1. Dashboard (Dashboard.tsx)
+Purpose: Main analytics overview and quick actions Features:
+
+Key Metrics Display: Profile views, connections, engagement, search appearances
+Time Period Indicators: "Past Year" labels for all metrics
+Activity Summary: 28-day activity breakdown
+Quick Action Buttons: Direct navigation to other modules
+Real-time Data: Live LinkedIn metrics via DMA APIs
+Implementation:
+
+// Data sources:
+- Profile views: PROFILE domain snapshot
+- Connections: CONNECTIONS domain snapshot
+- Engagement: Calculated from changelog API
+- Activity: Recent activity from changelog API
+2. PostPulse (PostPulse.tsx)
+Purpose: Historical post management and repurposing Features:
+
+Post Grid Display: Visual cards with thumbnails
+Engagement Metrics: Likes, comments, shares per post
+Repost Status: 30-day rule enforcement with visual indicators
+Content Preview: Truncated captions with full text on hover
+One-Click Repurposing: Direct integration with PostGen
+Search & Filter: Find posts by content or engagement level
+Implementation:
+
+// Data processing:
+1. Fetch posts from MEMBER_SHARE_INFO snapshot
+2. Get engagement from changelog API
+3. Calculate repost eligibility (30+ days old)
+4. Display with thumbnails and metrics
+5. Enable repurposing to PostGen rewrite tab
+3. PostGen (PostGen.tsx)
+Purpose: AI-powered content creation and rewriting Features:
+
+Dual Mode Interface: Create new posts vs. rewrite existing
+AI Content Generation: OpenAI integration for smart content
+Media Upload: Support for images and videos
+Scheduling Integration: Direct connection to scheduler
+Template Library: Pre-built content templates
+Engagement Prediction: AI-powered performance estimates
+Implementation:
+
+// Content generation flow:
+1. User provides topic/existing content
+2. OpenAI API generates optimized content
+3. User can edit and customize
+4. Schedule or publish immediately
+5. Track performance post-publication
+4. Analytics (Analytics.tsx)
+Purpose: Comprehensive data visualization and insights Features:
+
+Multiple Chart Types: Line, bar, pie, area charts
+Time Range Selection: 7d, 30d, 90d, 365d, custom
+Engagement Breakdown: Detailed performance analysis
+Content Performance: Best posting times and content types
+Network Analysis: Connection demographics and growth
+Export Capabilities: Data export for external analysis
+Implementation:
+
+// Visualization components:
+- Recharts for interactive charts
+- Real-time data processing
+- Responsive design for all screen sizes
+- Custom color schemes and animations
+5. Synergy (Synergy.tsx)
+Purpose: Strategic partner management and engagement Features:
+
+Partner Profiles: Detailed connection information
+Engagement Tracking: Interaction history and frequency
+AI Comment Suggestions: Smart engagement recommendations
+Performance Grading: A-F rating system for partners
+Bulk Actions: Mass engagement and outreach tools
+Relationship Insights: Connection strength analysis
+6. TheAlgo (TheAlgo.tsx)
+Purpose: LinkedIn algorithm insights and optimization Features:
+
+Algorithm Performance: Real-time visibility scoring
+Posting Optimization: Best times and content types
+Engagement Patterns: Trend analysis and predictions
+AI Analysis: OpenAI-powered algorithm insights
+Recommendation Engine: Actionable optimization tips
+Performance Tracking: Algorithm grade monitoring
+7. CreationEngine (CreationEngine.tsx)
+Purpose: Advanced content strategy and idea generation Features:
+
+Content Strategy Analysis: Performance-based recommendations
+Idea Generation: AI-powered content suggestions
+Content Mix Analysis: Optimal content type distribution
+Posting Frequency: Data-driven scheduling recommendations
+Trend Integration: Industry trend incorporation
+Performance Prediction: Engagement forecasting
+8. Scheduler (Scheduler.tsx)
+Purpose: Content calendar and automated posting Features:
+
+Visual Calendar: Drag-and-drop scheduling interface
+Bulk Scheduling: Multiple post management
+Optimal Timing: AI-suggested posting times
+Content Queue: Automated posting pipeline
+Performance Tracking: Scheduled post analytics
+Template Integration: Reusable content templates
+9. Settings (Settings.tsx)
+Purpose: User preferences and account management Features:
+
+Profile Management: LinkedIn profile sync
+Notification Settings: Customizable alerts
+Privacy Controls: Data access permissions
+Export Tools: Data portability options
+Account Security: Authentication management
+Billing Integration: Subscription management (future)
+10. DMATestPage (DMATestPage.tsx)
+Purpose: LinkedIn API testing and debugging interface Features:
+
+Comprehensive API Testing: All LinkedIn DMA endpoints
+Data Exploration: Raw API response viewing
+Metric Calculation: Real-time data processing
+Debug Tools: Console output capture
+Performance Monitoring: API response time tracking
+Error Diagnostics: Detailed error reporting
+🔧 Services & APIs
+1. LinkedIn Data Service (linkedin-data-service.ts)
+Purpose: Centralized LinkedIn API interaction Features:
+
+Profile Metrics: Views, search appearances, demographics
+Engagement Calculation: Post performance analysis
+Connection Analysis: Network growth and composition
+Activity Tracking: User behavior monitoring
+Data Correlation: Cross-reference different data sources
+2. Analytics Processor (analytics-processor.ts)
+Purpose: Advanced data processing and metric calculation Features:
+
+Comprehensive Metrics: All-in-one analytics calculation
+Derived Insights: Calculated metrics from raw data
+Performance Trends: Historical analysis and forecasting
+Content Analysis: Post performance categorization
+Network Insights: Connection pattern analysis
+3. OpenAI Service (openai.ts)
+Purpose: AI-powered content generation and analysis Features:
+
+Content Generation: Smart post creation
+Performance Analysis: AI-driven insights
+Strategy Generation: Personalized content strategies
+Trend Analysis: Industry trend integration
+Optimization Recommendations: AI-powered suggestions
+4. LinkedIn API Client (linkedin.ts)
+Purpose: Direct LinkedIn API communication Features:
+
+Profile Data: User profile information
+Changelog Access: Recent activity tracking
+Snapshot Data: Historical information retrieval
+OAuth Management: Authentication flow handling
+Error Handling: Robust API error management
+🗄 State Management
+1. Auth Store (authStore.ts)
+Purpose: Authentication state management State:
+
+interface AuthState {
+  accessToken: string | null;        // Basic LinkedIn access
+  dmaToken: string | null;           // DMA API access
+  profile: LinkedInProfile | null;   // User profile data
+  isBasicAuthenticated: boolean;     // Basic auth status
+  isFullyAuthenticated: boolean;     // Full auth status
+}
+2. App Store (appStore.ts)
+Purpose: Application-wide state management State:
+
+interface AppState {
+  sidebarCollapsed: boolean;         // Sidebar visibility
+  darkMode: boolean;                 // Theme preference (forced light)
+  currentModule: string;             // Active module
+}
+🔐 Authentication Flow
+Two-Step OAuth Process
+Basic Authentication:
+
+Scopes: openid profile email w_member_social
+Purpose: Profile access and basic posting
+Client ID: LINKEDIN_CLIENT_ID
+DMA Authentication:
+
+Scopes: r_dma_portability_3rd_party
+Purpose: Advanced analytics and data access
+Client ID: LINKEDIN_DMA_CLIENT_ID
+Flow Diagram
+User → Landing Page → Basic OAuth → DMA OAuth → Dashboard
+  ↓         ↓            ↓            ↓          ↓
+Start → Sign In → Profile Access → Data Access → Full Features
+📊 Data Processing
+1. Profile Metrics Extraction
+// Data sources and processing:
+PROFILE Domain → Profile Views, Search Appearances
+CONNECTIONS Domain → Network size, growth, demographics
+MEMBER_SHARE_INFO → Historical posts and content
+Changelog API → Recent activity and engagement
+2. Engagement Calculation
+// Process:
+1. Identify user's posts from changelog/snapshot
+2. Count likes/comments on those posts
+3. Calculate totals and averages
+4. Generate engagement rates and trends
+3. Content Analysis
+// Analysis types:
+- Content type distribution (text, image, video)
+- Posting frequency patterns
+- Optimal posting times
+- Engagement correlation with content types
+- Performance trends over time
+🚀 Deployment & Infrastructure
+Netlify Configuration
+Build Command: npm run build
+Publish Directory: dist
+Functions Directory: netlify/functions
+Node Version: 18.x
+Environment Variables
+# LinkedIn OAuth - Basic
+LINKEDIN_CLIENT_ID=your_basic_client_id
+LINKEDIN_CLIENT_SECRET=your_basic_client_secret
+
+# LinkedIn OAuth - DMA
+LINKEDIN_DMA_CLIENT_ID=your_dma_client_id
+LINKEDIN_DMA_CLIENT_SECRET=your_dma_client_secret
+
+# AI Services
+OPENAI_API_KEY=your_openai_api_key
+VITE_OPENAI_API_KEY=your_openai_api_key
+
+# Payment Processing (Future)
+STRIPE_SECRET_KEY=your_stripe_secret_key
+VITE_STRIPE_PUBLIC_KEY=your_stripe_public_key
+Serverless Functions
+OAuth Handlers: Authentication flow management
+API Proxies: LinkedIn API request proxying
+Data Processors: Server-side data processing
+Webhook Handlers: External service integrations
+🔄 Data Flow Architecture
+1. Authentication Flow
+User → Netlify Function → LinkedIn OAuth → Callback → Token Storage → App Access
+2. Data Fetching Flow
+Component → Custom Hook → Service Layer → Netlify Function → LinkedIn API → Data Processing → UI Update
+3. Content Creation Flow
+User Input → PostGen → OpenAI API → Content Generation → Review/Edit → Schedule/Publish
+🎨 UI/UX Design System
+Design Principles
+Glass Morphism: Translucent cards with backdrop blur
+Gradient Accents: Blue to cyan color schemes
+Micro-interactions: Framer Motion animations
+Responsive Design: Mobile-first approach
+Accessibility: WCAG 2.1 compliance
+Component Library
+Cards: Glass morphism design with hover effects
+Buttons: Gradient backgrounds with animations
+Charts: Interactive Recharts visualizations
+Loading States: Smooth skeleton screens
+Modals: Backdrop blur with smooth transitions
+🧪 Testing & Quality Assurance
+Testing Strategy
+DMA Test Page: Comprehensive API testing interface
+Error Boundaries: Graceful error handling
+Loading States: Proper loading indicators
+Fallback Data: Sample data when APIs fail
+Debug Logging: Comprehensive console logging
+Code Quality
+TypeScript: Full type safety
+ESLint: Code quality enforcement
+Prettier: Code formatting
+Component Architecture: Modular, reusable components
+Performance Optimization: React Query caching, lazy loading
+📈 Performance Optimization
+Frontend Optimization
+Code Splitting: Route-based lazy loading
+Image Optimization: WebP format, lazy loading
+Bundle Analysis: Vite bundle optimization
+Caching Strategy: React Query intelligent caching
+Animation Performance: Hardware-accelerated animations
+API Optimization
+Request Batching: Multiple API calls optimization
+Caching Layer: Intelligent data caching
+Error Retry Logic: Exponential backoff
+Rate Limiting: Respectful API usage
+Data Transformation: Efficient data processing
+🔮 Future Enhancements
+Planned Features
+Team Collaboration: Multi-user workspaces
+Advanced AI: GPT-4 integration for better content
+Automation: Advanced scheduling and auto-posting
+Integrations: CRM and marketing tool connections
+Mobile App: React Native mobile application
+Enterprise Features: Advanced analytics and reporting
+Technical Improvements
+Database Integration: Persistent data storage
+Real-time Updates: WebSocket connections
+Advanced Caching: Redis integration
+Monitoring: Application performance monitoring
+Testing: Comprehensive test suite
+Documentation: API documentation and guides
+LinkedIn Growth SaaS - Project Structure Documentation
+📋 Table of Contents
+Project Overview
+Technology Stack
+Project Architecture
+Directory Structure
+Core Components
+Module Features
+Services & APIs
+State Management
+Authentication Flow
+Data Processing
+Deployment & Infrastructure
+🎯 Project Overview
+LinkedIn Growth SaaS is a comprehensive platform designed to help professionals grow their LinkedIn presence through advanced analytics, AI-powered content creation, and strategic engagement tools. The application leverages LinkedIn's DMA (Data Member Agreement) APIs to provide real-time insights and actionable recommendations.
+
+Key Features
+Real-time LinkedIn Analytics: Profile views, search appearances, engagement metrics
+AI-Powered Content Generation: Smart post creation and rewriting
+Synergy Partner Management: Strategic connection building
+Post Scheduling & Management: Content calendar and automation
+Algorithm Insights: LinkedIn algorithm optimization recommendations
+Historical Post Analysis: Performance tracking and repurposing
+🛠 Technology Stack
+Frontend
+React 18.3.1: Modern React with hooks and concurrent features
+TypeScript: Type-safe development
+Vite 5.4.2: Fast build tool and development server
+Tailwind CSS 3.4.1: Utility-first CSS framework
+Framer Motion 12.23.6: Animation and gesture library
+React Router DOM 7.7.0: Client-side routing
+React Query (@tanstack/react-query 5.83.0): Server state management
+Recharts 3.1.0: Data visualization library
+Zustand 5.0.6: Lightweight state management
+Backend & APIs
+Netlify Functions: Serverless backend functions
+LinkedIn DMA APIs: Data access and analytics
+OpenAI API: AI content generation
+Stripe API: Payment processing (future implementation)
+Development Tools
+ESLint: Code linting and quality
+TypeScript ESLint: TypeScript-specific linting
+PostCSS & Autoprefixer: CSS processing
+Lucide React: Icon library
+🏗 Project Architecture
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Frontend      │    │   Netlify       │    │   LinkedIn      │
+│   (React/Vite)  │◄──►│   Functions     │◄──►│   DMA APIs      │
+│                 │    │   (Serverless)  │    │                 │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         ▼                       ▼                       ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   State Mgmt    │    │   OAuth Flow    │    │   Data Storage  │
+│   (Zustand)     │    │   (LinkedIn)    │    │   (LocalStorage)│
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+Data Flow
+Authentication: OAuth 2.0 flow with LinkedIn (Basic + DMA permissions)
+Data Fetching: Netlify Functions proxy LinkedIn API calls
+State Management: Zustand stores auth state and app configuration
+Data Processing: Custom services process and analyze LinkedIn data
+UI Rendering: React components display processed data with animations
+📁 Directory Structure
 linkedin-growth-saas/
 ├── 📁 public/                          # Static assets
 │   ├── vite.svg                        # Vite logo
@@ -150,224 +530,189 @@ linkedin-growth-saas/
 ├── vite.config.ts                      # Vite build configuration
 ├── postcss.config.js                   # PostCSS configuration
 └── eslint.config.js                    # ESLint configuration
-```
+🧩 Core Components
+1. App.tsx
+Purpose: Main application component and routing logic Features:
 
-## 🧩 Core Components
-
-### 1. App.tsx
-**Purpose**: Main application component and routing logic
-**Features**:
-- Authentication state management
-- Route protection and redirection
-- OAuth callback parameter handling
-- Layout rendering based on auth state
-
-```typescript
+Authentication state management
+Route protection and redirection
+OAuth callback parameter handling
+Layout rendering based on auth state
 // Key responsibilities:
 - Check authentication status (basic + DMA)
 - Handle OAuth callback parameters
 - Render appropriate component (Landing/Auth/Dashboard)
 - Manage loading states during auth transitions
-```
+2. AppContent.tsx
+Purpose: Content router for authenticated users Features:
 
-### 2. AppContent.tsx
-**Purpose**: Content router for authenticated users
-**Features**:
-- Module navigation handling
-- URL parameter processing
-- Dynamic component rendering
+Module navigation handling
+URL parameter processing
+Dynamic component rendering
+3. AuthFlow.tsx
+Purpose: Manages LinkedIn OAuth authentication process Features:
 
-### 3. AuthFlow.tsx
-**Purpose**: Manages LinkedIn OAuth authentication process
-**Features**:
-- Two-step OAuth flow (Basic + DMA permissions)
-- Visual progress indicators
-- Error handling and retry logic
-- Automatic redirection after completion
+Two-step OAuth flow (Basic + DMA permissions)
+Visual progress indicators
+Error handling and retry logic
+Automatic redirection after completion
+🎯 Module Features
+1. Dashboard (Dashboard.tsx)
+Purpose: Main analytics overview and quick actions Features:
 
-## 🎯 Module Features
+Key Metrics Display: Profile views, connections, engagement, search appearances
+Time Period Indicators: "Past Year" labels for all metrics
+Activity Summary: 28-day activity breakdown
+Quick Action Buttons: Direct navigation to other modules
+Real-time Data: Live LinkedIn metrics via DMA APIs
+Implementation:
 
-### 1. Dashboard (`Dashboard.tsx`)
-**Purpose**: Main analytics overview and quick actions
-**Features**:
-- **Key Metrics Display**: Profile views, connections, engagement, search appearances
-- **Time Period Indicators**: "Past Year" labels for all metrics
-- **Activity Summary**: 28-day activity breakdown
-- **Quick Action Buttons**: Direct navigation to other modules
-- **Real-time Data**: Live LinkedIn metrics via DMA APIs
-
-**Implementation**:
-```typescript
 // Data sources:
 - Profile views: PROFILE domain snapshot
 - Connections: CONNECTIONS domain snapshot
 - Engagement: Calculated from changelog API
 - Activity: Recent activity from changelog API
-```
+2. PostPulse (PostPulse.tsx)
+Purpose: Historical post management and repurposing Features:
 
-### 2. PostPulse (`PostPulse.tsx`)
-**Purpose**: Historical post management and repurposing
-**Features**:
-- **Post Grid Display**: Visual cards with thumbnails
-- **Engagement Metrics**: Likes, comments, shares per post
-- **Repost Status**: 30-day rule enforcement with visual indicators
-- **Content Preview**: Truncated captions with full text on hover
-- **One-Click Repurposing**: Direct integration with PostGen
-- **Search & Filter**: Find posts by content or engagement level
+Post Grid Display: Visual cards with thumbnails
+Engagement Metrics: Likes, comments, shares per post
+Repost Status: 30-day rule enforcement with visual indicators
+Content Preview: Truncated captions with full text on hover
+One-Click Repurposing: Direct integration with PostGen
+Search & Filter: Find posts by content or engagement level
+Implementation:
 
-**Implementation**:
-```typescript
 // Data processing:
 1. Fetch posts from MEMBER_SHARE_INFO snapshot
 2. Get engagement from changelog API
 3. Calculate repost eligibility (30+ days old)
 4. Display with thumbnails and metrics
 5. Enable repurposing to PostGen rewrite tab
-```
+3. PostGen (PostGen.tsx)
+Purpose: AI-powered content creation and rewriting Features:
 
-### 3. PostGen (`PostGen.tsx`)
-**Purpose**: AI-powered content creation and rewriting
-**Features**:
-- **Dual Mode Interface**: Create new posts vs. rewrite existing
-- **AI Content Generation**: OpenAI integration for smart content
-- **Media Upload**: Support for images and videos
-- **Scheduling Integration**: Direct connection to scheduler
-- **Template Library**: Pre-built content templates
-- **Engagement Prediction**: AI-powered performance estimates
+Dual Mode Interface: Create new posts vs. rewrite existing
+AI Content Generation: OpenAI integration for smart content
+Media Upload: Support for images and videos
+Scheduling Integration: Direct connection to scheduler
+Template Library: Pre-built content templates
+Engagement Prediction: AI-powered performance estimates
+Implementation:
 
-**Implementation**:
-```typescript
 // Content generation flow:
 1. User provides topic/existing content
 2. OpenAI API generates optimized content
 3. User can edit and customize
 4. Schedule or publish immediately
 5. Track performance post-publication
-```
+4. Analytics (Analytics.tsx)
+Purpose: Comprehensive data visualization and insights Features:
 
-### 4. Analytics (`Analytics.tsx`)
-**Purpose**: Comprehensive data visualization and insights
-**Features**:
-- **Multiple Chart Types**: Line, bar, pie, area charts
-- **Time Range Selection**: 7d, 30d, 90d, 365d, custom
-- **Engagement Breakdown**: Detailed performance analysis
-- **Content Performance**: Best posting times and content types
-- **Network Analysis**: Connection demographics and growth
-- **Export Capabilities**: Data export for external analysis
+Multiple Chart Types: Line, bar, pie, area charts
+Time Range Selection: 7d, 30d, 90d, 365d, custom
+Engagement Breakdown: Detailed performance analysis
+Content Performance: Best posting times and content types
+Network Analysis: Connection demographics and growth
+Export Capabilities: Data export for external analysis
+Implementation:
 
-**Implementation**:
-```typescript
 // Visualization components:
 - Recharts for interactive charts
 - Real-time data processing
 - Responsive design for all screen sizes
 - Custom color schemes and animations
-```
+5. Synergy (Synergy.tsx)
+Purpose: Strategic partner management and engagement Features:
 
-### 5. Synergy (`Synergy.tsx`)
-**Purpose**: Strategic partner management and engagement
-**Features**:
-- **Partner Profiles**: Detailed connection information
-- **Engagement Tracking**: Interaction history and frequency
-- **AI Comment Suggestions**: Smart engagement recommendations
-- **Performance Grading**: A-F rating system for partners
-- **Bulk Actions**: Mass engagement and outreach tools
-- **Relationship Insights**: Connection strength analysis
+Partner Profiles: Detailed connection information
+Engagement Tracking: Interaction history and frequency
+AI Comment Suggestions: Smart engagement recommendations
+Performance Grading: A-F rating system for partners
+Bulk Actions: Mass engagement and outreach tools
+Relationship Insights: Connection strength analysis
+6. TheAlgo (TheAlgo.tsx)
+Purpose: LinkedIn algorithm insights and optimization Features:
 
-### 6. TheAlgo (`TheAlgo.tsx`)
-**Purpose**: LinkedIn algorithm insights and optimization
-**Features**:
-- **Algorithm Performance**: Real-time visibility scoring
-- **Posting Optimization**: Best times and content types
-- **Engagement Patterns**: Trend analysis and predictions
-- **AI Analysis**: OpenAI-powered algorithm insights
-- **Recommendation Engine**: Actionable optimization tips
-- **Performance Tracking**: Algorithm grade monitoring
+Algorithm Performance: Real-time visibility scoring
+Posting Optimization: Best times and content types
+Engagement Patterns: Trend analysis and predictions
+AI Analysis: OpenAI-powered algorithm insights
+Recommendation Engine: Actionable optimization tips
+Performance Tracking: Algorithm grade monitoring
+7. CreationEngine (CreationEngine.tsx)
+Purpose: Advanced content strategy and idea generation Features:
 
-### 7. CreationEngine (`CreationEngine.tsx`)
-**Purpose**: Advanced content strategy and idea generation
-**Features**:
-- **Content Strategy Analysis**: Performance-based recommendations
-- **Idea Generation**: AI-powered content suggestions
-- **Content Mix Analysis**: Optimal content type distribution
-- **Posting Frequency**: Data-driven scheduling recommendations
-- **Trend Integration**: Industry trend incorporation
-- **Performance Prediction**: Engagement forecasting
+Content Strategy Analysis: Performance-based recommendations
+Idea Generation: AI-powered content suggestions
+Content Mix Analysis: Optimal content type distribution
+Posting Frequency: Data-driven scheduling recommendations
+Trend Integration: Industry trend incorporation
+Performance Prediction: Engagement forecasting
+8. Scheduler (Scheduler.tsx)
+Purpose: Content calendar and automated posting Features:
 
-### 8. Scheduler (`Scheduler.tsx`)
-**Purpose**: Content calendar and automated posting
-**Features**:
-- **Visual Calendar**: Drag-and-drop scheduling interface
-- **Bulk Scheduling**: Multiple post management
-- **Optimal Timing**: AI-suggested posting times
-- **Content Queue**: Automated posting pipeline
-- **Performance Tracking**: Scheduled post analytics
-- **Template Integration**: Reusable content templates
+Visual Calendar: Drag-and-drop scheduling interface
+Bulk Scheduling: Multiple post management
+Optimal Timing: AI-suggested posting times
+Content Queue: Automated posting pipeline
+Performance Tracking: Scheduled post analytics
+Template Integration: Reusable content templates
+9. Settings (Settings.tsx)
+Purpose: User preferences and account management Features:
 
-### 9. Settings (`Settings.tsx`)
-**Purpose**: User preferences and account management
-**Features**:
-- **Profile Management**: LinkedIn profile sync
-- **Notification Settings**: Customizable alerts
-- **Privacy Controls**: Data access permissions
-- **Export Tools**: Data portability options
-- **Account Security**: Authentication management
-- **Billing Integration**: Subscription management (future)
+Profile Management: LinkedIn profile sync
+Notification Settings: Customizable alerts
+Privacy Controls: Data access permissions
+Export Tools: Data portability options
+Account Security: Authentication management
+Billing Integration: Subscription management (future)
+10. DMATestPage (DMATestPage.tsx)
+Purpose: LinkedIn API testing and debugging interface Features:
 
-### 10. DMATestPage (`DMATestPage.tsx`)
-**Purpose**: LinkedIn API testing and debugging interface
-**Features**:
-- **Comprehensive API Testing**: All LinkedIn DMA endpoints
-- **Data Exploration**: Raw API response viewing
-- **Metric Calculation**: Real-time data processing
-- **Debug Tools**: Console output capture
-- **Performance Monitoring**: API response time tracking
-- **Error Diagnostics**: Detailed error reporting
+Comprehensive API Testing: All LinkedIn DMA endpoints
+Data Exploration: Raw API response viewing
+Metric Calculation: Real-time data processing
+Debug Tools: Console output capture
+Performance Monitoring: API response time tracking
+Error Diagnostics: Detailed error reporting
+🔧 Services & APIs
+1. LinkedIn Data Service (linkedin-data-service.ts)
+Purpose: Centralized LinkedIn API interaction Features:
 
-## 🔧 Services & APIs
+Profile Metrics: Views, search appearances, demographics
+Engagement Calculation: Post performance analysis
+Connection Analysis: Network growth and composition
+Activity Tracking: User behavior monitoring
+Data Correlation: Cross-reference different data sources
+2. Analytics Processor (analytics-processor.ts)
+Purpose: Advanced data processing and metric calculation Features:
 
-### 1. LinkedIn Data Service (`linkedin-data-service.ts`)
-**Purpose**: Centralized LinkedIn API interaction
-**Features**:
-- **Profile Metrics**: Views, search appearances, demographics
-- **Engagement Calculation**: Post performance analysis
-- **Connection Analysis**: Network growth and composition
-- **Activity Tracking**: User behavior monitoring
-- **Data Correlation**: Cross-reference different data sources
+Comprehensive Metrics: All-in-one analytics calculation
+Derived Insights: Calculated metrics from raw data
+Performance Trends: Historical analysis and forecasting
+Content Analysis: Post performance categorization
+Network Insights: Connection pattern analysis
+3. OpenAI Service (openai.ts)
+Purpose: AI-powered content generation and analysis Features:
 
-### 2. Analytics Processor (`analytics-processor.ts`)
-**Purpose**: Advanced data processing and metric calculation
-**Features**:
-- **Comprehensive Metrics**: All-in-one analytics calculation
-- **Derived Insights**: Calculated metrics from raw data
-- **Performance Trends**: Historical analysis and forecasting
-- **Content Analysis**: Post performance categorization
-- **Network Insights**: Connection pattern analysis
+Content Generation: Smart post creation
+Performance Analysis: AI-driven insights
+Strategy Generation: Personalized content strategies
+Trend Analysis: Industry trend integration
+Optimization Recommendations: AI-powered suggestions
+4. LinkedIn API Client (linkedin.ts)
+Purpose: Direct LinkedIn API communication Features:
 
-### 3. OpenAI Service (`openai.ts`)
-**Purpose**: AI-powered content generation and analysis
-**Features**:
-- **Content Generation**: Smart post creation
-- **Performance Analysis**: AI-driven insights
-- **Strategy Generation**: Personalized content strategies
-- **Trend Analysis**: Industry trend integration
-- **Optimization Recommendations**: AI-powered suggestions
+Profile Data: User profile information
+Changelog Access: Recent activity tracking
+Snapshot Data: Historical information retrieval
+OAuth Management: Authentication flow handling
+Error Handling: Robust API error management
+🗄 State Management
+1. Auth Store (authStore.ts)
+Purpose: Authentication state management State:
 
-### 4. LinkedIn API Client (`linkedin.ts`)
-**Purpose**: Direct LinkedIn API communication
-**Features**:
-- **Profile Data**: User profile information
-- **Changelog Access**: Recent activity tracking
-- **Snapshot Data**: Historical information retrieval
-- **OAuth Management**: Authentication flow handling
-- **Error Handling**: Robust API error management
-
-## 🗄 State Management
-
-### 1. Auth Store (`authStore.ts`)
-**Purpose**: Authentication state management
-**State**:
-```typescript
 interface AuthState {
   accessToken: string | null;        // Basic LinkedIn access
   dmaToken: string | null;           // DMA API access
@@ -375,79 +720,57 @@ interface AuthState {
   isBasicAuthenticated: boolean;     // Basic auth status
   isFullyAuthenticated: boolean;     // Full auth status
 }
-```
+2. App Store (appStore.ts)
+Purpose: Application-wide state management State:
 
-### 2. App Store (`appStore.ts`)
-**Purpose**: Application-wide state management
-**State**:
-```typescript
 interface AppState {
   sidebarCollapsed: boolean;         // Sidebar visibility
   darkMode: boolean;                 // Theme preference (forced light)
   currentModule: string;             // Active module
 }
-```
+🔐 Authentication Flow
+Two-Step OAuth Process
+Basic Authentication:
 
-## 🔐 Authentication Flow
+Scopes: openid profile email w_member_social
+Purpose: Profile access and basic posting
+Client ID: LINKEDIN_CLIENT_ID
+DMA Authentication:
 
-### Two-Step OAuth Process
-1. **Basic Authentication**:
-   - Scopes: `openid profile email w_member_social`
-   - Purpose: Profile access and basic posting
-   - Client ID: `LINKEDIN_CLIENT_ID`
-
-2. **DMA Authentication**:
-   - Scopes: `r_dma_portability_3rd_party`
-   - Purpose: Advanced analytics and data access
-   - Client ID: `LINKEDIN_DMA_CLIENT_ID`
-
-### Flow Diagram
-```
+Scopes: r_dma_portability_3rd_party
+Purpose: Advanced analytics and data access
+Client ID: LINKEDIN_DMA_CLIENT_ID
+Flow Diagram
 User → Landing Page → Basic OAuth → DMA OAuth → Dashboard
   ↓         ↓            ↓            ↓          ↓
 Start → Sign In → Profile Access → Data Access → Full Features
-```
-
-## 📊 Data Processing
-
-### 1. Profile Metrics Extraction
-```typescript
+📊 Data Processing
+1. Profile Metrics Extraction
 // Data sources and processing:
 PROFILE Domain → Profile Views, Search Appearances
 CONNECTIONS Domain → Network size, growth, demographics
 MEMBER_SHARE_INFO → Historical posts and content
 Changelog API → Recent activity and engagement
-```
-
-### 2. Engagement Calculation
-```typescript
+2. Engagement Calculation
 // Process:
 1. Identify user's posts from changelog/snapshot
 2. Count likes/comments on those posts
 3. Calculate totals and averages
 4. Generate engagement rates and trends
-```
-
-### 3. Content Analysis
-```typescript
+3. Content Analysis
 // Analysis types:
 - Content type distribution (text, image, video)
 - Posting frequency patterns
 - Optimal posting times
 - Engagement correlation with content types
 - Performance trends over time
-```
-
-## 🚀 Deployment & Infrastructure
-
-### Netlify Configuration
-- **Build Command**: `npm run build`
-- **Publish Directory**: `dist`
-- **Functions Directory**: `netlify/functions`
-- **Node Version**: 18.x
-
-### Environment Variables
-```bash
+🚀 Deployment & Infrastructure
+Netlify Configuration
+Build Command: npm run build
+Publish Directory: dist
+Functions Directory: netlify/functions
+Node Version: 18.x
+Environment Variables
 # LinkedIn OAuth - Basic
 LINKEDIN_CLIENT_ID=your_basic_client_id
 LINKEDIN_CLIENT_SECRET=your_basic_client_secret
@@ -463,812 +786,187 @@ VITE_OPENAI_API_KEY=your_openai_api_key
 # Payment Processing (Future)
 STRIPE_SECRET_KEY=your_stripe_secret_key
 VITE_STRIPE_PUBLIC_KEY=your_stripe_public_key
-```
-
-### Serverless Functions
-- **OAuth Handlers**: Authentication flow management
-- **API Proxies**: LinkedIn API request proxying
-- **Data Processors**: Server-side data processing
-- **Webhook Handlers**: External service integrations
-
-## 🔄 Data Flow Architecture
-
-### 1. Authentication Flow
-```
+Serverless Functions
+OAuth Handlers: Authentication flow management
+API Proxies: LinkedIn API request proxying
+Data Processors: Server-side data processing
+Webhook Handlers: External service integrations
+🔄 Data Flow Architecture
+1. Authentication Flow
 User → Netlify Function → LinkedIn OAuth → Callback → Token Storage → App Access
-```
-
-### 2. Data Fetching Flow
-```
+2. Data Fetching Flow
 Component → Custom Hook → Service Layer → Netlify Function → LinkedIn API → Data Processing → UI Update
-```
-
-### 3. Content Creation Flow
-```
+3. Content Creation Flow
 User Input → PostGen → OpenAI API → Content Generation → Review/Edit → Schedule/Publish
-```
-
-## 🎨 UI/UX Design System
-
-### Design Principles
-- **Glass Morphism**: Translucent cards with backdrop blur
-- **Gradient Accents**: Blue to cyan color schemes
-- **Micro-interactions**: Framer Motion animations
-- **Responsive Design**: Mobile-first approach
-- **Accessibility**: WCAG 2.1 compliance
-
-### Component Library
-- **Cards**: Glass morphism design with hover effects
-- **Buttons**: Gradient backgrounds with animations
-- **Charts**: Interactive Recharts visualizations
-- **Loading States**: Smooth skeleton screens
-- **Modals**: Backdrop blur with smooth transitions
-
-## 🧪 Testing & Quality Assurance
-
-### Testing Strategy
-- **DMA Test Page**: Comprehensive API testing interface
-- **Error Boundaries**: Graceful error handling
-- **Loading States**: Proper loading indicators
-- **Fallback Data**: Sample data when APIs fail
-- **Debug Logging**: Comprehensive console logging
-
-### Code Quality
-- **TypeScript**: Full type safety
-- **ESLint**: Code quality enforcement
-- **Prettier**: Code formatting
-- **Component Architecture**: Modular, reusable components
-- **Performance Optimization**: React Query caching, lazy loading
-
-## 📈 Performance Optimization
-
-### Frontend Optimization
-- **Code Splitting**: Route-based lazy loading
-- **Image Optimization**: WebP format, lazy loading
-- **Bundle Analysis**: Vite bundle optimization
-- **Caching Strategy**: React Query intelligent caching
-- **Animation Performance**: Hardware-accelerated animations
-
-### API Optimization
-- **Request Batching**: Multiple API calls optimization
-- **Caching Layer**: Intelligent data caching
-- **Error Retry Logic**: Exponential backoff
-- **Rate Limiting**: Respectful API usage
-- **Data Transformation**: Efficient data processing
-
-## 🔮 Future Enhancements
-
-### Planned Features
-- **Team Collaboration**: Multi-user workspaces
-- **Advanced AI**: GPT-4 integration for better content
-- **Automation**: Advanced scheduling and auto-posting
-- **Integrations**: CRM and marketing tool connections
-- **Mobile App**: React Native mobile application
-- **Enterprise Features**: Advanced analytics and reporting
-
-### Technical Improvements
-- **Database Integration**: Persistent data storage
-- **Real-time Updates**: WebSocket connections
-- **Advanced Caching**: Redis integration
-- **Monitoring**: Application performance monitoring
-- **Testing**: Comprehensive test suite
-- **Documentation**: API documentation and guides
-
----
-
-# LinkedIn Growth SaaS - Project Structure Documentation
-
-## 📋 Table of Contents
-1. [Project Overview](#project-overview)
-2. [Technology Stack](#technology-stack)
-3. [Project Architecture](#project-architecture)
-4. [Directory Structure](#directory-structure)
-5. [Core Components](#core-components)
-6. [Module Features](#module-features)
-7. [Services & APIs](#services--apis)
-8. [State Management](#state-management)
-9. [Authentication Flow](#authentication-flow)
-10. [Data Processing](#data-processing)
-11. [Deployment & Infrastructure](#deployment--infrastructure)
-
-## 🎯 Project Overview
-
-LinkedIn Growth SaaS is a comprehensive platform designed to help professionals grow their LinkedIn presence through advanced analytics, AI-powered content creation, and strategic engagement tools. The application leverages LinkedIn's DMA (Data Member Agreement) APIs to provide real-time insights and actionable recommendations.
-
-### Key Features
-- **Real-time LinkedIn Analytics**: Profile views, search appearances, engagement metrics
-- **AI-Powered Content Generation**: Smart post creation and rewriting
-- **Synergy Partner Management**: Strategic connection building
-- **Post Scheduling & Management**: Content calendar and automation
-- **Algorithm Insights**: LinkedIn algorithm optimization recommendations
-- **Historical Post Analysis**: Performance tracking and repurposing
-
-## 🛠 Technology Stack
-
-### Frontend
-- **React 18.3.1**: Modern React with hooks and concurrent features
-- **TypeScript**: Type-safe development
-- **Vite 5.4.2**: Fast build tool and development server
-- **Tailwind CSS 3.4.1**: Utility-first CSS framework
-- **Framer Motion 12.23.6**: Animation and gesture library
-- **React Router DOM 7.7.0**: Client-side routing
-- **React Query (@tanstack/react-query 5.83.0)**: Server state management
-- **Recharts 3.1.0**: Data visualization library
-- **Zustand 5.0.6**: Lightweight state management
-
-### Backend & APIs
-- **Netlify Functions**: Serverless backend functions
-- **LinkedIn DMA APIs**: Data access and analytics
-- **OpenAI API**: AI content generation
-- **Stripe API**: Payment processing (future implementation)
-
-### Development Tools
-- **ESLint**: Code linting and quality
-- **TypeScript ESLint**: TypeScript-specific linting
-- **PostCSS & Autoprefixer**: CSS processing
-- **Lucide React**: Icon library
-
-## 🏗 Project Architecture
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Frontend      │    │   Netlify       │    │   LinkedIn      │
-│   (React/Vite)  │◄──►│   Functions     │◄──►│   DMA APIs      │
-│                 │    │   (Serverless)  │    │                 │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   State Mgmt    │    │   OAuth Flow    │    │   Data Storage  │
-│   (Zustand)     │    │   (LinkedIn)    │    │   (LocalStorage)│
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-
-### Data Flow
-1. **Authentication**: OAuth 2.0 flow with LinkedIn (Basic + DMA permissions)
-2. **Data Fetching**: Netlify Functions proxy LinkedIn API calls
-3. **State Management**: Zustand stores auth state and app configuration
-4. **Data Processing**: Custom services process and analyze LinkedIn data
-5. **UI Rendering**: React components display processed data with animations
-
-## 📁 Directory Structure
-
-```
-linkedin-growth-saas/
-├── 📁 public/                          # Static assets
-│   ├── vite.svg                        # Vite logo
-│   └── favicon.ico                     # Site favicon
-│
-├── 📁 src/                             # Source code
-│   ├── 📁 components/                  # React components
-│   │   ├── 📁 auth/                    # Authentication components
-│   │   │   └── AuthFlow.tsx            # OAuth flow management
-│   │   ├── 📁 dashboard/               # Dashboard components
-│   │   │   ├── Dashboard.tsx           # Main dashboard
-│   │   │   └── StatsCard.tsx           # Metric display cards
-│   │   ├── 📁 landing/                 # Landing page components
-│   │   │   └── LandingPage.tsx         # Marketing landing page
-│   │   ├── 📁 layout/                  # Layout components
-│   │   │   ├── Header.tsx              # App header
-│   │   │   ├── Sidebar.tsx             # Navigation sidebar
-│   │   │   └── NavItem.tsx             # Navigation items
-│   │   ├── 📁 modules/                 # Feature modules
-│   │   │   ├── Analytics.tsx           # Analytics dashboard
-│   │   │   ├── CreationEngine.tsx      # Content creation tools
-│   │   │   ├── DMATestPage.tsx         # API testing interface
-│   │   │   ├── PostGen.tsx             # AI post generation
-│   │   │   ├── PostPulse.tsx           # Historical post management
-│   │   │   ├── Scheduler.tsx           # Content scheduling
-│   │   │   ├── Settings.tsx            # User settings
-│   │   │   ├── Synergy.tsx             # Partner management
-│   │   │   └── TheAlgo.tsx             # Algorithm insights
-│   │   └── 📁 ui/                      # Reusable UI components
-│   │       ├── Button.tsx              # Button component
-│   │       ├── Card.tsx                # Card component
-│   │       └── LoadingSpinner.tsx      # Loading indicator
-│   │
-│   ├── 📁 hooks/                       # Custom React hooks
-│   │   └── useLinkedInData.ts          # LinkedIn data fetching hooks
-│   │
-│   ├── 📁 services/                    # Business logic services
-│   │   ├── analytics-processor.ts      # Data analytics processing
-│   │   ├── linkedin.ts                 # LinkedIn API client
-│   │   ├── linkedin-data-service.ts    # LinkedIn data service
-│   │   └── openai.ts                   # OpenAI integration
-│   │
-│   ├── 📁 stores/                      # State management
-│   │   ├── appStore.ts                 # App-wide state
-│   │   └── authStore.ts                # Authentication state
-│   │
-│   ├── 📁 types/                       # TypeScript definitions
-│   │   └── linkedin.ts                 # LinkedIn API types
-│   │
-│   ├── App.tsx                         # Main app component
-│   ├── AppContent.tsx                  # App content router
-│   ├── main.tsx                        # App entry point
-│   ├── index.css                       # Global styles
-│   └── vite-env.d.ts                   # Vite type definitions
-│
-├── 📁 netlify/                         # Netlify configuration
-│   └── 📁 functions/                   # Serverless functions
-│       ├── linkedin-oauth-start.js     # OAuth initiation
-│       ├── linkedin-oauth-callback.js  # OAuth callback handler
-│       ├── linkedin-profile.js         # Profile data fetching
-│       ├── linkedin-changelog.js       # Activity data fetching
-│       ├── linkedin-snapshot.js        # Historical data fetching
-│       └── fetch-profile-metrics.js    # Profile metrics extraction
-│
-├── 📄 Configuration Files
-├── .env.example                        # Environment variables template
-├── netlify.toml                        # Netlify deployment config
-├── package.json                        # Dependencies and scripts
-├── tailwind.config.js                  # Tailwind CSS configuration
-├── tsconfig.json                       # TypeScript configuration
-├── tsconfig.app.json                   # App-specific TypeScript config
-├── tsconfig.node.json                  # Node-specific TypeScript config
-├── vite.config.ts                      # Vite build configuration
-├── postcss.config.js                   # PostCSS configuration
-└── eslint.config.js                    # ESLint configuration
-```
-
-## 🧩 Core Components
-
-### 1. App.tsx
-**Purpose**: Main application component and routing logic
-**Features**:
-- Authentication state management
-- Route protection and redirection
-- OAuth callback parameter handling
-- Layout rendering based on auth state
-
-```typescript
-// Key responsibilities:
-- Check authentication status (basic + DMA)
-- Handle OAuth callback parameters
-- Render appropriate component (Landing/Auth/Dashboard)
-- Manage loading states during auth transitions
-```
-
-### 2. AppContent.tsx
-**Purpose**: Content router for authenticated users
-**Features**:
-- Module navigation handling
-- URL parameter processing
-- Dynamic component rendering
-
-### 3. AuthFlow.tsx
-**Purpose**: Manages LinkedIn OAuth authentication process
-**Features**:
-- Two-step OAuth flow (Basic + DMA permissions)
-- Visual progress indicators
-- Error handling and retry logic
-- Automatic redirection after completion
-
-## 🎯 Module Features
-
-### 1. Dashboard (`Dashboard.tsx`)
-**Purpose**: Main analytics overview and quick actions
-**Features**:
-- **Key Metrics Display**: Profile views, connections, engagement, search appearances
-- **Time Period Indicators**: "Past Year" labels for all metrics
-- **Activity Summary**: 28-day activity breakdown
-- **Quick Action Buttons**: Direct navigation to other modules
-- **Real-time Data**: Live LinkedIn metrics via DMA APIs
-
-**Implementation**:
-```typescript
-// Data sources:
-- Profile views: PROFILE domain snapshot
-- Connections: CONNECTIONS domain snapshot
-- Engagement: Calculated from changelog API
-- Activity: Recent activity from changelog API
-```
-
-### 2. PostPulse (`PostPulse.tsx`)
-**Purpose**: Historical post management and repurposing
-**Features**:
-- **Post Grid Display**: Visual cards with thumbnails
-- **Engagement Metrics**: Likes, comments, shares per post
-- **Repost Status**: 30-day rule enforcement with visual indicators
-- **Content Preview**: Truncated captions with full text on hover
-- **One-Click Repurposing**: Direct integration with PostGen
-- **Search & Filter**: Find posts by content or engagement level
-
-**Implementation**:
-```typescript
-// Data processing:
-1. Fetch posts from MEMBER_SHARE_INFO snapshot
-2. Get engagement from changelog API
-3. Calculate repost eligibility (30+ days old)
-4. Display with thumbnails and metrics
-5. Enable repurposing to PostGen rewrite tab
-```
-
-### 3. PostGen (`PostGen.tsx`)
-**Purpose**: AI-powered content creation and rewriting
-**Features**:
-- **Dual Mode Interface**: Create new posts vs. rewrite existing
-- **AI Content Generation**: OpenAI integration for smart content
-- **Media Upload**: Support for images and videos
-- **Scheduling Integration**: Direct connection to scheduler
-- **Template Library**: Pre-built content templates
-- **Engagement Prediction**: AI-powered performance estimates
-
-**Implementation**:
-```typescript
-// Content generation flow:
-1. User provides topic/existing content
-2. OpenAI API generates optimized content
-3. User can edit and customize
-4. Schedule or publish immediately
-5. Track performance post-publication
-```
-
-### 4. Analytics (`Analytics.tsx`)
-**Purpose**: Comprehensive data visualization and insights
-**Features**:
-- **Multiple Chart Types**: Line, bar, pie, area charts
-- **Time Range Selection**: 7d, 30d, 90d, 365d, custom
-- **Engagement Breakdown**: Detailed performance analysis
-- **Content Performance**: Best posting times and content types
-- **Network Analysis**: Connection demographics and growth
-- **Export Capabilities**: Data export for external analysis
-
-**Implementation**:
-```typescript
-// Visualization components:
-- Recharts for interactive charts
-- Real-time data processing
-- Responsive design for all screen sizes
-- Custom color schemes and animations
-```
-
-### 5. Synergy (`Synergy.tsx`)
-**Purpose**: Strategic partner management and engagement
-**Features**:
-- **Partner Profiles**: Detailed connection information
-- **Engagement Tracking**: Interaction history and frequency
-- **AI Comment Suggestions**: Smart engagement recommendations
-- **Performance Grading**: A-F rating system for partners
-- **Bulk Actions**: Mass engagement and outreach tools
-- **Relationship Insights**: Connection strength analysis
-
-### 6. TheAlgo (`TheAlgo.tsx`)
-**Purpose**: LinkedIn algorithm insights and optimization
-**Features**:
-- **Algorithm Performance**: Real-time visibility scoring
-- **Posting Optimization**: Best times and content types
-- **Engagement Patterns**: Trend analysis and predictions
-- **AI Analysis**: OpenAI-powered algorithm insights
-- **Recommendation Engine**: Actionable optimization tips
-- **Performance Tracking**: Algorithm grade monitoring
-
-### 7. CreationEngine (`CreationEngine.tsx`)
-**Purpose**: Advanced content strategy and idea generation
-**Features**:
-- **Content Strategy Analysis**: Performance-based recommendations
-- **Idea Generation**: AI-powered content suggestions
-- **Content Mix Analysis**: Optimal content type distribution
-- **Posting Frequency**: Data-driven scheduling recommendations
-- **Trend Integration**: Industry trend incorporation
-- **Performance Prediction**: Engagement forecasting
-
-### 8. Scheduler (`Scheduler.tsx`)
-**Purpose**: Content calendar and automated posting
-**Features**:
-- **Visual Calendar**: Drag-and-drop scheduling interface
-- **Bulk Scheduling**: Multiple post management
-- **Optimal Timing**: AI-suggested posting times
-- **Content Queue**: Automated posting pipeline
-- **Performance Tracking**: Scheduled post analytics
-- **Template Integration**: Reusable content templates
-
-### 9. Settings (`Settings.tsx`)
-**Purpose**: User preferences and account management
-**Features**:
-- **Profile Management**: LinkedIn profile sync
-- **Notification Settings**: Customizable alerts
-- **Privacy Controls**: Data access permissions
-- **Export Tools**: Data portability options
-- **Account Security**: Authentication management
-- **Billing Integration**: Subscription management (future)
-
-### 10. DMATestPage (`DMATestPage.tsx`)
-**Purpose**: LinkedIn API testing and debugging interface
-**Features**:
-- **Comprehensive API Testing**: All LinkedIn DMA endpoints
-- **Data Exploration**: Raw API response viewing
-- **Metric Calculation**: Real-time data processing
-- **Debug Tools**: Console output capture
-- **Performance Monitoring**: API response time tracking
-- **Error Diagnostics**: Detailed error reporting
-
-## 🔧 Services & APIs
-
-### 1. LinkedIn Data Service (`linkedin-data-service.ts`)
-**Purpose**: Centralized LinkedIn API interaction
-**Features**:
-- **Profile Metrics**: Views, search appearances, demographics
-- **Engagement Calculation**: Post performance analysis
-- **Connection Analysis**: Network growth and composition
-- **Activity Tracking**: User behavior monitoring
-- **Data Correlation**: Cross-reference different data sources
-
-### 2. Analytics Processor (`analytics-processor.ts`)
-**Purpose**: Advanced data processing and metric calculation
-**Features**:
-- **Comprehensive Metrics**: All-in-one analytics calculation
-- **Derived Insights**: Calculated metrics from raw data
-- **Performance Trends**: Historical analysis and forecasting
-- **Content Analysis**: Post performance categorization
-- **Network Insights**: Connection pattern analysis
-
-### 3. OpenAI Service (`openai.ts`)
-**Purpose**: AI-powered content generation and analysis
-**Features**:
-- **Content Generation**: Smart post creation
-- **Performance Analysis**: AI-driven insights
-- **Strategy Generation**: Personalized content strategies
-- **Trend Analysis**: Industry trend integration
-- **Optimization Recommendations**: AI-powered suggestions
-
-### 4. LinkedIn API Client (`linkedin.ts`)
-**Purpose**: Direct LinkedIn API communication
-**Features**:
-- **Profile Data**: User profile information
-- **Changelog Access**: Recent activity tracking
-- **Snapshot Data**: Historical information retrieval
-- **OAuth Management**: Authentication flow handling
-- **Error Handling**: Robust API error management
-
-## 🗄 State Management
-
-### 1. Auth Store (`authStore.ts`)
-**Purpose**: Authentication state management
-**State**:
-```typescript
-interface AuthState {
-  accessToken: string | null;        // Basic LinkedIn access
-  dmaToken: string | null;           // DMA API access
-  profile: LinkedInProfile | null;   // User profile data
-  isBasicAuthenticated: boolean;     // Basic auth status
-  isFullyAuthenticated: boolean;     // Full auth status
-}
-```
-
-### 2. App Store (`appStore.ts`)
-**Purpose**: Application-wide state management
-**State**:
-```typescript
-interface AppState {
-  sidebarCollapsed: boolean;         // Sidebar visibility
-  darkMode: boolean;                 // Theme preference (forced light)
-  currentModule: string;             // Active module
-}
-```
-
-## 🔐 Authentication Flow
-
-### Two-Step OAuth Process
-1. **Basic Authentication**:
-   - Scopes: `openid profile email w_member_social`
-   - Purpose: Profile access and basic posting
-   - Client ID: `LINKEDIN_CLIENT_ID`
-
-2. **DMA Authentication**:
-   - Scopes: `r_dma_portability_3rd_party`
-   - Purpose: Advanced analytics and data access
-   - Client ID: `LINKEDIN_DMA_CLIENT_ID`
-
-### Flow Diagram
-```
-User → Landing Page → Basic OAuth → DMA OAuth → Dashboard
-  ↓         ↓            ↓            ↓          ↓
-Start → Sign In → Profile Access → Data Access → Full Features
-```
-
-## 📊 Data Processing
-
-### 1. Profile Metrics Extraction
-```typescript
-// Data sources and processing:
-PROFILE Domain → Profile Views, Search Appearances
-CONNECTIONS Domain → Network size, growth, demographics
-MEMBER_SHARE_INFO → Historical posts and content
-Changelog API → Recent activity and engagement
-```
-
-### 2. Engagement Calculation
-```typescript
-// Process:
-1. Identify user's posts from changelog/snapshot
-2. Count likes/comments on those posts
-3. Calculate totals and averages
-4. Generate engagement rates and trends
-```
-
-### 3. Content Analysis
-```typescript
-// Analysis types:
-- Content type distribution (text, image, video)
-- Posting frequency patterns
-- Optimal posting times
-- Engagement correlation with content types
-- Performance trends over time
-```
-
-## 🚀 Deployment & Infrastructure
-
-### Netlify Configuration
-- **Build Command**: `npm run build`
-- **Publish Directory**: `dist`
-- **Functions Directory**: `netlify/functions`
-- **Node Version**: 18.x
-
-### Environment Variables
-```bash
-# LinkedIn OAuth - Basic
-LINKEDIN_CLIENT_ID=your_basic_client_id
-LINKEDIN_CLIENT_SECRET=your_basic_client_secret
-
-# LinkedIn OAuth - DMA
-LINKEDIN_DMA_CLIENT_ID=your_dma_client_id
-LINKEDIN_DMA_CLIENT_SECRET=your_dma_client_secret
-
-# AI Services
-OPENAI_API_KEY=your_openai_api_key
-VITE_OPENAI_API_KEY=your_openai_api_key
-
-# Payment Processing (Future)
-STRIPE_SECRET_KEY=your_stripe_secret_key
-VITE_STRIPE_PUBLIC_KEY=your_stripe_public_key
-```
-
-### Serverless Functions
-- **OAuth Handlers**: Authentication flow management
-- **API Proxies**: LinkedIn API request proxying
-- **Data Processors**: Server-side data processing
-- **Webhook Handlers**: External service integrations
-
-## 🔄 Data Flow Architecture
-
-### 1. Authentication Flow
-```
-User → Netlify Function → LinkedIn OAuth → Callback → Token Storage → App Access
-```
-
-### 2. Data Fetching Flow
-```
-Component → Custom Hook → Service Layer → Netlify Function → LinkedIn API → Data Processing → UI Update
-```
-
-### 3. Content Creation Flow
-```
-User Input → PostGen → OpenAI API → Content Generation → Review/Edit → Schedule/Publish
-```
-
-## 🎨 UI/UX Design System
-
-### Design Principles
-- **Glass Morphism**: Translucent cards with backdrop blur
-- **Gradient Accents**: Blue to cyan color schemes
-- **Micro-interactions**: Framer Motion animations
-- **Responsive Design**: Mobile-first approach
-- **Accessibility**: WCAG 2.1 compliance
-
-### Component Library
-- **Cards**: Glass morphism design with hover effects
-- **Buttons**: Gradient backgrounds with animations
-- **Charts**: Interactive Recharts visualizations
-- **Loading States**: Smooth skeleton screens
-- **Modals**: Backdrop blur with smooth transitions
-
-## 🧪 Testing & Quality Assurance
-
-### Testing Strategy
-- **DMA Test Page**: Comprehensive API testing interface
-- **Error Boundaries**: Graceful error handling
-- **Loading States**: Proper loading indicators
-- **Fallback Data**: Sample data when APIs fail
-- **Debug Logging**: Comprehensive console logging
-
-### Code Quality
-- **TypeScript**: Full type safety
-- **ESLint**: Code quality enforcement
-- **Prettier**: Code formatting
-- **Component Architecture**: Modular, reusable components
-- **Performance Optimization**: React Query caching, lazy loading
-
-## 📈 Performance Optimization
-
-### Frontend Optimization
-- **Code Splitting**: Route-based lazy loading
-- **Image Optimization**: WebP format, lazy loading
-- **Bundle Analysis**: Vite bundle optimization
-- **Caching Strategy**: React Query intelligent caching
-- **Animation Performance**: Hardware-accelerated animations
-
-### API Optimization
-- **Request Batching**: Multiple API calls optimization
-- **Caching Layer**: Intelligent data caching
-- **Error Retry Logic**: Exponential backoff
-- **Rate Limiting**: Respectful API usage
-- **Data Transformation**: Efficient data processing
-
-## 🔮 Future Enhancements
-
-### Planned Features
-- **Team Collaboration**: Multi-user workspaces
-- **Advanced AI**: GPT-4 integration for better content
-- **Automation**: Advanced scheduling and auto-posting
-- **Integrations**: CRM and marketing tool connections
-- **Mobile App**: React Native mobile application
-- **Enterprise Features**: Advanced analytics and reporting
-
-### Technical Improvements
-- **Database Integration**: Persistent data storage
-- **Real-time Updates**: WebSocket connections
-- **Advanced Caching**: Redis integration
-- **Monitoring**: Application performance monitoring
-- **Testing**: Comprehensive test suite
-- **Documentation**: API documentation and guides
-
----
-# LinkedIn DMA Member Data Portability API Documentation
-
-## Member Data Portability APIs
-
+🎨 UI/UX Design System
+Design Principles
+Glass Morphism: Translucent cards with backdrop blur
+Gradient Accents: Blue to cyan color schemes
+Micro-interactions: Framer Motion animations
+Responsive Design: Mobile-first approach
+Accessibility: WCAG 2.1 compliance
+Component Library
+Cards: Glass morphism design with hover effects
+Buttons: Gradient backgrounds with animations
+Charts: Interactive Recharts visualizations
+Loading States: Smooth skeleton screens
+Modals: Backdrop blur with smooth transitions
+🧪 Testing & Quality Assurance
+Testing Strategy
+DMA Test Page: Comprehensive API testing interface
+Error Boundaries: Graceful error handling
+Loading States: Proper loading indicators
+Fallback Data: Sample data when APIs fail
+Debug Logging: Comprehensive console logging
+Code Quality
+TypeScript: Full type safety
+ESLint: Code quality enforcement
+Prettier: Code formatting
+Component Architecture: Modular, reusable components
+Performance Optimization: React Query caching, lazy loading
+📈 Performance Optimization
+Frontend Optimization
+Code Splitting: Route-based lazy loading
+Image Optimization: WebP format, lazy loading
+Bundle Analysis: Vite bundle optimization
+Caching Strategy: React Query intelligent caching
+Animation Performance: Hardware-accelerated animations
+API Optimization
+Request Batching: Multiple API calls optimization
+Caching Layer: Intelligent data caching
+Error Retry Logic: Exponential backoff
+Rate Limiting: Respectful API usage
+Data Transformation: Efficient data processing
+🔮 Future Enhancements
+Planned Features
+Team Collaboration: Multi-user workspaces
+Advanced AI: GPT-4 integration for better content
+Automation: Advanced scheduling and auto-posting
+Integrations: CRM and marketing tool connections
+Mobile App: React Native mobile application
+Enterprise Features: Advanced analytics and reporting
+Technical Improvements
+Database Integration: Persistent data storage
+Real-time Updates: WebSocket connections
+Advanced Caching: Redis integration
+Monitoring: Application performance monitoring
+Testing: Comprehensive test suite
+Documentation: API documentation and guides
+LinkedIn DMA Member Data Portability API Documentation
+Member Data Portability APIs
 LinkedIn provides the following Member Data Portability APIs that allow LinkedIn members to download their LinkedIn data or share their LinkedIn data with 3rd Party Applications via APIs.
 
-### Member Data Portability API (3rd Party)
-- **GET STARTED**
-- Overview
-- Member Changelog API
-- Member Snapshot API
-
-### Member Data Portability API (Member)
-- **GET STARTED**
-- Overview
-- Member Changelog API
-- Member Snapshot API
-
-### General API Topics
-- **TRAINING**
-- Authentication
-- API Concepts
-- Breaking Change Policy
-- Best Practices
-
----
-
-## Member Data Portability (3rd Party)
-
-**Date:** 02/05/2024
+Member Data Portability API (3rd Party)
+GET STARTED
+Overview
+Member Changelog API
+Member Snapshot API
+Member Data Portability API (Member)
+GET STARTED
+Overview
+Member Changelog API
+Member Snapshot API
+General API Topics
+TRAINING
+Authentication
+API Concepts
+Breaking Change Policy
+Best Practices
+Member Data Portability (3rd Party)
+Date: 02/05/2024
 
 LinkedIn is providing the Member Data Portability (3rd Party) API product for third party developers in response to certain requirements of the Digital Markets Act (DMA). The DMA is a new EU competition law that regulates large online platforms to ensure fair competition, protect consumer rights, and foster innovation in the digital economy. Consistent with DMA obligations regarding end user data access and portability, the Member Data Portability (3rd Party) product provides APIs that allow third party developer 3rd Party applications to fetch a LinkedIn member's LinkedIn data with their consent.
 
 Querying member data using the Member Data Portability APIs requires access to the Member Data Portability (3rd Party) API product access to which can be requested from our developer portal.
 
-### Getting Started
+Getting Started
+Request Access
+Create a Developer Application Create an app on the LinkedIn Developers Platform. A LinkedIn Company Page is required to create the app. You can create a new LinkedIn Page or use your company's existing LinkedIn Page.
 
-#### Request Access
+Verify LinkedIn Company Page association To request access, the LinkedIn company page association has to be verified by the super admin of company page used while creating the application in step 1. Refer this help article on how to verify the LinkedIn company page association.
 
-1. **Create a Developer Application**
-   Create an app on the LinkedIn Developers Platform. A LinkedIn Company Page is required to create the app. You can create a new LinkedIn Page or use your company's existing LinkedIn Page.
+Request access to API product From the Products tab of your application, click Request access for Member Data Portability API (3rd Party). Fill in the access request form. Once the responses are reviewed by LinkedIn, access would be granted. To know more about developer application review status refer this LinkedIn help article.
 
-2. **Verify LinkedIn Company Page association**
-   To request access, the LinkedIn company page association has to be verified by the super admin of company page used while creating the application in step 1. Refer this help article on how to verify the LinkedIn company page association.
+Business Verification - As part of the access request form, you must provide your business email address and organization's legal name, registered address, website, and privacy policy. Your business email address will have to be verified. If you don't receive the verification email, be sure to check your email's spam folder, junk folder, social tab, and promotional tab. Personal email addresses will not pass the business verification process.
 
-3. **Request access to API product**
-   From the Products tab of your application, click Request access for Member Data Portability API (3rd Party). Fill in the access request form. Once the responses are reviewed by LinkedIn, access would be granted. To know more about developer application review status refer this LinkedIn help article.
+Access Grant Once the responses are reviewed and approved and business verified, access would be granted. To know more about developer application review status refer to this LinkedIn help article.
 
-   **Business Verification** - As part of the access request form, you must provide your business email address and organization's legal name, registered address, website, and privacy policy. Your business email address will have to be verified. If you don't receive the verification email, be sure to check your email's spam folder, junk folder, social tab, and promotional tab. Personal email addresses will not pass the business verification process.
+Note: The button to request access would only be enabled if the LinkedIn Company page association has been verified.
 
-4. **Access Grant**
-   Once the responses are reviewed and approved and business verified, access would be granted. To know more about developer application review status refer to this LinkedIn help article.
-
-> **Note:** The button to request access would only be enabled if the LinkedIn Company page association has been verified.
-
-#### Getting member consent and access token
-
+Getting member consent and access token
 Generate access token via Authorization Code flow to make authenticated API calls. Refer Authorization Code Flow (3-legged OAuth) documentation to know more. Make sure you provide the following scope while generating the access token.
 
-| Permission | Description |
-|------------|-------------|
-| r_dma_portability_3rd_party | Provides access to LinkedIn member data to developers upon member authorization |
-
+Permission	Description
+r_dma_portability_3rd_party	Provides access to LinkedIn member data to developers upon member authorization
 Ready to start development? Refer to the links below for guidance on building your application.
 
-- Authentication
-- API Concepts
-- Breaking Change Policy
-- Best Practices
-- Error Handling
+Authentication
+API Concepts
+Breaking Change Policy
+Best Practices
+Error Handling
+Note: Only LinkedIn users from the European Economic Area are allowed to consent to share their LinkedIn data with 3rd party developer applications.
 
-> **Note:** Only LinkedIn users from the European Economic Area are allowed to consent to share their LinkedIn data with 3rd party developer applications.
-
-### New Development
-
-#### Member Changelog API
-
+New Development
+Member Changelog API
 Once the member has consented to share data with a 3rd party application, LinkedIn will start archiving all the member's interactions (posts created, comments, reactions etc), from the time the user has consented, on LinkedIn as changelog events. Member Changelog API allows developers to query these changelog events. Developers can only query changelog events created in the past 28 days. To know more about the API and it's usage, refer the Member Changelog API Documentation.
 
-#### Member Snapshot API
-
+Member Snapshot API
 Once the member has consented to share data with a 3rd party application, LinkedIn will start archiving all the member data (Account History, Articles, Posts). Member Snapshot API allows developers to fetch the data pertaining to LinkedIn member(s) at a point in time when an API call is made. The API will return data related to specific domains. To know more about the API and its usage, refer to the Member Snapshot API Documentation.
 
----
-
-## Member Changelog API
-
-**Date:** 11/22/2024
+Member Changelog API
+Date: 11/22/2024
 
 Once the member has consented to share data and an access token is generated, LinkedIn will start archiving all the member's interactions (posts created, comments, reactions etc) on LinkedIn, from the time they consented, as changelog events. Member Changelog API allows you to query and fetch all changelog events archived for a user from the past 28 days.
 
-### Usage
-
+Usage
 You must use an access token to make an authenticated call on behalf of a user.
 
-### Permissions
+Permissions
+Permission	Description
+r_dma_portability_3rd_party	Provides access to LinkedIn member data to developers upon member authorization
+r_dma_portability_member	Allows users to download their own LinkedIn data
+Note: Member Changelog API uses Versioned LinkedIn APIs. Please append the header LinkedIn-Version: 202312 while making the API requests.
 
-| Permission | Description |
-|------------|-------------|
-| r_dma_portability_3rd_party | Provides access to LinkedIn member data to developers upon member authorization |
-| r_dma_portability_member | Allows users to download their own LinkedIn data |
-
-> **Note:** Member Changelog API uses Versioned LinkedIn APIs. Please append the header `LinkedIn-Version: 202312` while making the API requests.
-
-### Member Changelog Events
-
+Member Changelog Events
 The following request can be used to query changelog events for a user:
 
-```http
 GET https://api.linkedin.com/rest/memberChangeLogs?q=memberAndApplication
-```
+Query Parameters
+Field Name	Required	Description
+startTime	No	Represented as an inclusive timestamp in epoch milliseconds. If present, returns all the changelog events that are created after the time.
+We currently return events up to 28 days. If you specify a startTime older than 28 days of the current timestamp, it will return events up to 28 days. If you specify an invalid timestamp, it will throw a 400 error.
 
-#### Query Parameters
+In addition, we recommend querying at a count=10 to reduce latency and to query each member's activities once an hour. The upper limit is 50. If you set a number not in the range [1,50], it will result in a 400 and an error message containing the recommended count.
 
-| Field Name | Required | Description |
-|------------|----------|-------------|
-| startTime | No | Represented as an inclusive timestamp in epoch milliseconds. If present, returns all the changelog events that are created after the time. |
-
-We currently return events up to 28 days. If you specify a `startTime` older than 28 days of the current timestamp, it will return events up to 28 days. If you specify an invalid timestamp, it will throw a 400 error.
-
-In addition, we recommend querying at a `count=10` to reduce latency and to query each member's activities once an hour. The upper limit is `50`. If you set a number not in the range `[1,50]`, it will result in a `400` and an error message containing the recommended `count`.
-
-If you decide to increase number of activities returned via `count`, keep in mind it will slow down processing time and can lead to timeouts. For querying each member's activities, we recommend spreading out your requests over the hour such that your application is not having QPS spikes, which could lead to timeouts as well.
+If you decide to increase number of activities returned via count, keep in mind it will slow down processing time and can lead to timeouts. For querying each member's activities, we recommend spreading out your requests over the hour such that your application is not having QPS spikes, which could lead to timeouts as well.
 
 We also recommend using the capturedAt time returned by Member Changelog API to determine the time of the event activity. There might be instances within the specific activity that do not return the created/lastModified time.
 
-> **Note:** We recommend you specifying `startTime` by using the latest `processedAt` from the previous response. If there is no event from the previous response, keep the same `startTime` for the next request. If there is an event from the response, the next request should use the latest timestamp of the `processedAt` and that event will show up on the next request's response. This way, we will ensure no data loss in the next API request.
+Note: We recommend you specifying startTime by using the latest processedAt from the previous response. If there is no event from the previous response, keep the same startTime for the next request. If there is an event from the response, the next request should use the latest timestamp of the processedAt and that event will show up on the next request's response. This way, we will ensure no data loss in the next API request.
 
-### Member Changelog Events Schema
-
+Member Changelog Events Schema
 The Member Changelog API will return an array of elements. Each element is an activity record with the following schema:
 
-| Field Name | Description |
-|------------|-------------|
-| id | The unique identifier for the activity event. |
-| capturedAt | Time the event is captured. |
-| processedAt | Time the event is processed. |
-| configVersion | The configuration version used to process this event. This is unique to the activity's resourceName and method. It can change periodically as we update our configurations to better the API experience. It will mainly used for debugging purpose. |
-| owner | The member who owns the record. It is the same member who has retrieval and viewing access to this activity. |
-| actor | The member who performs the action of the activity. |
-| resourceName | Name of resource being acted upon. |
-| resourceId | The identifier of the resource. |
-| resourceUri | URI of the resource being modified. Used for remediation. |
-| method | The resource method. Can be one of the following methods: CREATE, UPDATE, PARTIAL_UPDATE, DELETE *As of now, if a method is DELETE, the activity and processedActivity fields should be empty since we cannot capture the object after it has been deleted. |
-| methodName | The optional string representing the method's name. Only present in ACTION method. |
-| activity | The original activity data. Used for remediation. |
-| processedActivity | The decorated original activity containing relevant contextual information. For example, if the original activity is a comment, this will include the original share content. Used for archiving. |
-| siblingActivities | The activities on the same resource level. This is used for previous sibling comments on a share or previous messages in a conversation. Will return up to 10 most recent previous activities. |
-| parentSiblingActivities | The previous activities on the parent resource level. Example would be the previous sibling comments of a parent comment of a nested comment. Will return up to 10 most recent previous activities. |
-| activityId | A unique string identifier of a captured activity. If an activity is processed more than once, all generated records share same activityId. |
-| activityStatus | NEW! The status of the event. Can be one of the following: SUCCESS - Event is successfully processed on the initial attempt. FAILURE - Event has partial or complete processing failure on the initial attempt. The API will not surface multiple FAILURE events of the same activity. SUCCESSFUL_REPLAY - Event is successfully reprocessed after one or many attempts. |
-
-### Sample Get Response
-
-```json
+Field Name	Description
+id	The unique identifier for the activity event.
+capturedAt	Time the event is captured.
+processedAt	Time the event is processed.
+configVersion	The configuration version used to process this event. This is unique to the activity's resourceName and method. It can change periodically as we update our configurations to better the API experience. It will mainly used for debugging purpose.
+owner	The member who owns the record. It is the same member who has retrieval and viewing access to this activity.
+actor	The member who performs the action of the activity.
+resourceName	Name of resource being acted upon.
+resourceId	The identifier of the resource.
+resourceUri	URI of the resource being modified. Used for remediation.
+method	The resource method. Can be one of the following methods: CREATE, UPDATE, PARTIAL_UPDATE, DELETE *As of now, if a method is DELETE, the activity and processedActivity fields should be empty since we cannot capture the object after it has been deleted.
+methodName	The optional string representing the method's name. Only present in ACTION method.
+activity	The original activity data. Used for remediation.
+processedActivity	The decorated original activity containing relevant contextual information. For example, if the original activity is a comment, this will include the original share content. Used for archiving.
+siblingActivities	The activities on the same resource level. This is used for previous sibling comments on a share or previous messages in a conversation. Will return up to 10 most recent previous activities.
+parentSiblingActivities	The previous activities on the parent resource level. Example would be the previous sibling comments of a parent comment of a nested comment. Will return up to 10 most recent previous activities.
+activityId	A unique string identifier of a captured activity. If an activity is processed more than once, all generated records share same activityId.
+activityStatus	NEW! The status of the event. Can be one of the following: SUCCESS - Event is successfully processed on the initial attempt. FAILURE - Event has partial or complete processing failure on the initial attempt. The API will not surface multiple FAILURE events of the same activity. SUCCESSFUL_REPLAY - Event is successfully reprocessed after one or many attempts.
+Sample Get Response
 {
   "owner": "urn:li:person:2qXA98-mVk",
   "resourceId": "0-UzY2MDM3MjAzODc4OTk1OTI3MDRfNTAw",
@@ -1340,19 +1038,12 @@ The Member Changelog API will return an array of elements. Each element is an ac
   },
   "id": 978988628
 }
-```
+Organizations
+Date: 03/05/2024
 
----
+The identity of the resourceName is organizations and organizationAcls. Events relating to creation and updation of company pages have resourceName organization. Events relating to adding or removing admins for a company page have resourceName organizationAcls.
 
-## Organizations
-
-**Date:** 03/05/2024
-
-The identity of the resourceName is `organizations` and `organizationAcls`. Events relating to creation and updation of company pages have resourceName `organization`. Events relating to adding or removing admins for a company page have resourceName `organizationAcls`.
-
-### Organizations Activity - Creating a Company Page
-
-```json
+Organizations Activity - Creating a Company Page
 {
   "owner": "urn:li:person:<personID>",
   "resourceId": "82318779",
@@ -1367,13 +1058,9 @@ The identity of the resourceName is `organizations` and `organizationAcls`. Even
   "siblingActivities": [],
   "id": 3331301460
 }
-```
+Adding a member as a Content Administrator for a company page.
 
-Adding a member as a `Content Administrator` for a company page.
-
-### OrganizationsAcls Activity - Adding a new admin
-
-```json
+OrganizationsAcls Activity - Adding a new admin
 {
   "owner": "urn:li:person:<personID>",
   "resourceId": "organization=urn%3Ali%3Aorganization%3A82318779&role=CONTENT_ADMINISTRATOR&roleAssignee=urn:li:person:<personID>",
@@ -1396,23 +1083,16 @@ Adding a member as a `Content Administrator` for a company page.
   "siblingActivities": [],
   "id": 3331301452
 }
-```
+Invitations
+Date: 03/05/2024
 
----
-
-## Invitations
-
-**Date:** 03/05/2024
-
-The identity of the resourceName is `invitations`. Currently, this resource captures all invitations acted on the behalf of the regulated members. This means an invitation sent by the regulated member will show up whereas an invitation received by the regulated member will not show up unless the member accept/decline the invitation. The methods available are `ACTION verifyAndCreate` for invitations created or received, `PARTIAL_UPDATE`, `ACTION inviteeClosingInvitation`, `ACTION inviterClosingInvitation`, `ACTION purge`, and `DELETE`.
+The identity of the resourceName is invitations. Currently, this resource captures all invitations acted on the behalf of the regulated members. This means an invitation sent by the regulated member will show up whereas an invitation received by the regulated member will not show up unless the member accept/decline the invitation. The methods available are ACTION verifyAndCreate for invitations created or received, PARTIAL_UPDATE, ACTION inviteeClosingInvitation, ACTION inviterClosingInvitation, ACTION purge, and DELETE.
 
 Refer here for more information on invitations.
 
-> **Note:** We do not currently capture address/contact book import.
+Note: We do not currently capture address/contact book import.
 
-### Action verifyAndCreate - Send an Invitation
-
-```json
+Action verifyAndCreate - Send an Invitation
 {
   "owner": "urn:li:person:<inviterID>",
   "resourceId": "7030825461085577216",
@@ -1437,11 +1117,7 @@ Refer here for more information on invitations.
   "siblingActivities": [],
   "id": 1757310665
 }
-```
-
-### Action inviterClosingInvitation - withdraw an invitation
-
-```json
+Action inviterClosingInvitation - withdraw an invitation
 {
   "activity": {
     "inviteActionData": [
@@ -1465,37 +1141,29 @@ Refer here for more information on invitations.
   "resourceName": "invitations",
   "resourceUri": "/invitations"
 }
-```
+Messages
+Date: 03/05/2024
 
----
+The identity of the resourceName is messages. This captures all inbound and outbound messages for direct connection, InMail, Recruiter and Sales Navigator of the members. The method available is CREATE.
 
-## Messages
+You can determine whether a Messages event is an inbound or outbound message based on the actor field of each event. If the event is an outbound one (e.g. member sends a message), the actor field will correspond to the member's personUrn and equal to the value of the owner field. If the event is inbound, then the field will be of another member's personUrn.
 
-**Date:** 03/05/2024
-
-The identity of the `resourceName` is `messages`. This captures all inbound and outbound messages for direct connection, InMail, Recruiter and Sales Navigator of the members. The method available is `CREATE`.
-
-You can determine whether a Messages event is an inbound or outbound message based on the `actor` field of each event. If the event is an outbound one (e.g. member sends a message), the `actor` field will correspond to the member's `personUrn` and equal to the value of the `owner` field. If the event is inbound, then the field will be of another member's `personUrn`.
-
-All message events' `activity` fields will contain `owner`, `author`, and `thread` fields. These fields will help you figure out the identities of the mailbox and more. The `owner` and `author` field will correspond to the sender's mailbox, which can be personal, Recruiter, or Sales Navigator. The `thread` field contains the `membership` array field that have the `identity` of all the participants in the message thread. For more information on the schema, please refer here.
+All message events' activity fields will contain owner, author, and thread fields. These fields will help you figure out the identities of the mailbox and more. The owner and author field will correspond to the sender's mailbox, which can be personal, Recruiter, or Sales Navigator. The thread field contains the membership array field that have the identity of all the participants in the message thread. For more information on the schema, please refer here.
 
 Below are response examples of inbound and outbound Message events:
-- Outbound message with attachment from personal mailbox
-- Outbound message from Sales Navigator mailbox
-- Inbound message to personal mailbox
-- Inbound message to Sales Navigator mailbox
-- Outbound GIF message from Recruiter mailbox
-- Changelog Event when a member edits a sent message
-- Changelog Event when a member deletes a sent message
-- Sample response of outbound audio message from personal mailbox
-- Sample response of outbound video message from personal mailbox
-- Sample response of outbound message with member mention sent from personal mailbox
 
-### Contextual Decoration of entities shared on messages
-
-### Sample response of outbound message activity with attachment from personal mailbox
-
-```json
+Outbound message with attachment from personal mailbox
+Outbound message from Sales Navigator mailbox
+Inbound message to personal mailbox
+Inbound message to Sales Navigator mailbox
+Outbound GIF message from Recruiter mailbox
+Changelog Event when a member edits a sent message
+Changelog Event when a member deletes a sent message
+Sample response of outbound audio message from personal mailbox
+Sample response of outbound video message from personal mailbox
+Sample response of outbound message with member mention sent from personal mailbox
+Contextual Decoration of entities shared on messages
+Sample response of outbound message activity with attachment from personal mailbox
 {
   "owner": "urn:li:person:2qXA98-mVk",
   "resourceId": "0-UzY2MDM0NDMwMzU5NDA0OTUzNjFfNTAw",
@@ -1540,18 +1208,10 @@ Below are response examples of inbound and outbound Message events:
   },
   "id": 977493340
 }
-```
-
-### Sample request of media download
-
-```http
+Sample request of media download
 GET https://api.linkedin.com/mediaDownload/C4E06AQGlz2sDB72DQw/messaging-attachmentFile/0?app=4355721&m=AQL6O71XM7RYCwAAAWcuIskYd_5WgTBEDPP1vu9mgwr17pkmTwAJepazDA&e=1543963290&v=beta&t=12345
 Authorization: Bearer <redacted access token>
-```
-
-### Sample response of outbound message activity from Sales Navigator mailbox
-
-```json
+Sample response of outbound message activity from Sales Navigator mailbox
 {
   "owner": "urn:li:person:2qXA98-mVk",
   "resourceId": "0-UzY2MDM0NDI5OTQyNjU4MTI5OTJfMTAwMA==",
@@ -1583,11 +1243,7 @@ Authorization: Bearer <redacted access token>
   "capturedAt": 1574383496347,
   "id": 977493324
 }
-```
-
-### Sample response of inbound message activity to personal mailbox
-
-```json
+Sample response of inbound message activity to personal mailbox
 {
   "owner": "urn:li:person:2qXA98-mVk",
   "resourceId": "0-UzY2MDM0NDgxMzA5MzM1MzA2MjRfNTAw",
@@ -1621,16 +1277,12 @@ Authorization: Bearer <redacted access token>
   "capturedAt": 1574384721128,
   "id": 977493572
 }
-```
-
 When a member edits a sent message:
-- The value of `method` field would be `UPDATE`.
-- The `activity` contains the edited content of the message.
-- The `resourceId` would be same as the original message sent / received by the member.
 
-### Changelog Event when a member edits a sent message
-
-```json
+The value of method field would be UPDATE.
+The activity contains the edited content of the message.
+The resourceId would be same as the original message sent / received by the member.
+Changelog Event when a member edits a sent message
 {
   "owner": "urn:li:person:demo-123",
   "resourceId": "2-demoResourceId123==",
@@ -1658,16 +1310,12 @@ When a member edits a sent message:
   "siblingActivities": [],
   "id": 1823218385
 }
-```
-
 When a member deletes a sent message:
-- The value of `method` field would be `DELETE`.
-- The `activity.content` fields would not be present.
-- The `resourceId` would be same as the original message sent / received by the member.
 
-### Changelog Event when a member deletes a sent message
-
-```json
+The value of method field would be DELETE.
+The activity.content fields would not be present.
+The resourceId would be same as the original message sent / received by the member.
+Changelog Event when a member deletes a sent message
 {
   "owner": "urn:li:person:demo-user1",
   "resourceId": "2-demoResourceID==",
@@ -1690,11 +1338,7 @@ When a member deletes a sent message:
   "siblingActivities": [],
   "id": 1823218409
 }
-```
-
-### Sample response of inbound message activity to Sales Navigator mailbox
-
-```json
+Sample response of inbound message activity to Sales Navigator mailbox
 {
   "owner": "urn:li:person:2qXA98-mVk",
   "resourceId": "0-UzY2MDM3MjAzODc4OTk1OTI3MDRfNTAw",
@@ -1728,11 +1372,7 @@ When a member deletes a sent message:
   "capturedAt": 1574449632331,
   "id": 978988628
 }
-```
-
-### Sample response of outbound GIF message activity from Recruiter mailbox
-
-```json
+Sample response of outbound GIF message activity from Recruiter mailbox
 {
   "owner": "urn:li:person:2qXA98-mVk",
   "resourceId": "0-UzY123456789",
@@ -1796,11 +1436,7 @@ When a member deletes a sent message:
   "capturedAt": 1580345063639,
   "id": 1106033436
 }
-```
-
-### Sample response of outbound audio message from personal mailbox
-
-```json
+Sample response of outbound audio message from personal mailbox
 {
   "owner": "urn:li:person:KhoHfOWYNQ",
   "resourceId": "2-MTYyOTE0MDAzODE2M2I0MTgyMS0wMDMmNjI2ZGZkZWEtZGFkZS00N2FkLTk2YmEtMDY5MWEyNmEyOThhXzAxMg==",
@@ -1840,11 +1476,7 @@ When a member deletes a sent message:
   "siblingActivities": [],
   "id": 1969381378
 }
-```
-
-### Sample response of Outbound video message from personal mailbox
-
-```json
+Sample response of Outbound video message from personal mailbox
 {
   "owner": "urn:li:person:KhoHfOWYNQ",
   "resourceId": "2-MTYyOTE0MDAyMDM4M2IxMDUxMC0wMDMmNjI2ZGZkZWEtZGFkZS00N2FkLTk2YmEtMDY5MWEyNmEyOThhXzAxMg==",
@@ -1882,11 +1514,7 @@ When a member deletes a sent message:
   "capturedAt": 1629140020699,
   "id": 1969381370
 }
-```
-
-### Sample response of Outbound message with member mention sent from personal mailbox
-
-```json
+Sample response of Outbound message with member mention sent from personal mailbox
 {
   "owner": "urn:li:person:KhoHfOWYNQ",
   "resourceId": "2-MTYyOTEzOTk3NjQ4N2I4OTg1OC0wMDMmNjI2ZGZkZWEtZGFkZS00N2FkLTk2YmEtMDY5MWEyNmEyOThhXzAxMg==",
@@ -1924,47 +1552,34 @@ When a member deletes a sent message:
   "siblingActivities": [],
   "id": 1969381330
 }
-```
+LinkedIn Events
+Date: 03/05/2024
 
----
+The identity of the resourceName is events. Currently, this resource captures all LinkedIn events created by regulated members. This also includes LinkedIn events created by a regulated member on behalf of a Company Page. The methods available are: CREATE.
 
-## LinkedIn Events
-
-**Date:** 03/05/2024
-
-The identity of the resourceName is `events`. Currently, this resource captures all LinkedIn events created by regulated members. This also includes LinkedIn events created by a regulated member on behalf of a Company Page. The methods available are: `CREATE`.
-
-### LinkedIn Event activity schema
-
-| Field | Description | Format |
-|-------|-------------|--------|
-| id | Unique identifier of the event | long |
-| name | The name of the event, as input by the user | MultiLocaleRichText |
-| vanityName | Vanity name (unique across events) for the event that helps with easy identification. | string |
-| description | The description of the event, as input by the user. This field will not be present when event description is not provided by the organizer. | MultiLocaleRichText |
-| organizer | Entity responsible for organizing this event - possible urn types: urn:li:person:{personID} (Event created by a regulated member), urn:li:organization:{organizationID} (Event created on behalf of a company page). | string |
-| backgroundImage | DigitalMediaAssetUrn of the background image associated with this event | string |
-| timeRangeV2.startAt | The start time of the event. | long |
-| timeRangeV2.endsAt | The end time of the event. The field will not be present if the organizer hasn't entered an end time during event creation | long |
-| externalUrl | Url external to LinkedIn containing event information. | string |
-| settings | Container for various event settings. | EventSettings |
-| venueDetails | The additional details about the event venue, on top of the address field, like room name, floor number etc. as input by the user. | MultiLocaleRichText |
-| address | The physical address of the event (i.e. where the event is taking place). This field will not be present when address is not provided by the organizer. | Address |
-| eventTimezone | The event's timezone in IANA Time Zone database format. | string |
-| hashtags | Hashtag urns used to generate event feed, specified by event organizer. | List[string] |
-| closed | Flag to indicate if this is a closed event meaning the attendees are required to register before joining the event | boolean |
-
-### EventSettings Schema
-
-| Field | Description | Format |
-|-------|-------------|--------|
-| entryCriteria | Entry criteria member needs to satisfy to be able to attend the event. Possible values: PUBLIC: This event is open to all members. GATED: A member needs to raise a request to attend the event. | Enum |
-| discoveryMode | Mode in which the event can be discovered on LinkedIn. Possible values: LISTED: Event is discoverable through search/relevance/recommendation channels. URL_ONLY: Event can only be discovered via URL. | Enum |
-| attendanceMode | Mode in which the attendees can attend an event. Possible values: IN_PERSON: The event is an offline only event with physical location associated to it and can only be attended in person. VIRTUAL: The event is an online only event, which has no physical location associated to it. It can only be attended virtually using steaming Url. IN_PERSON_OR_VIRTUAL: The event has a physical location to attend in person and also has url for attending virtually. | Enum |
-
-### Sample activity - LinkedIn event created by a regulated user
-
-```json
+LinkedIn Event activity schema
+Field	Description	Format
+id	Unique identifier of the event	long
+name	The name of the event, as input by the user	MultiLocaleRichText
+vanityName	Vanity name (unique across events) for the event that helps with easy identification.	string
+description	The description of the event, as input by the user. This field will not be present when event description is not provided by the organizer.	MultiLocaleRichText
+organizer	Entity responsible for organizing this event - possible urn types: urn:li:person:{personID} (Event created by a regulated member), urn:li:organization:{organizationID} (Event created on behalf of a company page).	string
+backgroundImage	DigitalMediaAssetUrn of the background image associated with this event	string
+timeRangeV2.startAt	The start time of the event.	long
+timeRangeV2.endsAt	The end time of the event. The field will not be present if the organizer hasn't entered an end time during event creation	long
+externalUrl	Url external to LinkedIn containing event information.	string
+settings	Container for various event settings.	EventSettings
+venueDetails	The additional details about the event venue, on top of the address field, like room name, floor number etc. as input by the user.	MultiLocaleRichText
+address	The physical address of the event (i.e. where the event is taking place). This field will not be present when address is not provided by the organizer.	Address
+eventTimezone	The event's timezone in IANA Time Zone database format.	string
+hashtags	Hashtag urns used to generate event feed, specified by event organizer.	List[string]
+closed	Flag to indicate if this is a closed event meaning the attendees are required to register before joining the event	boolean
+EventSettings Schema
+Field	Description	Format
+entryCriteria	Entry criteria member needs to satisfy to be able to attend the event. Possible values: PUBLIC: This event is open to all members. GATED: A member needs to raise a request to attend the event.	Enum
+discoveryMode	Mode in which the event can be discovered on LinkedIn. Possible values: LISTED: Event is discoverable through search/relevance/recommendation channels. URL_ONLY: Event can only be discovered via URL.	Enum
+attendanceMode	Mode in which the attendees can attend an event. Possible values: IN_PERSON: The event is an offline only event with physical location associated to it and can only be attended in person. VIRTUAL: The event is an online only event, which has no physical location associated to it. It can only be attended virtually using steaming Url. IN_PERSON_OR_VIRTUAL: The event has a physical location to attend in person and also has url for attending virtually.	Enum
+Sample activity - LinkedIn event created by a regulated user
 {
   "owner": "urn:li:person:<personID>",
   "resourceId": "7022126346663247872",
@@ -2011,55 +1626,34 @@ The identity of the resourceName is `events`. Currently, this resource captures 
   "activityId": "e1f1e63b-2840-4c91-bb44-937c017fa186",
   "activityStatus": "SUCCESS"
 }
-```
-
----
-
-## Member Snapshot API
-
-**Date:** 03/01/2024
+Member Snapshot API
+Date: 03/01/2024
 
 Once the member has consented to share data and an access token is generated, Linkedin processes historical LinkedIn data for the member. Developers can query this data using the Member Snapshot API.
 
-### Usage
-
+Usage
 You must use an access token to make an authenticated call on behalf of a user.
 
-### Permissions
+Permissions
+Permission	Description
+r_dma_portability_3rd_party	Provides access to LinkedIn member data to developers upon member authorization
+r_dma_portability_member	Allows users to download their own LinkedIn data
+Note: Member Snapshot API uses the Versioned LinkedIn APIs. Please append the header LinkedIn-Version: 202312 while making the API requests.
 
-| Permission | Description |
-|------------|-------------|
-| r_dma_portability_3rd_party | Provides access to LinkedIn member data to developers upon member authorization |
-| r_dma_portability_member | Allows users to download their own LinkedIn data |
-
-> **Note:** Member Snapshot API uses the Versioned LinkedIn APIs. Please append the header `LinkedIn-Version: 202312` while making the API requests.
-
-### Query Member Snapshot data
-
+Query Member Snapshot data
 The following request can be used to query snapshot data for a user:
 
-```http
 GET https://api.linkedin.com/rest/memberSnapshotData?q=criteria
-```
-
-#### Query Parameters
-
-| Field Name | Required | Description |
-|------------|----------|-------------|
-| domain | No | Represents the particular domain of data being requested. If no specific domain if provided, the response contains data from all domains. For a complete list of domains refer here. |
-
-### Member Snapshot Schema
-
+Query Parameters
+Field Name	Required	Description
+domain	No	Represents the particular domain of data being requested. If no specific domain if provided, the response contains data from all domains. For a complete list of domains refer here.
+Member Snapshot Schema
 The Member Shapshot API returns an array of elements with the following schema.
 
-| Field Name | Format | Description |
-|------------|--------|-------------|
-| snapshotDomain | Enum | The type of LinkedIn data processed for the user. For a detailed list of domains supported, refer here. |
-| snapshotData | JSON Key Value | Data processed for the user |
-
-### Sample Get Response
-
-```json
+Field Name	Format	Description
+snapshotDomain	Enum	The type of LinkedIn data processed for the user. For a detailed list of domains supported, refer here.
+snapshotData	JSON Key Value	Data processed for the user
+Sample Get Response
 {
   "paging": {
     "start": 0,
@@ -2096,19 +1690,14 @@ The Member Shapshot API returns an array of elements with the following schema.
     }
   ]
 }
-```
+Note: In the response elements field will always contain exactly 1 element with snapshotDomain specifying domain. The snapshotData field would be a list with data generated for the specific domain.
 
-> **Note:** In the response `elements` field will always contain exactly 1 element with `snapshotDomain` specifying domain. The `snapshotData` field would be a list with data generated for the specific domain.
+Response Pagination
+The response can contain a lot of information depending on the domain specified in the request. In order to reduce latency the response may be paginated where the snapshotData is divided across multiple pages. If the response is paginated and the data is divided into multiple pages, the paging field will contain links to access the next and prev pages. The start query parameter determines which page you want to fetch.
 
-### Response Pagination
+Note: The "total" count field may not fully reflect the total number of pages to be retrieved as some data is retrieved through offline systems. Please continue looping through the pages until you receive an error message indicating "No data found for this memberId".
 
-The response can contain a lot of information depending on the `domain` specified in the request. In order to reduce latency the response may be paginated where the `snapshotData` is divided across multiple pages. If the response is paginated and the data is divided into multiple pages, the `paging` field will contain links to access the `next` and `prev` pages. The `start` query parameter determines which page you want to fetch.
-
-> **Note:** The "total" count field may not fully reflect the total number of pages to be retrieved as some data is retrieved through offline systems. Please continue looping through the pages until you receive an error message indicating "No data found for this memberId".
-
-### Sample Paginated response with paging information
-
-```json
+Sample Paginated response with paging information
 {
   "paging": {
     "start": 1,
@@ -2129,106 +1718,90 @@ The response can contain a lot of information depending on the `domain` specifie
   },
   "elements": {}
 }
-```
-
----
-
-## Member Snapshot Domain List
-
-**Date:** 05/15/2025
+Member Snapshot Domain List
+Date: 05/15/2025
 
 Following is a list of the Member Snapshot Domains supported by LinkedIn. After a member consents to data sharing and an access token is issued, LinkedIn begins collecting and processing all the member data and creates a "snapshot" of the data as it exists at that moment. Data for certain domains will be available sooner than others, depending on the effort required by LinkedIn to collate this data.
 
-> **Note:** The member snapshot domains are case sensitive, please make sure the domains listed here are used as is while querying snapshot data via the Member Snapshot API
+Note: The member snapshot domains are case sensitive, please make sure the domains listed here are used as is while querying snapshot data via the Member Snapshot API
 
-### Member Snapshot Domains
-
-| Member Snapshot Domain | Description |
-|------------------------|-------------|
-| ADS_CLICKED | A List of ads you've clicked on. |
-| MEMBER_FOLLOWING | A list of people you follow on LinkedIn. |
-| login | Shows all the stored account logins for your account. |
-| RICH_MEDIA | Includes URLs to photos, videos, or documents shared on LinkedIn. |
-| SEARCHES | A list of your recent searches on LinkedIn. |
-| INFERENCE_TAKEOUT | Key inferences about you based on your LinkedIn profile and activity. |
-| ALL_COMMENTS | Comments you've made, excluding those on posts in Groups. |
-| CONTACTS | Contacts imported on LinkedIn. |
-| Events | Events you've attended, declined after being invited to, or requested to attend. |
-| RECEIPTS | Details of purchases associated with the member's LinkedIn account. |
-| AD_TARGETING | Contains information used by LinkedIn to determine which ads to show you. |
-| REGISTRATION | The date the member joined LinkedIn. |
-| REVIEWS | Ratings and reviews provided by the member, including those for products, service providers, and LinkedIn Learning. |
-| ARTICLES | Articles authored by the member. |
-| PATENTS | Information about any patents listed on the member's LinkedIn profile. |
-| GROUPS | LinkedIn groups that the member is a part of. |
-| COMPANY_FOLLOWS | A list of the entities (e.g., companies) that the member follows on LinkedIn. |
-| INVITATIONS | Invitations that have been sent and received by the member. |
-| PHONE_NUMBERS | Phone numbers linked to the member's LinkedIn account. |
-| CONNECTIONS | Name, position, company, and connection date of 1st degree connections of the member. |
-| EMAIL_ADDRESSES | History of email addresses associated with the member's account, past or present. |
-| JOB_POSTINGS | Jobs that have been posted by the user. |
-| JOB_APPLICATIONS | Jobs that have been applied to by the user in the past. |
-| JOB_SEEKER_PREFERENCES | Includes preferred job types, locations, industries, company sizes, dream companies, job titles, and activity level. |
-| LEARNING | LinkedIn Learning videos that have been watched by the member. |
-| INBOX | Messages sent and received in the member's inbox. |
-| SAVED_JOBS | Contains information about jobs saved for future reference. |
-| SAVED_JOB_ALERTS | The member's job alerts including saved date and job alert URLs. |
-| PROFILE | The basic biographical information that makes up the member's LinkedIn profile. |
-| SKILLS | Skills added to the member's profile. |
-| POSITIONS | Job roles listed on the member's profile, including company names, titles, descriptions, locations, and dates. |
-| EDUCATION | Schools listed on the member's profile, including dates attended, degrees earned, and activities participated in. |
-| TEST_SCORES | Test scores listed on the member's profile. |
-| CAUSES_YOU_CARE_ABOUT | Causes included on the member's profile. |
-| PUBLICATIONS | Publications listed on the member's profile. |
-| PROJECTS | Projects listed on the member's profile. |
-| ORGANIZATIONS | Organizations listed on the member's profile. |
-| LANGUAGES | Languages listed by the member, along with their level of proficiency. |
-| HONORS | Honors listed on the member's profile. |
-| COURSES | Courses listed on the member's profile. |
-| CERTIFICATIONS | Contains a list of certifications included in the member's profile. |
-| CALENDAR | Mobile app calendar synced with LinkedIn, including calendar source, owner, and last synced date. |
-| RECOMMENDATIONS | A list of recommendations received and given by the member. |
-| ENDORSEMENTS | Contains details of given and received endorsements. |
-| MEMBER_SHARE_INFO | Contains all shared or re-shared posts, including date, URL, shared comments, and visibility status. |
-| SECURITY_CHALLENGE_PIPE | Contains challenge event information when a member signs in from an unfamiliar device or has enabled two-step verification. This includes the date, IP address, user agent string, country/region, and challenge type. |
-| TRUSTED_GRAPH | Contains confirmed verification information related to identity, workplace, and educational institutions. This may include a workplace email or valid government-issued ID. LinkedIn partners with CLEAR, a third-party verification partner. |
-| MARKETPLACE_ENGAGEMENTS | Contains the event name, date and time, status, and external URL if the event organizer shared one. |
-| MARKETPLACE_PROVIDERS | Contains information related to services a member provides on Services Marketplace. |
-| MARKETPLACE_OPPORTUNITIES | Contains information related to services a member is looking for on Services Marketplace. |
-| ACTOR_SAVE_ITEM | Contains the saved date and URL of a post, article, or other content. |
-| JOB_APPLICANT_SAVED_ANSWERS | Contains the member's answer to basic job application questions. |
-| TALENT_QUESTION_SAVED_RESPONSE | Contains the member's answers to job application questions provided by the job poster. |
-| PROFILE_SUMMARY | Contains AI generated profile summary. |
-| ALL_LIKES | Contains the reaction type a member has made to a post. |
-| ALL_VOTES | Contains information related to polls members have created and voted on. |
-| RECEIPTS_LBP | Contains information related to the member's purchases of LinkedIn services |
-| easyapply-blocking | Provides user account records for job applications on third party application tracking systems. |
-| LEARNING_COACH_AI_TAKEOUT | Stores past conversations with LinkedIn Learning's chatbot, Learning Coach. |
-| LEARNING_COACH_INBOX | Stores past conversations with LinkedIn Learning's chatbot, Learning Coach. |
-| LEARNING_ROLEPLAY_INBOX | Provides insights and feedback from interactive learning and real-world practice scenarios. |
-| VOLUNTEERING_EXPERIENCES | Contains volunteering experience. This includes an organization's name, role, cause, start and end date, and description. |
-| ACCOUNT_HISTORY | Contains the date and time the member's account status changed within the last year. |
-| INSTANT_REPOSTS | Contains the reposts date, time and link. |
-
----
-
-## Member Authorization Management API
-
-**Date:** 10/15/2024
+Member Snapshot Domains
+Member Snapshot Domain	Description
+ADS_CLICKED	A List of ads you've clicked on.
+MEMBER_FOLLOWING	A list of people you follow on LinkedIn.
+login	Shows all the stored account logins for your account.
+RICH_MEDIA	Includes URLs to photos, videos, or documents shared on LinkedIn.
+SEARCHES	A list of your recent searches on LinkedIn.
+INFERENCE_TAKEOUT	Key inferences about you based on your LinkedIn profile and activity.
+ALL_COMMENTS	Comments you've made, excluding those on posts in Groups.
+CONTACTS	Contacts imported on LinkedIn.
+Events	Events you've attended, declined after being invited to, or requested to attend.
+RECEIPTS	Details of purchases associated with the member's LinkedIn account.
+AD_TARGETING	Contains information used by LinkedIn to determine which ads to show you.
+REGISTRATION	The date the member joined LinkedIn.
+REVIEWS	Ratings and reviews provided by the member, including those for products, service providers, and LinkedIn Learning.
+ARTICLES	Articles authored by the member.
+PATENTS	Information about any patents listed on the member's LinkedIn profile.
+GROUPS	LinkedIn groups that the member is a part of.
+COMPANY_FOLLOWS	A list of the entities (e.g., companies) that the member follows on LinkedIn.
+INVITATIONS	Invitations that have been sent and received by the member.
+PHONE_NUMBERS	Phone numbers linked to the member's LinkedIn account.
+CONNECTIONS	Name, position, company, and connection date of 1st degree connections of the member.
+EMAIL_ADDRESSES	History of email addresses associated with the member's account, past or present.
+JOB_POSTINGS	Jobs that have been posted by the user.
+JOB_APPLICATIONS	Jobs that have been applied to by the user in the past.
+JOB_SEEKER_PREFERENCES	Includes preferred job types, locations, industries, company sizes, dream companies, job titles, and activity level.
+LEARNING	LinkedIn Learning videos that have been watched by the member.
+INBOX	Messages sent and received in the member's inbox.
+SAVED_JOBS	Contains information about jobs saved for future reference.
+SAVED_JOB_ALERTS	The member's job alerts including saved date and job alert URLs.
+PROFILE	The basic biographical information that makes up the member's LinkedIn profile.
+SKILLS	Skills added to the member's profile.
+POSITIONS	Job roles listed on the member's profile, including company names, titles, descriptions, locations, and dates.
+EDUCATION	Schools listed on the member's profile, including dates attended, degrees earned, and activities participated in.
+TEST_SCORES	Test scores listed on the member's profile.
+CAUSES_YOU_CARE_ABOUT	Causes included on the member's profile.
+PUBLICATIONS	Publications listed on the member's profile.
+PROJECTS	Projects listed on the member's profile.
+ORGANIZATIONS	Organizations listed on the member's profile.
+LANGUAGES	Languages listed by the member, along with their level of proficiency.
+HONORS	Honors listed on the member's profile.
+COURSES	Courses listed on the member's profile.
+CERTIFICATIONS	Contains a list of certifications included in the member's profile.
+CALENDAR	Mobile app calendar synced with LinkedIn, including calendar source, owner, and last synced date.
+RECOMMENDATIONS	A list of recommendations received and given by the member.
+ENDORSEMENTS	Contains details of given and received endorsements.
+MEMBER_SHARE_INFO	Contains all shared or re-shared posts, including date, URL, shared comments, and visibility status.
+SECURITY_CHALLENGE_PIPE	Contains challenge event information when a member signs in from an unfamiliar device or has enabled two-step verification. This includes the date, IP address, user agent string, country/region, and challenge type.
+TRUSTED_GRAPH	Contains confirmed verification information related to identity, workplace, and educational institutions. This may include a workplace email or valid government-issued ID. LinkedIn partners with CLEAR, a third-party verification partner.
+MARKETPLACE_ENGAGEMENTS	Contains the event name, date and time, status, and external URL if the event organizer shared one.
+MARKETPLACE_PROVIDERS	Contains information related to services a member provides on Services Marketplace.
+MARKETPLACE_OPPORTUNITIES	Contains information related to services a member is looking for on Services Marketplace.
+ACTOR_SAVE_ITEM	Contains the saved date and URL of a post, article, or other content.
+JOB_APPLICANT_SAVED_ANSWERS	Contains the member's answer to basic job application questions.
+TALENT_QUESTION_SAVED_RESPONSE	Contains the member's answers to job application questions provided by the job poster.
+PROFILE_SUMMARY	Contains AI generated profile summary.
+ALL_LIKES	Contains the reaction type a member has made to a post.
+ALL_VOTES	Contains information related to polls members have created and voted on.
+RECEIPTS_LBP	Contains information related to the member's purchases of LinkedIn services
+easyapply-blocking	Provides user account records for job applications on third party application tracking systems.
+LEARNING_COACH_AI_TAKEOUT	Stores past conversations with LinkedIn Learning's chatbot, Learning Coach.
+LEARNING_COACH_INBOX	Stores past conversations with LinkedIn Learning's chatbot, Learning Coach.
+LEARNING_ROLEPLAY_INBOX	Provides insights and feedback from interactive learning and real-world practice scenarios.
+VOLUNTEERING_EXPERIENCES	Contains volunteering experience. This includes an organization's name, role, cause, start and end date, and description.
+ACCOUNT_HISTORY	Contains the date and time the member's account status changed within the last year.
+INSTANT_REPOSTS	Contains the reposts date, time and link.
+Member Authorization Management API
+Date: 10/15/2024
 
 Once the user has consented and the access token is generated, LinkedIn automatically start processing and archiving both Changelog and Snapshot data, it usually takes a few minute for the data to be present in the API responses. Please use Member Changelog API and Member Snapshot API to query the respective data. If after the access token is generated and data is still not available after a few minutes, the following APIs can be used to check if the member has been registered for DMA member data generation.
 
-> **Note:** Once a user consents and access token is generated, they are automatically registered for processing and archiving their LinkedIn data. The Member Authorization APIs are to be used only for debugging if you are not seeing LinkedIn data in the responses to the Member Changelog and Member Snapshot APIs after a few minutes of access token generation.
+Note: Once a user consents and access token is generated, they are automatically registered for processing and archiving their LinkedIn data. The Member Authorization APIs are to be used only for debugging if you are not seeing LinkedIn data in the responses to the Member Changelog and Member Snapshot APIs after a few minutes of access token generation.
 
-The following `member FINDER` API can be used to check if a member is registered for DMA and LinkedIn data for the member is being processed and archived.
+The following member FINDER API can be used to check if a member is registered for DMA and LinkedIn data for the member is being processed and archived.
 
-```http
 GET https://api.linkedin.com/rest/memberAuthorizations?q=memberAndApplication
-```
-
-### Sample GET response
-
-```json
+Sample GET response
 {
   "elements": [
     {
@@ -2243,162 +1816,88 @@ GET https://api.linkedin.com/rest/memberAuthorizations?q=memberAndApplication
     }
   ]
 }
-```
-
-### memberComplianceAuthorization Response Schema
-
-| Field Name | Description | Data Type |
-|------------|-------------|-----------|
-| regulatedAt | Epoch timestamp since which the user's compliance activities are being monitored and archived | long |
-| memberComplianceAuthorizationKey.developerApplication | developer application which the user has consented to | URN String |
-| memberComplianceAuthorizationKey.member | user whose compliance events are being archived (This the user whose token is being used) | URN String |
-| memberComplianceScopes | Array of Compliance Products, the user has consented to. This would contain only be "DMA" | Array of ENUM |
-
+memberComplianceAuthorization Response Schema
+Field Name	Description	Data Type
+regulatedAt	Epoch timestamp since which the user's compliance activities are being monitored and archived	long
+memberComplianceAuthorizationKey.developerApplication	developer application which the user has consented to	URN String
+memberComplianceAuthorizationKey.member	user whose compliance events are being archived (This the user whose token is being used)	URN String
+memberComplianceScopes	Array of Compliance Products, the user has consented to. This would contain only be "DMA"	Array of ENUM
 Once the user has consented and an access token is generated, LinkedIn starts processing and archiving both changelog and snapshot data for the user. It usually takes a couple of seconds to enable data generation for the user. You can also enable data generation for a user manually by calling the following API:
 
-```http
 POST https://api.linkedin.com/rest/memberAuthorizations
-```
+Request Body: {}
 
-**Request Body:** `{}`
+Note: You will need to supply an empty JSON object, {} to the request body to successfully enable changelog event generation for the user.
 
-> **Note:** You will need to supply an empty JSON object, `{}` to the request body to successfully enable changelog event generation for the user.
-
----
-
-## Member Data Portability (Member)
-
-**Date:** 02/05/2024
+Member Data Portability (Member)
+Date: 02/05/2024
 
 LinkedIn is providing the Member Data Portability (Member) API product in response to certain requirements of the Digital Markets Act (DMA). The DMA is a new EU competition law that regulates large online platforms to ensure fair competition, protect consumer rights, and foster innovation in the digital economy. Consistent with DMA obligations regarding end user data access and portability, the Member Data Portability (Member) product provides APIs that allow LinkedIn members to create an application to fetch that LinkedIn member's LinkedIn data.
 
 Querying LinkedIn data using the Member Data Portability APIs requires access to the Member Data Portability (Member) API product access to which can be requested from our developer portal.
 
-### Getting Started
+Getting Started
+Request Access
+Create a Developer Application Create an app on the LinkedIn Developers Platform. A LinkedIn Company Page is required to create the app. Please use the default LinkedIn Company Page created especially for requesting access to the Member Data Portability (Member) APIs - Member Data Portability (Member) Default Company.
+Note: Please do not create a new LinkedIn Company Page while creating the developer application. You will be able to request access to Member Data Portability (Member) API only if you use the default LinkedIn company page - Member Data Portability (Member) Default Company while creating the application.
 
-#### Request Access
-
-1. **Create a Developer Application**
-   Create an app on the LinkedIn Developers Platform. A LinkedIn Company Page is required to create the app. Please use the default LinkedIn Company Page created especially for requesting access to the Member Data Portability (Member) APIs - Member Data Portability (Member) Default Company.
-
-> **Note:** Please do not create a new LinkedIn Company Page while creating the developer application. You will be able to request access to Member Data Portability (Member) API only if you use the default LinkedIn company page - Member Data Portability (Member) Default Company while creating the application.
-
-2. **Request access to API product**
-   From the Products tab of your application, click Request access for Member Data Portability API (Member). Once you agree to the associated Terms and Conditions, you application would be granted access to the Member Data Portability APIs.
-
-#### Getting an access token
-
-> **Note:** At this time, this feature is available only for LinkedIn members located in the European Economic Area and Switzerland, so only those members are able to consent and generate an access token.
+Request access to API product From the Products tab of your application, click Request access for Member Data Portability API (Member). Once you agree to the associated Terms and Conditions, you application would be granted access to the Member Data Portability APIs.
+Getting an access token
+Note: At this time, this feature is available only for LinkedIn members located in the European Economic Area and Switzerland, so only those members are able to consent and generate an access token.
 
 Members can generate an access token via our OAuth Token Generator Tool available in the Developer Portal. Follow these steps to generate an access token.
 
-1. Once your application has been successfully provisioned with "Member Data Portability API (Member)" API product, you can generate access tokens via our "OAuth Token Generator Tool". This can be accessed via the "OAuth Token Tools" under "Docs and tools" drop down menu in the developer portal.
+Once your application has been successfully provisioned with "Member Data Portability API (Member)" API product, you can generate access tokens via our "OAuth Token Generator Tool". This can be accessed via the "OAuth Token Tools" under "Docs and tools" drop down menu in the developer portal.
 
-2. In the OAuth 2.0 Tools, click on "Create token".
+In the OAuth 2.0 Tools, click on "Create token".
 
-3. Select the Application which has been provisioned with the Member Data Portability API (Member) API product.
+Select the Application which has been provisioned with the Member Data Portability API (Member) API product.
 
-4. Select "r_dma_portability_self_serve" as scope and click on "Request access token".
+Select "r_dma_portability_self_serve" as scope and click on "Request access token".
 
-5. You will be redirected to login and provide consent to generate the access token.
+You will be redirected to login and provide consent to generate the access token.
 
-6. Once logged in, you would be redirected to consent to share your LinkedIn Data with your application. Please read through the text and if you agree to consent, click "Allow"
+Once logged in, you would be redirected to consent to share your LinkedIn Data with your application. Please read through the text and if you agree to consent, click "Allow"
 
-7. The access token has been generated, you can start using this access token to make authenticated API calls to download your LinkedIn data.
+The access token has been generated, you can start using this access token to make authenticated API calls to download your LinkedIn data.
 
 Ready to start development? Refer to the links below for guidance on building your application.
 
-- Authentication
-- API Concepts
-- Breaking Change Policy
-- Best Practices
-- Error Handling
-
-### New Development
-
-#### Member Changelog API
-
+Authentication
+API Concepts
+Breaking Change Policy
+Best Practices
+Error Handling
+New Development
+Member Changelog API
 Once the member has generated an access token, LinkedIn will start archiving all the member's interactions (posts created, comments, reactions etc), from the time the user has consented, on LinkedIn as changelog events. Member Changelog API allows users to query these changelog events. Users can only query changelog events created in the past 28 days. To know more about the API and it's usage, refer the Member Changelog API Documentation.
 
-#### Member Snapshot API
-
+Member Snapshot API
 Once the member has consented to share data with a 3rd party application, LinkedIn will start archiving all the member data (Account History, Articles, Posts) including historical data. Member Snapshot API allows developers to fetch the data pertaining to LinkedIn member(s) at a point in time when an API call is made. The API will return data related to specific domains. To know more about the API and its usage, refer to the Member Snapshot API Documentation.
 
----
+Recent Member Data Portability Changes
+Article • 05/15/2025
 
-## Recent Member Data Portability Changes
+May 2025 - Version 202505
+Product & Platform Announcements
+Member Snapshot Domain API:
 
-**Article** • 05/15/2025
+The easyapply-blocking domain has been added. Learn more.
+February 2025 - Version 202502
+Product & Platform Announcements
+Member Snapshot Domain API:
 
-### May 2025 - Version 202505
-
-#### Product & Platform Announcements
-
-**Member Snapshot Domain API:**
-- The `easyapply-blocking` domain has been added. Learn more.
-
-### February 2025 - Version 202502
-
-#### Product & Platform Announcements
-
-**Member Snapshot Domain API:**
-- The `LEARNING_COACH_AI_TAKEOUT` domain has been added
-- The `LEARNING_COACH_INBOX` domain has been added
-- The `LEARNING_ROLEPLAY_INBOX` domain has been added
-- The `VOLUNTEERING_EXPERIENCES` domain has been added
-- The `ACCOUNT_HISTORY` feature has been added
-- The `INSTANT_REPOSTS` feature has been added
-- The `GROUP_POST` feature has been deprecated
-- The `MEMBER_HASHTAG` feature has been deprecated
-- The `NAME_CHANGES` feature has been deprecated
-- The `SAVED_PEOPLE_SEARCHES` feature has been deprecated
-- The `VOLUNTEERING` feature has been deprecated. Learn more.
-      "time": 1657610981259
-    },
-    "lastModifiedByAdmin": {
-      "actor": "urn:li:person:<personID>",
-      "time": 1657610981259
-    },
-    "defaultLocale": {
-      "country": "US",
-      "language": "en"
-    },
-    "organizationType": "NON_PROFIT",
-    "entityStatus": "ACTIVE",
-    "staffCountRange": "SIZE_1",
-    "industries": [
-      "urn:li:industry:6"
-    ],
-    "name": {
-      "localized": {
-        "en_US": "Test Company Changelog"
-      }
-    },
-    "tagline": {
-      "localized": {
-        "en_US": "This is a test company"
-      }
-    },
-    "lastModified": {
-      "actor": "urn:li:person:<personID>",
-      "time": 1657610981259
-    },
-    "id": 82318779
-  },
-  "method": "CREATE",
-  "configVersion": 1,
-  "parentSiblingActivities": [],
-  "resourceName": "organizations",
-  "resourceUri": "/organizations/82318779",
-  "actor": "urn:li:person:<personID>",
-  "activityId": "69d7b9cd-5f0c-4138-b8b9-01f5b7e13f34",
-  "processedAt": 1657611011610,
-  "activityStatus": "SUCCESS",
-  "capturedAt": 1657610981505,
-  "siblingActivities": [],
-  "id": 3331301444
-}
-```
+The LEARNING_COACH_AI_TAKEOUT domain has been added
+The LEARNING_COACH_INBOX domain has been added
+The LEARNING_ROLEPLAY_INBOX domain has been added
+The VOLUNTEERING_EXPERIENCES domain has been added
+The ACCOUNT_HISTORY feature has been added
+The INSTANT_REPOSTS feature has been added
+The GROUP_POST feature has been deprecated
+The MEMBER_HASHTAG feature has been deprecated
+The NAME_CHANGES feature has been deprecated
+The SAVED_PEOPLE_SEARCHES feature has been deprecated
+The VOLUNTEERING feature has been deprecated. Learn more. "time": 1657610981259 }, "lastModifiedByAdmin": { "actor": "urn:li:person:", "time": 1657610981259 }, "defaultLocale": { "country": "US", "language": "en" }, "organizationType": "NON_PROFIT", "entityStatus": "ACTIVE", "staffCountRange": "SIZE_1", "industries": [ "urn:li:industry:6" ], "name": { "localized": { "en_US": "Test Company Changelog" } }, "tagline": { "localized": { "en_US": "This is a test company" } }, "lastModified": { "actor": "urn:li:person:", "time": 1657610981259 }, "id": 82318779 }, "method": "CREATE", "configVersion": 1, "parentSiblingActivities": [], "resourceName": "organizations", "resourceUri": "/organizations/82318779", "actor": "urn:li:person:", "activityId": "69d7b9cd-5f0c-4138-b8b9-01f5b7e13f34", "processedAt": 1657611011610, "activityStatus": "SUCCESS", "capturedAt": 1657610981505, "siblingActivities": [], "id": 3331301444 }
 
 The `method` for any events relating to updates to the company page is `UPDATE`. Note that the entire updated schema is present in `activity` field.
 
@@ -2501,11 +2000,7 @@ In the event that a field or an activity is unable to be processed, we will stil
   "resourceName": "mockSimpleKeyCollection",
   "resourceUri": "Unable_to_process_this_field."
 }
-```
-
-#### Unable to process an activity
-
-```json
+Unable to process an activity
 {
   "activity": {
     "simpleUnionField": {
@@ -2528,11 +2023,7 @@ In the event that a field or an activity is unable to be processed, we will stil
   "resourceName": "mockSimpleKeyCollection",
   "resourceUri": "/mockSimpleKeyCollection/4"
 }
-```
-
-#### Unable to process an urn field in processedActivity
-
-```json
+Unable to process an urn field in processedActivity
 {
   "activity": {
     "simpleUnionField": {
@@ -2561,19 +2052,11 @@ In the event that a field or an activity is unable to be processed, we will stil
   "resourceName": "mockSimpleKeyCollection",
   "resourceUri": "/mockSimpleKeyCollection/4"
 }
-```
+Member Changelog Management API
+Once the user has consented and the access token is generated, LinkedIn automatically start processing and archiving changelog events for the user. The following member FINDER API can be used to check if a changelog events are being generated for a user.
 
-### Member Changelog Management API
-
-Once the user has consented and the access token is generated, LinkedIn automatically start processing and archiving changelog events for the user. The following `member FINDER` API can be used to check if a changelog events are being generated for a user.
-
-```http
 GET https://api.linkedin.com/rest/memberAuthorizations?q=memberAndApplication
-```
-
-#### Sample GET response
-
-```json
+Sample GET response
 {
   "elements": [
     {
@@ -2588,36 +2071,23 @@ GET https://api.linkedin.com/rest/memberAuthorizations?q=memberAndApplication
     }
   ]
 }
-```
-
-#### memberComplianceAuthorization Response Schema
-
-| Field Name | Description | Data Type |
-|------------|-------------|-----------|
-| regulatedAt | Epoch timestamp since which the user's compliance activities are being monitored and archived | long |
-| memberComplianceAuthorizationKey.developerApplication | developer application which the user has consented to | URN String |
-| memberComplianceAuthorizationKey.member | user whose compliance events are being archived (This the user whose token is being used) | URN String |
-| memberComplianceScopes | Array of Compliance Products, the user has consented to. This would contain only be "DMA" | Array of ENUM |
-
+memberComplianceAuthorization Response Schema
+Field Name	Description	Data Type
+regulatedAt	Epoch timestamp since which the user's compliance activities are being monitored and archived	long
+memberComplianceAuthorizationKey.developerApplication	developer application which the user has consented to	URN String
+memberComplianceAuthorizationKey.member	user whose compliance events are being archived (This the user whose token is being used)	URN String
+memberComplianceScopes	Array of Compliance Products, the user has consented to. This would contain only be "DMA"	Array of ENUM
 Once the user has consented and an access token is generated, LinkedIn starts processing and archiving changelog events for the user. It usually takes a couple of seconds to enable changelog event generation for the user. You can also enable changelog event generation for a user manually by calling the following API:
 
-```http
 POST https://api.linkedin.com/rest/memberAuthorizations
-```
+Request Body: {}
 
-**Request Body:** `{}`
+Note: You will need to supply an empty JSON object, {} to the request body to successfully enable changelog event generation for the user.
 
-> **Note:** You will need to supply an empty JSON object, `{}` to the request body to successfully enable changelog event generation for the user.
+People Changelog Events
+Date: 03/05/2024
 
----
-
-## People Changelog Events
-
-**Date:** 03/05/2024
-
-### People Activity - First Name Edit
-
-```json
+People Activity - First Name Edit
 {
   "activity": {
     "firstName": {
@@ -2637,11 +2107,7 @@ POST https://api.linkedin.com/rest/memberAuthorizations
   "resourceName": "people",
   "resourceUri": "/people/id=KPA1hpZ1yM"
 }
-```
-
-### People Activity - Add a Language (sub-resource)
-
-```json
+People Activity - Add a Language (sub-resource)
 {
   "activity": {
     "created": 1489510372136,
@@ -2663,15 +2129,10 @@ POST https://api.linkedin.com/rest/memberAuthorizations
   "resourceName": "people/languages",
   "resourceUri": "/people/id=KPA1hpZ1yM/languages/1304204746"
 }
-```
+Providing Services
+The identity of the resourceName is marketplacePlatformProviders. Currently, this resource appears when the member publishes, edits, or unpublishes the Providing Service(s) on their profile. The methods currently available are: CREATE and PARTIAL_UPDATE. An initial creation of the Providing Service will result in CREATE whereas any subsequent edits, including unpublishing and re-publishing, will be a PARTIAL_UPDATE. See examples below:
 
-### Providing Services
-
-The identity of the `resourceName` is `marketplacePlatformProviders`. Currently, this resource appears when the member publishes, edits, or unpublishes the Providing Service(s) on their profile. The methods currently available are: `CREATE` and `PARTIAL_UPDATE`. An initial creation of the Providing Service will result in `CREATE` whereas any subsequent edits, including unpublishing and re-publishing, will be a `PARTIAL_UPDATE`. See examples below:
-
-#### Providing Service Activity - Create a Providing Service
-
-```json
+Providing Service Activity - Create a Providing Service
 {
   "owner": "urn:li:person:2qXA98-mVk",
   "resourceId": "(marketplaceType:SERVICE_MARKETPLACE,provider:urn:li:person:2qXA98-mVk)",
@@ -2714,11 +2175,7 @@ The identity of the `resourceName` is `marketplacePlatformProviders`. Currently,
   "capturedAt": 1615591223805,
   "id": 2130989972
 }
-```
-
-#### Providing Service Activity - Add a Providing Service
-
-```json
+Providing Service Activity - Add a Providing Service
 {
   "owner": "urn:li:person:2qXA98-mVk",
   "resourceId": "marketplaceType=SERVICE_MARKETPLACE&provider=urn:li:person:2qXA98-mVk",
@@ -2751,11 +2208,7 @@ The identity of the `resourceName` is `marketplacePlatformProviders`. Currently,
   "capturedAt": 1615591371622,
   "id": 2130990044
 }
-```
-
-#### Providing Service Activity - Unpublish Providing Service
-
-```json
+Providing Service Activity - Unpublish Providing Service
 {
   "owner": "urn:li:person:2qXA98-mVk",
   "resourceId": "marketplaceType=SERVICE_MARKETPLACE&provider=urn:li:person:2qXA98-mVk",
@@ -2778,11 +2231,7 @@ The identity of the `resourceName` is `marketplacePlatformProviders`. Currently,
   "capturedAt": 1615591436665,
   "id": 2130990092
 }
-```
-
-#### Providing Service Activity - Publish a Providing Service after unpublish
-
-```json
+Providing Service Activity - Publish a Providing Service after unpublish
 {
   "owner": "urn:li:person:2qXA98-mVk",
   "resourceId": "marketplaceType=SERVICE_MARKETPLACE&provider=urn:li:person:2qXA98-mVk",
@@ -2810,19 +2259,12 @@ The identity of the `resourceName` is `marketplacePlatformProviders`. Currently,
   "capturedAt": 1615591512519,
   "id": 2130990148
 }
-```
+Endorsement
+Date: 03/05/2024
 
----
+The identity of the resourceName is endorsement. Currently, this resource captures all endorsements the member gives. An endorsement is shown on the member's profile page where there is a set of featured skills and your connections can endorse you for those set of skills. See examples below:
 
-## Endorsement
-
-**Date:** 03/05/2024
-
-The identity of the `resourceName` is `endorsement`. Currently, this resource captures all endorsements the member gives. An endorsement is shown on the member's profile page where there is a set of featured skills and your connections can endorse you for those set of skills. See examples below:
-
-### Endorsement Activity - Endorse a skill
-
-```json
+Endorsement Activity - Endorse a skill
 {
   "owner": "urn:li:person:KPA1hpZ1yM",
   "configVersion": 2,
@@ -2847,19 +2289,12 @@ The identity of the `resourceName` is `endorsement`. Currently, this resource ca
   "id": 425820,
   "activityId": "12356788990000"
 }
-```
+Recommendation
+Date: 03/05/2024
 
----
+The identity of the resourceName are recs and recRequests. Currently, these two resources captures recommendation requests the member asks. After approval, the members will have the option to set the rec to visible on their own profiles. A recommendation is shown on the member's profile page under the Recommendations section. An recs ACTION is also available and it involves reordering of the recommendation on the profile page. See examples below:
 
-## Recommendation
-
-**Date:** 03/05/2024
-
-The identity of the `resourceName` are `recs` and `recRequests`. Currently, these two resources captures recommendation requests the member asks. After approval, the members will have the option to set the rec to visible on their own profiles. A recommendation is shown on the member's profile page under the Recommendations section. An `recs ACTION` is also available and it involves reordering of the recommendation on the profile page. See examples below:
-
-### RecRequests Activity - Writing a recommendation
-
-```json
+RecRequests Activity - Writing a recommendation
 {
   "owner": "urn:li:person:Ylpq-RobP9",
   "configVersion": 1,
@@ -2884,11 +2319,7 @@ The identity of the `resourceName` are `recs` and `recRequests`. Currently, thes
   "id": 7963,
   "activityId": "12356788990000"
 }
-```
-
-### Recs Activity - Displaying the recommendation on profile
-
-```json
+Recs Activity - Displaying the recommendation on profile
 {
   "activity": {
     "status": "VISIBLE"
@@ -2904,11 +2335,7 @@ The identity of the `resourceName` are `recs` and `recRequests`. Currently, thes
   "resourceName": "recs",
   "resourceUri": "/recs/urn:li:recommendation:(urn:li:person:5Lvu9VVW1m,335644)"
 }
-```
-
-### Recs Activity - ACTION reorder of a recommendation
-
-```json
+Recs Activity - ACTION reorder of a recommendation
 {
   "activity": {
     "moveRecommendation": "urn:li:recommendation:(urn:li:person:5Lvu9VVW1m,335014)",
@@ -2925,19 +2352,12 @@ The identity of the `resourceName` are `recs` and `recRequests`. Currently, thes
   "resourceName": "recs",
   "resourceUri": "/recs"
 }
-```
+Publishing Articles
+Date: 03/05/2024
 
----
+The identity of the resourceName is originalArticles. Currently, this resource captures all personal published articles. The two methods available are: ACTION and DELETE. When it's an action, the methodName will appear as createOrUpdateArticle.
 
-## Publishing Articles
-
-**Date:** 03/05/2024
-
-The identity of the `resourceName` is `originalArticles`. Currently, this resource captures all personal published articles. The two methods available are: `ACTION` and `DELETE`. When it's an action, the `methodName` will appear as `createOrUpdateArticle`.
-
-### Article activity - publishing a post
-
-```json
+Article activity - publishing a post
 {
   "activity": {
     "article": {
@@ -2979,19 +2399,12 @@ The identity of the `resourceName` is `originalArticles`. Currently, this resour
   "resourceName": "originalArticles",
   "resourceUri": "/originalArticles"
 }
-```
+UGC Posts
+Date: 03/05/2024
 
----
+The identity of the resourceName is ugcPosts. This resource captures all user generated posts. The three methods available are: CREATE, UPDATE, and DELETE.
 
-## UGC Posts
-
-**Date:** 03/05/2024
-
-The identity of the `resourceName` is `ugcPosts`. This resource captures all user generated posts. The three methods available are: `CREATE`, `UPDATE`, and `DELETE`.
-
-### UGC Post activity - share a group
-
-```json
+UGC Post activity - share a group
 {
   "resourceId": "urn:li:ugcPost:6604919668283068416",
   "resourceName": "ugcPosts",
@@ -3018,11 +2431,7 @@ The identity of the `resourceName` is `ugcPosts`. This resource captures all use
     }
   }
 }
-```
-
-### UGC Post activity - share on an event page
-
-```json
+UGC Post activity - share on an event page
 {
   "owner": "urn:li:person:Ylpq-RobP9",
   "resourceId": "urn:li:ugcPost:123456789",
@@ -3074,11 +2483,7 @@ The identity of the `resourceName` is `ugcPosts`. This resource captures all use
   "capturedAt": 1558380087104,
   "id": 841260
 }
-```
-
-### UGC Post activity - share an event
-
-```json
+UGC Post activity - share an event
 {
   "owner": "urn:li:person:Ylpq-RobP9",
   "resourceId": "urn:li:ugcPost:123456789",
@@ -3143,11 +2548,7 @@ The identity of the `resourceName` is `ugcPosts`. This resource captures all use
   "capturedAt": 1558380087104,
   "id": 841260
 }
-```
-
-### UGC Post activity - publishing a Marketplace Platform Opportunity share
-
-```json
+UGC Post activity - publishing a Marketplace Platform Opportunity share
 {
   "owner": "urn:li:person:yrZCpj2ZYQ",
   "resourceId": "urn:li:ugcPost:123456789",
@@ -3183,11 +2584,7 @@ The identity of the `resourceName` is `ugcPosts`. This resource captures all use
   "processedAt": 1552071375435,
   "capturedAt": 1552071345264
 }
-```
-
-### UGC Post activity - publishing an appreciation share
-
-```json
+UGC Post activity - publishing an appreciation share
 {
   "owner": "urn:li:person:yrZCpj2ZYQ",
   "resourceId": "urn:li:ugcPost:123456789",
@@ -3269,11 +2666,7 @@ The identity of the `resourceName` is `ugcPosts`. This resource captures all use
   "siblingActivities": [],
   "id": 368573226
 }
-```
-
-### UGC Post activity - publishing a video share
-
-```json
+UGC Post activity - publishing a video share
 {
   "owner": "urn:li:person:123ABC",
   "resourceId": "urn:li:ugcPost:123456789000",
@@ -3321,11 +2714,7 @@ The identity of the `resourceName` is `ugcPosts`. This resource captures all use
   "siblingActivities": [],
   "id": 27699900
 }
-```
-
-### Reshare a Publishing Article
-
-```json
+Reshare a Publishing Article
 {
   "owner": "urn:li:person:yrZCpj2ZYQ",
   "resourceId": "urn:li:share:123456789",
@@ -3382,21 +2771,14 @@ The identity of the `resourceName` is `ugcPosts`. This resource captures all use
   "siblingActivities": [],
   "id": 216111937
 }
-```
+Social Actions
+Date: 03/05/2024
 
----
+The identity of the resourceName is comments and likes. Currently, this resource captures all personal comment and likes the member makes including comment edits.
 
-## Social Actions
+The activity will be the same as other Social Action activities. The addition will be in the ugcPostUrn decoration on object field. Specifically, the containerEntity field relating to the eventUrn.
 
-**Date:** 03/05/2024
-
-The identity of the resourceName is `comments` and `likes`. Currently, this resource captures all personal comment and likes the member makes including comment edits.
-
-The `activity` will be the same as other Social Action activities. The addition will be in the `ugcPostUrn` decoration on `object` field. Specifically, the `containerEntity` field relating to the eventUrn.
-
-### Comment activity - comment on a share on an event page
-
-```json
+Comment activity - comment on a share on an event page
 {
   "owner": "urn:li:person:Ylpq-RobP9",
   "resourceId": "123456789",
@@ -3427,13 +2809,9 @@ The `activity` will be the same as other Social Action activities. The addition 
   "capturedAt": 1558381270997,
   "id": 841308
 }
-```
+The activity will be the same format as other Social Action activities. The addition will be in the ugcPostUrn decoration on object field. Specifically, the media field relating to the eventUrn.
 
-The `activity` will be the same format as other Social Action activities. The addition will be in the `ugcPostUrn` decoration on `object` field. Specifically, the `media` field relating to the eventUrn.
-
-### Comment activity - comment on a share event
-
-```json
+Comment activity - comment on a share event
 {
   "owner": "urn:li:person:Ylpq-RobP9",
   "resourceId": "123456789",
@@ -3464,11 +2842,7 @@ The `activity` will be the same format as other Social Action activities. The ad
   "capturedAt": 1558381270997,
   "id": 841308
 }
-```
-
-### Comment on an article
-
-```json
+Comment on an article
 {
   "activity": {
     "actor": "urn:li:person:KPA1hpZ1yM",
@@ -3505,11 +2879,7 @@ The `activity` will be the same format as other Social Action activities. The ad
   "resourceName": "socialActions/comments",
   "resourceUri": "/socialActions/urn:li:article:7152306652638920611/comments/6258374773714362368"
 }
-```
-
-### Comment edit activity
-
-```json
+Comment edit activity
 {
   "activity": {
     "message": {
@@ -3530,11 +2900,7 @@ The `activity` will be the same format as other Social Action activities. The ad
   "resourceUri": "/socialActions/urn:li:activity:6369097974672306176/comments/6376493321048596480",
   "siblingActivities": []
 }
-```
-
-### Like activity - like a share
-
-```json
+Like activity - like a share
 {
   "owner": "urn:li:person:KPA1hpZ1yM",
   "actor": "urn:li:person:KPA1hpZ1yM",
@@ -3560,6 +2926,4 @@ The `activity` will be the same format as other Social Action activities. The ad
   "id": 1179916,
   "activityId": "12356788990000"
 }
-```
-
 This documentation provides a comprehensive overview of the LinkedIn Growth SaaS project structure, implementation details, and architectural decisions. Each component and service is designed to work together seamlessly to provide a powerful LinkedIn growth platform.

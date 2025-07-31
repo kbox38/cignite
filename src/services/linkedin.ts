@@ -19,6 +19,8 @@ export const fetchLinkedInChangelog = async (
   token: string,
   count: number = 50
 ) => {
+  console.log(`Fetching LinkedIn changelog with count: ${count}`);
+
   const response = await fetch(
     `${API_BASE}/linkedin-changelog?count=${count}`,
     {
@@ -30,10 +32,18 @@ export const fetchLinkedInChangelog = async (
   );
 
   if (!response.ok) {
+    console.error(`LinkedIn changelog API error: ${response.status} ${response.statusText}`);
     throw new Error("Failed to fetch LinkedIn changelog");
   }
 
-  return response.json();
+  const data = await response.json();
+  console.log('LinkedIn changelog response:', {
+    hasElements: !!data.elements,
+    elementsCount: data.elements?.length,
+    resourceNames: data.elements?.map((e: any) => e.resourceName).slice(0, 10)
+  });
+  
+  return data;
 };
 
 export const fetchLinkedInSnapshot = async (
@@ -53,6 +63,8 @@ export const fetchLinkedInSnapshot = async (
     params.append("count", count.toString());
   }
 
+  console.log(`Fetching LinkedIn snapshot for domain: ${domain}`);
+
   const response = await fetch(`${API_BASE}/linkedin-snapshot?${params}`, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -61,10 +73,19 @@ export const fetchLinkedInSnapshot = async (
   });
 
   if (!response.ok) {
+    console.error(`LinkedIn snapshot API error: ${response.status} ${response.statusText}`);
     throw new Error("Failed to fetch LinkedIn snapshot");
   }
 
-  return response.json();
+  const data = await response.json();
+  console.log(`LinkedIn snapshot response for ${domain}:`, {
+    hasElements: !!data.elements,
+    elementsCount: data.elements?.length,
+    firstElementKeys: data.elements?.[0] ? Object.keys(data.elements[0]) : [],
+    snapshotDataCount: data.elements?.[0]?.snapshotData?.length
+  });
+  
+  return data;
 };
 
 export const fetchLinkedInHistoricalPosts = async (
@@ -150,6 +171,6 @@ const fileToBase64 = (file: File): Promise<string> => {
 
 export const initiateLinkedInAuth = (type: "basic" | "dma" = "basic") => {
   const authUrl = `${API_BASE}/linkedin-oauth-start?type=${type}`;
-
+  console.log("Redirecting to:", authUrl);
   window.location.href = authUrl;
 };

@@ -586,7 +586,9 @@ export class AnalyticsProcessor {
     // Calculate posting frequency
     const postDates = postAnalytics
       .map((p) => new Date(p.date))
+      .filter((date) => !isNaN(date.getTime()))
       .sort((a, b) => b.getTime() - a.getTime());
+
     const daysBetweenPosts: number[] = [];
 
     for (let i = 1; i < postDates.length; i++) {

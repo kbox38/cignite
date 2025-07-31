@@ -21,7 +21,7 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { useAuthStore } from '../../stores/authStore';
-import { LinkedInDataService } from '../../services/linkedin-data-service';
+import { LinkedInDataService, debugLinkedInData } from '../../services/linkedin-data-service';
 
 interface TestResult {
   name: string;
@@ -127,14 +127,31 @@ export const DMATestPage = () => {
     updateTest('Engagement Calculation', { status: 'loading' });
     
     try {
-      const service = new LinkedInDataService();
-      const metrics = await service.calculateEngagementMetrics(dmaToken);
+      // Test the dashboard data endpoint directly
+      const response = await fetch('/.netlify/functions/dashboard-data', {
+        headers: {
+          'Authorization': `Bearer ${dmaToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      const metrics = {
+        overallScore: data.profileEvaluation?.overallScore || 0,
+        totalConnections: data.summaryKPIs?.totalConnections || 0,
+        posts30d: data.summaryKPIs?.postsLast30Days || 0,
+        engagementRate: data.summaryKPIs?.engagementRate || '0%'
+      };
       
       updateTest('Engagement Calculation', { 
         status: 'success', 
-        data: metrics,
+        data: data,
         metrics,
-        count: metrics.totalEngagement
+        count: metrics.totalConnections
       });
     } catch (error) {
       updateTest('Engagement Calculation', { 
@@ -153,14 +170,31 @@ export const DMATestPage = () => {
     updateTest('Activity Metrics', { status: 'loading' });
     
     try {
-      const service = new LinkedInDataService();
-      const metrics = await service.fetchActivityMetrics(dmaToken);
+      // Test the analytics data endpoint directly
+      const response = await fetch('/.netlify/functions/analytics-data?timeRange=30d', {
+        headers: {
+          'Authorization': `Bearer ${dmaToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      const metrics = {
+        postsCount: data.postsEngagementsTrend?.length || 0,
+        connectionsCount: data.connectionsGrowth?.length || 0,
+        postTypesCount: data.postTypesBreakdown?.length || 0,
+        hashtagsCount: data.topHashtags?.length || 0
+      };
       
       updateTest('Activity Metrics', { 
         status: 'success', 
-        data: metrics,
+        data: data,
         metrics,
-        count: Object.values(metrics).reduce((sum: number, val) => sum + (typeof val === 'number' ? val : 0), 0)
+        count: metrics.postsCount + metrics.connectionsCount
       });
     } catch (error) {
       updateTest('Activity Metrics', { 
@@ -379,13 +413,21 @@ export const DMATestPage = () => {
     
     setDebugOutput('Running comprehensive LinkedIn data analysis...\n');
     
+    // Capture console.log output
+    const originalLog = console.log;
+    let output = '';
+    console.log = (...args) => {
+      output += args.join(' ') + '\n';
+      originalLog(...args);
+    };
+    
     try {
-      const service = new LinkedInDataService();
-      const metrics = await service.getProfileMetrics();
-      
-      setDebugOutput(JSON.stringify(metrics, null, 2));
+      await debugLinkedInData(dmaToken);
+      setDebugOutput(output);
     } catch (error) {
-      setDebugOutput('Error: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      setDebugOutput(output + '\nError: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      console.log = originalLog;
     }
   };
 

@@ -1,31 +1,33 @@
 import { useState, useEffect, useMemo } from "react";
-import {
-  useLinkedInHistoricalPosts,
-  useLinkedInChangelog,
-} from "./useLinkedInData";
-import { PostPulseCache, ProcessedPost } from "../services/postpulse-cache";
-import { PostPulseProcessor } from "../services/postpulse-processor";
+import { useQuery } from '@tanstack/react-query';
+import { useAuthStore } from '../stores/authStore';
 
-export interface UsePostPulseDataOptions {
+export interface PostPulsePost {
+  id: string;
+  urn: string;
+  title: string;
+  text: string;
+  url: string;
+  timestamp: number;
+  thumbnail: string | null;
+  mediaType: string;
+  mediaAssetId: string | null;
+  source: "changelog" | "historical";
+  daysSincePosted: number;
+  canRepost: boolean;
+}
+
+export interface PostPulseDataOptions {
   timeFilter: "7d" | "30d" | "90d";
   searchTerm: string;
   page: number;
   pageSize?: number;
 }
 
-export interface PostPulseDataState {
-  posts: ProcessedPost[];
+export interface PostPulseDataResponse {
+  posts: PostPulsePost[];
   isLoading: boolean;
-  isInitialLoading: boolean;
-  isRefetching: boolean;
   error: Error | null;
-  cacheStatus: {
-    exists: boolean;
-    isExpired: boolean;
-    lastFetch?: string;
-    postCount?: number;
-    age?: number;
-  };
   pagination: {
     currentPage: number;
     totalPages: number;
@@ -33,161 +35,109 @@ export interface PostPulseDataState {
     hasNextPage: boolean;
     hasPrevPage: boolean;
   };
-  dataSources: {
-    historical: boolean;
-    realtime: boolean;
-    cache: boolean;
+  metadata: {
+    fetchTimeMs: number;
+    timeFilter: string;
+    dataSource: string;
   };
+  lastUpdated: string;
 }
 
 export const usePostPulseData = (
-  options: UsePostPulseDataOptions
-): PostPulseDataState => {
+  options: PostPulseDataOptions
+): PostPulseDataResponse => {
   const { timeFilter, searchTerm, page, pageSize = 12 } = options;
+  const { dmaToken } = useAuthStore();
 
-  const [allPosts, setAllPosts] = useState<ProcessedPost[]>([]);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [dataSources, setDataSources] = useState({
-    historical: false,
-    realtime: false,
-    cache: false,
-  });
-
-  // Fetch historical data with infinite query
-  const {
-    data: historicalData,
-    isLoading: historicalLoading,
-    isFetching: historicalFetching,
-    error: historicalError,
-    hasNextPage: hasMoreHistorical,
-    fetchNextPage: fetchMoreHistorical,
-  } = useLinkedInHistoricalPosts(90);
-
-  // Fetch real-time changelog data
-  const {
-    data: changelogData,
-    isLoading: changelogLoading,
-    isFetching: changelogFetching,
-    error: changelogError,
-  } = useLinkedInChangelog(100);
-
-  // Check cache status
-  const cacheStatus = useMemo(() => PostPulseCache.getCacheStatus(), []);
-
-  // Load from cache on initial load
-  useEffect(() => {
-    if (isInitialLoad) {
-      const cached = PostPulseCache.getCache();
-      if (cached) {
-        setAllPosts(cached.posts);
-        setDataSources((prev) => ({ ...prev, cache: true }));
-        console.log("Loaded posts from cache:", cached.posts.length);
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['postpulse-data', timeFilter, searchTerm, page, pageSize],
+    queryFn: async (): Promise<PostPulseDataResponse> => {
+      const params = new URLSearchParams({
+        timeFilter,
+        page: page.toString(),
+        pageSize: pageSize.toString(),
+      });
+      
+      if (searchTerm) {
+        params.append('searchTerm', searchTerm);
       }
-      setIsInitialLoad(false);
-    }
-  }, [isInitialLoad]);
 
-  // Process historical data
-  useEffect(() => {
-    if (historicalData?.pages) {
-      const historicalPosts: ProcessedPost[] = [];
-
-      historicalData.pages.forEach((page) => {
-        const processed = PostPulseProcessor.processHistoricalData(page);
-        historicalPosts.push(...processed);
+      const response = await fetch(`/.netlify/functions/postpulse-data?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${dmaToken}`,
+          'Content-Type': 'application/json',
+        },
       });
 
-      // Merge with existing posts
-      const merged = PostPulseProcessor.mergeAndDeduplicatePosts(
-        historicalPosts,
-        allPosts.filter((p) => p.source === "realtime")
-      );
-
-      setAllPosts(merged);
-      setDataSources((prev) => ({ ...prev, historical: true }));
-
-      // Cache the merged data
-      if (merged.length > 0) {
-        PostPulseCache.setCache(merged, merged.length, hasMoreHistorical);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`PostPulse API error: ${response.status} - ${errorText}`);
       }
 
-      console.log("Processed historical posts:", historicalPosts.length);
-    }
-  }, [historicalData, hasMoreHistorical]);
-
-  // Process changelog data
-  useEffect(() => {
-    if (changelogData?.elements) {
-      const realtimePosts =
-        PostPulseProcessor.processChangelogData(changelogData);
-
-      // Merge with existing posts
-      const merged = PostPulseProcessor.mergeAndDeduplicatePosts(
-        allPosts.filter((p) => p.source === "historical"),
-        realtimePosts
-      );
-
-      setAllPosts(merged);
-      setDataSources((prev) => ({ ...prev, realtime: true }));
-
-      // Update cache with new data
-      if (merged.length > 0) {
-        PostPulseCache.setCache(merged, merged.length, hasMoreHistorical);
+      const result = await response.json();
+      
+      if (result.error) {
+        throw new Error(result.error);
       }
+      
+      // Filter posts by search term on frontend for better UX
+      let filteredPosts = result.posts || [];
+      if (searchTerm) {
+        filteredPosts = filteredPosts.filter(post => 
+          post.text.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          post.title.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      }
+      
+      // Recalculate pagination for filtered results
+      const totalFiltered = filteredPosts.length;
+      const totalPages = Math.ceil(totalFiltered / pageSize);
+      const startIndex = (page - 1) * pageSize;
+      const endIndex = startIndex + pageSize;
+      const paginatedPosts = filteredPosts.slice(startIndex, endIndex);
+      
+      return {
+        posts: paginatedPosts,
+        isLoading: false,
+        error: null,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalPosts: totalFiltered,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+        },
+        metadata: result.metadata || {
+          fetchTimeMs: 0,
+          timeFilter,
+          dataSource: "api",
+        },
+        lastUpdated: result.lastUpdated || new Date().toISOString(),
+      };
+    },
+    enabled: !!dmaToken,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 30 * 60 * 1000, // 30 minutes
+    retry: 2,
+    refetchOnWindowFocus: false,
+  });
 
-      console.log("Processed realtime posts:", realtimePosts.length);
-    }
-  }, [changelogData, hasMoreHistorical]);
-
-  // Filter and paginate posts
-  const filteredAndPaginated = useMemo(() => {
-    // Filter by date range
-    const daysBack = timeFilter === "7d" ? 7 : timeFilter === "30d" ? 30 : 90;
-    const dateFiltered = PostPulseProcessor.filterPostsByDateRange(
-      allPosts,
-      daysBack
-    );
-
-    // Filter by search term
-    const searchFiltered = searchTerm
-      ? dateFiltered.filter((post) =>
-          post.text.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-      : dateFiltered;
-
-    // Paginate
-    const paginated = PostPulseProcessor.paginatePosts(
-      searchFiltered,
-      page,
-      pageSize
-    );
-
-    return {
-      posts: paginated.posts,
-      pagination: {
-        currentPage: paginated.currentPage,
-        totalPages: paginated.totalPages,
-        totalPosts: paginated.totalPosts,
-        hasNextPage: paginated.hasNextPage,
-        hasPrevPage: paginated.hasPrevPage,
-      },
-    };
-  }, [allPosts, timeFilter, searchTerm, page, pageSize]);
-
-  // Determine loading states
-  const isLoading = historicalLoading || changelogLoading;
-  const isInitialLoading = isInitialLoad && isLoading;
-  const isRefetching = historicalFetching || changelogFetching;
-  const error = historicalError || changelogError;
-
-  return {
-    posts: filteredAndPaginated.posts,
+  return data || {
+    posts: [],
     isLoading,
-    isInitialLoading,
-    isRefetching,
     error,
-    cacheStatus,
-    pagination: filteredAndPaginated.pagination,
-    dataSources,
+    pagination: {
+      currentPage: page,
+      totalPages: 0,
+      totalPosts: 0,
+      hasNextPage: false,
+      hasPrevPage: false,
+    },
+    metadata: {
+      fetchTimeMs: 0,
+      timeFilter,
+      dataSource: "loading",
+    },
+    lastUpdated: new Date().toISOString(),
   };
-};
+}
