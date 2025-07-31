@@ -499,8 +499,11 @@ export const Scheduler = () => {
                   
                   {/* Content Section */}
                   <div className="mb-4">
-                    <p className="text-gray-800 dark:text-gray-200 whitespace-pre-line leading-relaxed text-base">
-                      {post.content}
+                    <p className="text-gray-800 dark:text-gray-200 leading-relaxed text-base">
+                      {post.content.split('\n')[0]}
+                      {post.content.includes('\n') && (
+                        <span className="text-gray-500 text-sm">...</span>
+                      )}
                     </p>
                   </div>
                   
