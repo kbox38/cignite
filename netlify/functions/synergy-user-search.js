@@ -34,136 +34,121 @@ export async function handler(event, context) {
   try {
     console.log("Synergy User Search:", { search, limit });
 
-    // In a real implementation, this would query your user database
-    // For now, we'll return mock users that represent platform users with DMA active
-    const allMockUsers = [
-      {
-        id: "user-001",
-        name: "Sarah Johnson",
-        email: "sarah.johnson@example.com",
-        headline: "Marketing Director at TechCorp",
-        industry: "Technology",
-        location: "San Francisco, CA",
-        avatarUrl: "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1",
-        linkedinMemberUrn: "urn:li:person:sarah123",
-        dmaActive: true,
-        mutualConnections: 12,
-        joinedDate: "2024-01-15"
-      },
-      {
-        id: "user-002",
-        name: "Michael Chen",
-        email: "michael.chen@example.com",
-        headline: "Senior Software Engineer at InnovateCorp",
-        industry: "Software Development",
-        location: "New York, NY",
-        avatarUrl: "https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1",
-        linkedinMemberUrn: "urn:li:person:michael456",
-        dmaActive: true,
-        mutualConnections: 8,
-        joinedDate: "2024-02-20"
-      },
-      {
-        id: "user-003",
-        name: "Emily Rodriguez",
-        email: "emily.rodriguez@example.com",
-        headline: "Sales Manager at Enterprise Solutions",
-        industry: "Sales",
-        location: "Chicago, IL",
-        avatarUrl: "https://images.pexels.com/photos/697509/pexels-photo-697509.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1",
-        linkedinMemberUrn: "urn:li:person:emily789",
-        dmaActive: true,
-        mutualConnections: 15,
-        joinedDate: "2024-01-10"
-      },
-      {
-        id: "user-004",
-        name: "David Kim",
-        email: "david.kim@example.com",
-        headline: "Product Manager at StartupXYZ",
-        industry: "Product Management",
-        location: "Austin, TX",
-        avatarUrl: "https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1",
-        linkedinMemberUrn: "urn:li:person:david101",
-        dmaActive: true,
-        mutualConnections: 6,
-        joinedDate: "2024-03-05"
-      },
-      {
-        id: "user-005",
-        name: "Lisa Thompson",
-        email: "lisa.thompson@example.com",
-        headline: "HR Director at GlobalCorp",
-        industry: "Human Resources",
-        location: "Seattle, WA",
-        avatarUrl: "https://images.pexels.com/photos/762020/pexels-photo-762020.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1",
-        linkedinMemberUrn: "urn:li:person:lisa202",
-        dmaActive: true, // Changed to true so user appears in search
-        mutualConnections: 3,
-        joinedDate: "2024-02-28"
-      },
-      {
-        id: "user-006",
-        name: "Alex Thompson",
-        email: "alex.thompson@example.com",
-        headline: "Data Scientist at AI Corp",
-        industry: "Data Science",
-        location: "Boston, MA",
-        avatarUrl: "https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1",
-        linkedinMemberUrn: "urn:li:person:alex303",
-        dmaActive: true,
-        mutualConnections: 9,
-        joinedDate: "2024-01-20"
-      },
-      {
-        id: "user-007",
-        name: "Jessica Wang",
-        email: "jessica.wang@example.com",
-        headline: "UX Designer at DesignStudio",
-        industry: "Design",
-        location: "Los Angeles, CA",
-        avatarUrl: "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1",
-        linkedinMemberUrn: "urn:li:person:jessica404",
-        dmaActive: true,
-        mutualConnections: 7,
-        joinedDate: "2024-02-15"
-      },
-      {
-        id: "user-008",
-        name: "Robert Martinez",
-        email: "robert.martinez@example.com",
-        headline: "Financial Analyst at FinanceGroup",
-        industry: "Finance",
-        location: "Miami, FL",
-        avatarUrl: "https://images.pexels.com/photos/1681010/pexels-photo-1681010.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1",
-        linkedinMemberUrn: "urn:li:person:robert505",
-        dmaActive: true,
-        mutualConnections: 11,
-        joinedDate: "2024-03-01"
-      }
-    ];
-
-    // Filter users based on search term
-    let filteredUsers = allMockUsers;
-    if (search && search.trim()) {
-      const searchLower = search.toLowerCase();
-      filteredUsers = allMockUsers.filter(user => 
-        user.name.toLowerCase().includes(searchLower) ||
-        user.email.toLowerCase().includes(searchLower) ||
-        user.headline.toLowerCase().includes(searchLower) ||
-        user.industry.toLowerCase().includes(searchLower) ||
-        user.location.toLowerCase().includes(searchLower)
-      );
+    // Get current user ID from token
+    const currentUserId = await getUserIdFromToken(authorization);
+    if (!currentUserId) {
+      return {
+        statusCode: 401,
+        body: JSON.stringify({ error: "Invalid token" }),
+      };
     }
 
-    // Only return users with DMA active for synergy partnerships
-    const dmaActiveUsers = filteredUsers.filter(user => user.dmaActive);
+    // Query Supabase for real users
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
 
-    // Apply limit
-    const limitNum = parseInt(limit);
-    const results = dmaActiveUsers.slice(0, limitNum);
+    // Build search query
+    let query = supabase
+      .from('users')
+      .select(`
+        id,
+        name,
+        email,
+        avatar_url,
+        headline,
+        industry,
+        location,
+        linkedin_member_urn,
+        dma_active,
+        created_at,
+        user_profiles!inner(
+          total_connections,
+          profile_completeness_score
+        )
+      `)
+      .eq('dma_active', true)
+      .neq('id', currentUserId) // Exclude current user
+      .limit(parseInt(limit));
 
-    console.log(`Found ${results.length} DMA-active users matching search: "${search}"`);
+    // Add search filters if search term provided
+    if (search && search.trim()) {
+      const searchTerm = `%${search.toLowerCase()}%`;
+      query = query.or(`
+        name.ilike.${searchTerm},
+        email.ilike.${searchTerm},
+        headline.ilike.${searchTerm},
+        industry.ilike.${searchTerm},
+        location.ilike.${searchTerm}
+      `);
+    }
+
+    const { data: users, error } = await query;
+
+    if (error) {
+      console.error("Database error:", error);
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ 
+          error: "Database query failed",
+          details: error.message 
+        }),
+      };
+    }
+
+    // Filter out existing partners
+    const { data: existingPartnerships } = await supabase
+      .from('synergy_partners')
+      .select('a_user_id, b_user_id')
+      .or(`a_user_id.eq.${currentUserId},b_user_id.eq.${currentUserId}`)
+      .eq('partnership_status', 'active');
+
+    const partnerIds = new Set();
+    existingPartnerships?.forEach(partnership => {
+      if (partnership.a_user_id === currentUserId) {
+        partnerIds.add(partnership.b_user_id);
+      } else {
+        partnerIds.add(partnership.a_user_id);
+      }
+    });
+
+    // Filter out existing partners and pending invitations
+    const { data: pendingInvitations } = await supabase
+      .from('synergy_invitations')
+      .select('from_user_id, to_user_id')
+      .or(`from_user_id.eq.${currentUserId},to_user_id.eq.${currentUserId}`)
+      .eq('invitation_status', 'pending');
+
+    const pendingIds = new Set();
+    pendingInvitations?.forEach(invitation => {
+      pendingIds.add(invitation.from_user_id);
+      pendingIds.add(invitation.to_user_id);
+    });
+
+    const availableUsers = users?.filter(user => 
+      !partnerIds.has(user.id) && !pendingIds.has(user.id)
+    ) || [];
+
+    // Format response
+    const formattedUsers = availableUsers.map(user => ({
+      id: user.id,
+      name: user.name || 'Unknown User',
+      email: user.email,
+      headline: user.headline || 'LinkedIn Professional',
+      industry: user.industry || 'Professional Services',
+      location: user.location || 'Location not specified',
+      avatarUrl: user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=0ea5e9&color=fff`,
+      linkedinMemberUrn: user.linkedin_member_urn,
+      dmaActive: user.dma_active,
+      totalConnections: user.user_profiles?.total_connections || 0,
+      profileCompleteness: user.user_profiles?.profile_completeness_score || 0,
+      mutualConnections: Math.floor(Math.random() * 20), // This would be calculated from actual connections in production
+      joinedDate: user.created_at
+    }));
+
+    console.log(`Found ${formattedUsers.length} available users for partnerships`);
 
     return {
       statusCode: 200,
@@ -173,13 +158,15 @@ export async function handler(event, context) {
         "Access-Control-Allow-Headers": "Content-Type, Authorization",
       },
       body: JSON.stringify({
-        users: results,
-        totalFound: dmaActiveUsers.length,
+        users: formattedUsers,
+        totalFound: formattedUsers.length,
         searchTerm: search,
         dmaRequirement: "Only users with active DMA consent can be added as Synergy partners",
         metadata: {
           searchPerformed: !!search,
-          resultsLimited: dmaActiveUsers.length > limitNum,
+          currentUserId,
+          excludedPartners: partnerIds.size,
+          excludedPending: pendingIds.size,
           timestamp: new Date().toISOString()
         }
       }),
@@ -197,5 +184,42 @@ export async function handler(event, context) {
         details: error.message
       }),
     };
+  }
+}
+
+async function getUserIdFromToken(authorization) {
+  try {
+    // Extract user info from LinkedIn token
+    const response = await fetch('https://api.linkedin.com/v2/userinfo', {
+      headers: {
+        'Authorization': authorization,
+        'LinkedIn-Version': '202312'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to get user info from LinkedIn');
+    }
+
+    const userInfo = await response.json();
+    const linkedinUrn = `urn:li:person:${userInfo.sub}`;
+
+    // Find user in database by LinkedIn URN
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    const { data: user } = await supabase
+      .from('users')
+      .select('id')
+      .eq('linkedin_member_urn', linkedinUrn)
+      .single();
+
+    return user?.id || null;
+  } catch (error) {
+    console.error('Error getting user ID from token:', error);
+    return null;
   }
 }
