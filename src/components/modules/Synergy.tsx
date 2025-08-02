@@ -87,7 +87,7 @@ export const Synergy = () => {
   const { data: partnersData, isLoading: partnersLoading, refetch: refetchPartners } = useQuery({
     queryKey: ['synergy-partners'],
     queryFn: async () => {
-      const response = await fetch('/.netlify/functions/synergy-partners-v2', {
+      const response = await fetch('/.netlify/functions/synergy-partners-v3', {
         headers: {
           'Authorization': `Bearer ${dmaToken}`,
           'Content-Type': 'application/json',
@@ -141,7 +141,7 @@ export const Synergy = () => {
   // Send invitation mutation
   const sendInvitationMutation = useMutation({
     mutationFn: async (partnerId: string) => {
-      const response = await fetch('/.netlify/functions/synergy-partners-v2', {
+      const response = await fetch('/.netlify/functions/synergy-partners-v3', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${dmaToken}`,
@@ -171,7 +171,7 @@ export const Synergy = () => {
   // Accept invitation mutation
   const acceptInvitationMutation = useMutation({
     mutationFn: async (invitationId: string) => {
-      const response = await fetch('/.netlify/functions/synergy-partners-v2', {
+      const response = await fetch('/.netlify/functions/synergy-partners-v3', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${dmaToken}`,
@@ -198,7 +198,7 @@ export const Synergy = () => {
   // Decline invitation mutation
   const declineInvitationMutation = useMutation({
     mutationFn: async (invitationId: string) => {
-      const response = await fetch('/.netlify/functions/synergy-partners-v2', {
+      const response = await fetch('/.netlify/functions/synergy-partners-v3', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${dmaToken}`,
