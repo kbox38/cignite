@@ -40,7 +40,7 @@ export const PostPulse = () => {
     error,
     pagination,
     metadata,
-  } = usePostPulseData({
+  } = usePostPulseDataV2({
     timeFilter,
     searchTerm,
     page: currentPage,
@@ -96,28 +96,6 @@ export const PostPulse = () => {
     // Navigate to PostGen rewrite section
     setCurrentModule("postgen");
     window.history.pushState({}, "", "/?module=postgen&tab=rewrite");
-  };
-
-  const getPostStatus = (post: PostPulsePost) => {
-    if (post.daysSincePosted < 7) {
-      return {
-        label: "Too Recent",
-        color: "bg-red-100 text-red-800",
-        icon: Clock,
-      };
-    } else if (post.daysSincePosted < 30) {
-      return {
-        label: `${30 - post.daysSincePosted} days left`,
-        color: "bg-yellow-100 text-yellow-800",
-        icon: Clock,
-      };
-    } else {
-      return {
-        label: "Ready to Repost",
-        color: "bg-green-100 text-green-800",
-        icon: Zap,
-      };
-    }
   };
 
   const truncateText = (text: string, maxLength: number = 150): string => {
@@ -267,8 +245,8 @@ export const PostPulse = () => {
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {posts.map((post, index) => {
-              const status = getPostStatus(post);
-              const StatusIcon = status.icon;
+              const status = post.repurposeStatus;
+              const StatusIcon = status.canRepost ? Zap : Clock;
               const hasImageError = imageLoadErrors.has(post.id);
               const showThumbnail = post.thumbnail && !hasImageError;
 
@@ -298,10 +276,13 @@ export const PostPulse = () => {
 
                     {/* Status Badge */}
                     <div
-                      className={`absolute top-4 right-4 px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1 ${status.color}`}
+                      className={`absolute top-4 right-4 px-3 py-1.5 rounded-full text-xs font-medium flex items-center space-x-1 border ${status.color}`}
                     >
                       <StatusIcon size={12} />
                       <span>{status.label}</span>
+                      {!status.canRepost && status.daysUntilReady && (
+                        <span className="ml-1">({status.daysUntilReady}d)</span>
+                      )}
                     </div>
 
                     {/* Post Content */}
@@ -368,10 +349,10 @@ export const PostPulse = () => {
                           handleRepurpose(post);
                         }}
                         className="flex-1"
-                        disabled={!post.canRepost}
+                        disabled={!status.canRepost}
                       >
                         <Zap size={14} className="mr-1" />
-                        {post.canRepost ? "Repurpose" : "Too Recent"}
+                        {status.canRepost ? "Repurpose" : status.label}
                       </Button>
                       <Button
                         variant="ghost"

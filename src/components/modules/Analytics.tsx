@@ -34,23 +34,18 @@ export const Analytics = () => {
   const { data: analyticsData, isLoading, error, refetch } = useAnalyticsData(timeRange);
 
   // Null-safe data extraction with defaults
-  const postsEngagementsTrend = analyticsData?.postsEngagementsTrend ?? [];
-  const connectionsGrowth = analyticsData?.connectionsGrowth ?? [];
-  const postTypesBreakdown = analyticsData?.postTypesBreakdown ?? [];
-  const topHashtags = analyticsData?.topHashtags ?? [];
-  const engagementPerPost = analyticsData?.engagementPerPost ?? [];
-  const messagesSentReceived = analyticsData?.messagesSentReceived ?? [];
+  const postingTrends = analyticsData?.postingTrends ?? [];
+  const contentFormats = analyticsData?.contentFormats ?? [];
+  const engagementAnalysis = analyticsData?.engagementAnalysis ?? [];
+  const hashtagTrends = analyticsData?.hashtagTrends ?? [];
+  const audienceInsights = analyticsData?.audienceInsights ?? { industries: [], positions: [], locations: [], totalConnections: 0 };
+  const performanceMetrics = analyticsData?.performanceMetrics ?? {};
+  const timeBasedInsights = analyticsData?.timeBasedInsights ?? {};
   const aiNarrative = analyticsData?.aiNarrative;
-  const audienceDistribution = analyticsData?.audienceDistribution ?? {
-    industries: [],
-    positions: [],
-    locations: []
-  };
-  const scoreImpacts = analyticsData?.scoreImpacts ?? {};
   const metadata = analyticsData?.metadata ?? {
     hasRecentActivity: false,
     dataSource: "unknown",
-    eventCount: 0,
+    postsCount: 0,
     description: ""
   };
 
@@ -174,11 +169,11 @@ export const Analytics = () => {
       )}
 
       {/* Show note for no recent activity */}
-      {analyticsData?.note && (
+      {!metadata.hasRecentActivity && (
         <Card variant="glass" className="p-4 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200">
           <div className="flex items-center space-x-3">
             <AlertCircle size={20} className="text-yellow-600" />
-            <p className="text-yellow-800 font-medium">{analyticsData.note}</p>
+            <p className="text-yellow-800 font-medium">No posts found in {timeRange} range. Try selecting a longer time period or start posting to see analytics.</p>
           </div>
         </Card>
       )}
@@ -237,15 +232,15 @@ export const Analytics = () => {
               </div>
               <div className="bg-white p-3 rounded-lg">
                 <div className="font-medium">Data Points</div>
-                <div className="text-yellow-900">{postsEngagementsTrend.length} trends</div>
+                <div className="text-yellow-900">{postingTrends.length} trends</div>
               </div>
               <div className="bg-white p-3 rounded-lg">
                 <div className="font-medium">Data Source</div>
                 <div className="text-yellow-900">{metadata.dataSource}</div>
               </div>
               <div className="bg-white p-3 rounded-lg">
-                <div className="font-medium">Event Count</div>
-                <div className="text-yellow-900">{metadata.eventCount}</div>
+                <div className="font-medium">Posts Count</div>
+                <div className="text-yellow-900">{metadata.postsCount}</div>
               </div>
               <div className="bg-white p-3 rounded-lg">
                 <div className="font-medium">Has Activity</div>
@@ -257,12 +252,12 @@ export const Analytics = () => {
       )}
 
       {/* Empty State for No Data */}
-      {showEmptyState && (
+      {!metadata.hasRecentActivity && (
         <Card variant="glass" className="p-12 text-center bg-gradient-to-br from-gray-50 to-blue-50 border-2 border-gray-200">
           <BarChart3 size={64} className="mx-auto text-gray-300 mb-6" />
           <h3 className="text-2xl font-bold text-gray-900 mb-4">No Analytics Data Available</h3>
           <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
-            {analyticsData?.note || "No recent LinkedIn activity found. Start posting and engaging to see analytics here."}
+            No recent LinkedIn activity found in the {timeRange} period. Start posting and engaging to see analytics here.
           </p>
           <div className="space-y-4">
             <Button
@@ -277,9 +272,9 @@ export const Analytics = () => {
       )}
 
       {/* Charts Grid */}
-      {!showEmptyState && (
+      {metadata.hasRecentActivity && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Posts & Engagements Trend */}
+        {/* Posting Trends */}
         <Card variant="glass" className="p-8 bg-gradient-to-br from-white to-blue-50 border-2 border-blue-100 hover:shadow-xl transition-all duration-300">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-3">
@@ -287,20 +282,14 @@ export const Analytics = () => {
                 <TrendingUp size={20} className="text-white" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-gray-900">Posts & Engagements</h3>
-                <p className="text-sm text-gray-600">Activity and engagement trends</p>
-              </div>
-            </div>
-            <div className="relative group">
-              <Info size={18} className="text-gray-400 cursor-help hover:text-gray-600 transition-colors" />
-              <div className="absolute bottom-full right-0 mb-2 w-80 p-4 bg-gray-900 text-white text-sm rounded-xl opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-xl">
-                {scoreImpacts.postingActivity?.description || "Shows posting activity and engagement over time"}
+                <h3 className="text-xl font-bold text-gray-900">Posting Trends</h3>
+                <p className="text-sm text-gray-600">Daily posting activity and engagement</p>
               </div>
             </div>
           </div>
-          {postsEngagementsTrend.length > 0 ? (
+          {postingTrends.length > 0 ? (
             <ResponsiveContainer width="100%" height={350}>
-              <LineChart data={postsEngagementsTrend}>
+              <LineChart data={postingTrends}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                 <YAxis />
@@ -327,78 +316,9 @@ export const Analytics = () => {
               </div>
             </div>
           )}
-          <div className="mt-4 p-4 bg-blue-50 rounded-xl">
-            <p className="text-sm text-blue-800">
-              <strong>Impact:</strong> {scoreImpacts.postingActivity?.impact || "Regular posting improves visibility"}
-            </p>
-          </div>
         </Card>
 
-        {/* Connections Growth Chart */}
-        <Card variant="glass" className="p-8 bg-gradient-to-br from-white to-green-50 border-2 border-green-100 hover:shadow-xl transition-all duration-300">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center space-x-3">
-              <div className="p-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl">
-                <Users size={20} className="text-white" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">Network Growth</h3>
-                <p className="text-sm text-gray-600">Connection expansion over time</p>
-              </div>
-            </div>
-            <div className="relative group">
-              <Info size={18} className="text-gray-400 cursor-help hover:text-gray-600 transition-colors" />
-              <div className="absolute bottom-full right-0 mb-2 w-80 p-4 bg-gray-900 text-white text-sm rounded-xl opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-xl">
-                {scoreImpacts.networkGrowth?.description || "Shows network growth over time"}
-              </div>
-            </div>
-          </div>
-          {connectionsGrowth.length > 0 ? (
-            <ResponsiveContainer width="100%" height={350}>
-              <AreaChart data={connectionsGrowth}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-              <YAxis />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'white', 
-                  border: '1px solid #e5e7eb', 
-                  borderRadius: '12px',
-                  boxShadow: '0 10px 25px rgba(0,0,0,0.1)'
-                }} 
-              />
-              <Area 
-                type="monotone" 
-                dataKey="totalConnections" 
-                stroke="#10B981" 
-                fill="url(#colorConnections)" 
-                strokeWidth={3}
-              />
-              <defs>
-                <linearGradient id="colorConnections" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#10B981" stopOpacity={0.1}/>
-                </linearGradient>
-              </defs>
-            </AreaChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-80 flex items-center justify-center text-gray-500 bg-gray-50 rounded-xl">
-              <div className="text-center">
-                <Users size={48} className="mx-auto mb-4 text-gray-300" />
-                <p className="font-medium">No connection data available</p>
-                <p className="text-sm mt-1">Connect with others to see growth</p>
-              </div>
-            </div>
-          )}
-          <div className="mt-4 p-4 bg-green-50 rounded-xl">
-            <p className="text-sm text-green-800">
-              <strong>Impact:</strong> {scoreImpacts.networkGrowth?.impact || "Growing network increases reach"}
-            </p>
-          </div>
-        </Card>
-
-        {/* Post Types Chart */}
+        {/* Content Formats */}
         <Card variant="glass" className="p-8 bg-gradient-to-br from-white to-purple-50 border-2 border-purple-100 hover:shadow-xl transition-all duration-300">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-3">
@@ -406,31 +326,25 @@ export const Analytics = () => {
                 <BarChart3 size={20} className="text-white" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-gray-900">Content Types</h3>
-                <p className="text-sm text-gray-600">Distribution of your content formats</p>
-              </div>
-            </div>
-            <div className="relative group">
-              <Info size={18} className="text-gray-400 cursor-help hover:text-gray-600 transition-colors" />
-              <div className="absolute bottom-full right-0 mb-2 w-80 p-4 bg-gray-900 text-white text-sm rounded-xl opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-xl">
-                {scoreImpacts.contentDiversity?.description || "Shows content type distribution"}
+                <h3 className="text-xl font-bold text-gray-900">Content Formats</h3>
+                <p className="text-sm text-gray-600">Distribution of your content types</p>
               </div>
             </div>
           </div>
-          {postTypesBreakdown.length > 0 ? (
+          {contentFormats.length > 0 ? (
             <ResponsiveContainer width="100%" height={350}>
               <PieChart>
                 <Pie
-                  data={postTypesBreakdown}
+                  data={contentFormats}
                   cx="50%"
                   cy="50%"
                   outerRadius={100}
                   innerRadius={40}
                   dataKey="value"
-                  label={({ name, percent }) => `${name || 'Unknown'} ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percentage }) => `${name} ${percentage}%`}
                   labelLine={false}
                 >
-                  {postTypesBreakdown.map((_, index) => (
+                  {contentFormats.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -448,16 +362,59 @@ export const Analytics = () => {
             <div className="h-80 flex items-center justify-center text-gray-500 bg-gray-50 rounded-xl">
               <div className="text-center">
                 <BarChart3 size={48} className="mx-auto mb-4 text-gray-300" />
-                <p className="font-medium">No content types found</p>
-                <p className="text-sm mt-1">Create posts to see content distribution</p>
+                <p className="font-medium">No content formats found</p>
+                <p className="text-sm mt-1">Create posts to see format distribution</p>
               </div>
             </div>
           )}
-          <div className="mt-4 p-4 bg-purple-50 rounded-xl">
-            <p className="text-sm text-purple-800">
-              <strong>Impact:</strong> {scoreImpacts.contentDiversity?.impact || "Diverse content improves engagement"}
-            </p>
+        </Card>
+        </div>
+      )}
+
+      {/* Second Row of Charts */}
+      {metadata.hasRecentActivity && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Engagement Analysis */}
+        <Card variant="glass" className="p-8 bg-gradient-to-br from-white to-pink-50 border-2 border-pink-100 hover:shadow-xl transition-all duration-300">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-3">
+              <div className="p-3 bg-gradient-to-r from-pink-500 to-rose-500 rounded-xl">
+                <Heart size={20} className="text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Top Performing Posts</h3>
+                <p className="text-sm text-gray-600">Posts with highest engagement</p>
+              </div>
+            </div>
           </div>
+          {engagementAnalysis.length > 0 ? (
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={engagementAnalysis}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="content" tick={{ fontSize: 12 }} />
+                <YAxis />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'white', 
+                    border: '1px solid #e5e7eb', 
+                    borderRadius: '12px',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.1)'
+                  }} 
+                />
+                <Bar dataKey="likes" stackId="a" fill="#EF4444" name="Likes" radius={[0, 0, 4, 4]} />
+                <Bar dataKey="comments" stackId="a" fill="#8B5CF6" name="Comments" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="shares" stackId="a" fill="#10B981" name="Shares" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-80 flex items-center justify-center text-gray-500 bg-gray-50 rounded-xl">
+              <div className="text-center">
+                <Heart size={48} className="mx-auto mb-4 text-gray-300" />
+                <p className="font-medium">No engagement data available</p>
+                <p className="text-sm mt-1">Start posting to see engagement metrics</p>
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* Top Hashtags Chart */}
@@ -472,16 +429,10 @@ export const Analytics = () => {
                 <p className="text-sm text-gray-600">Most used hashtags in your content</p>
               </div>
             </div>
-            <div className="relative group">
-              <Info size={18} className="text-gray-400 cursor-help hover:text-gray-600 transition-colors" />
-              <div className="absolute bottom-full right-0 mb-2 w-80 p-4 bg-gray-900 text-white text-sm rounded-xl opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-xl">
-                Popular hashtags help increase content discoverability
-              </div>
-            </div>
           </div>
-          {topHashtags.length > 0 ? (
+          {hashtagTrends.length > 0 ? (
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={topHashtags} layout="horizontal">
+              <BarChart data={hashtagTrends} layout="horizontal">
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis type="number" />
                 <YAxis dataKey="hashtag" type="category" width={100} tick={{ fontSize: 12 }} />
@@ -511,129 +462,13 @@ export const Analytics = () => {
               </div>
             </div>
           )}
-          <div className="mt-4 p-4 bg-orange-50 rounded-xl">
-            <p className="text-sm text-orange-800">
-              <strong>Tip:</strong> Use 3-5 relevant hashtags per post to increase discoverability
-            </p>
-          </div>
         </Card>
         </div>
       )}
 
-      {/* Second Row of Charts */}
-      {!showEmptyState && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Engagement per Post */}
-        <Card variant="glass" className="p-8 bg-gradient-to-br from-white to-pink-50 border-2 border-pink-100 hover:shadow-xl transition-all duration-300">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center space-x-3">
-              <div className="p-3 bg-gradient-to-r from-pink-500 to-rose-500 rounded-xl">
-                <Heart size={20} className="text-white" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">Top Performing Posts</h3>
-                <p className="text-sm text-gray-600">Posts with highest engagement</p>
-              </div>
-            </div>
-            <div className="relative group">
-              <Info size={18} className="text-gray-400 cursor-help hover:text-gray-600 transition-colors" />
-              <div className="absolute bottom-full right-0 mb-2 w-80 p-4 bg-gray-900 text-white text-sm rounded-xl opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-xl">
-                {scoreImpacts.engagementQuality?.description || "Shows posts with highest engagement"}
-              </div>
-            </div>
-          </div>
-          {engagementPerPost.length > 0 ? (
-            <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={engagementPerPost}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="content" tick={{ fontSize: 12 }} />
-                <YAxis />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'white', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '12px',
-                    boxShadow: '0 10px 25px rgba(0,0,0,0.1)'
-                  }} 
-                />
-                <Bar dataKey="likes" stackId="a" fill="#EF4444" name="Likes" radius={[0, 0, 4, 4]} />
-                <Bar dataKey="comments" stackId="a" fill="#8B5CF6" name="Comments" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="shares" stackId="a" fill="#10B981" name="Shares" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-80 flex items-center justify-center text-gray-500 bg-gray-50 rounded-xl">
-              <div className="text-center">
-                <Heart size={48} className="mx-auto mb-4 text-gray-300" />
-                <p className="font-medium">No engagement data available</p>
-                <p className="text-sm mt-1">Start posting to see engagement metrics</p>
-              </div>
-            </div>
-          )}
-          <div className="mt-4 p-4 bg-pink-50 rounded-xl">
-            <p className="text-sm text-pink-800">
-              <strong>Impact:</strong> {scoreImpacts.engagementQuality?.impact || "High engagement improves visibility"}
-            </p>
-          </div>
-        </Card>
-
-        {/* Messages Sent vs Received */}
-        <Card variant="glass" className="p-8 bg-gradient-to-br from-white to-cyan-50 border-2 border-cyan-100 hover:shadow-xl transition-all duration-300">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center space-x-3">
-              <div className="p-3 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl">
-                <MessageCircle size={20} className="text-white" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">Message Activity</h3>
-                <p className="text-sm text-gray-600">Communication patterns</p>
-              </div>
-            </div>
-            <div className="relative group">
-              <Info size={18} className="text-gray-400 cursor-help hover:text-gray-600 transition-colors" />
-              <div className="absolute bottom-full right-0 mb-2 w-80 p-4 bg-gray-900 text-white text-sm rounded-xl opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-xl">
-                {scoreImpacts.mutualInteractions?.description || "Shows message activity patterns"}
-              </div>
-            </div>
-          </div>
-          {messagesSentReceived.some(d => (d?.sent ?? 0) > 0 || (d?.received ?? 0) > 0) ? (
-            <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={messagesSentReceived}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                <YAxis />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'white', 
-                    border: '1px solid #e5e7eb', 
-                    borderRadius: '12px',
-                    boxShadow: '0 10px 25px rgba(0,0,0,0.1)'
-                  }} 
-                />
-                <Bar dataKey="sent" stackId="a" fill="#3B82F6" name="Sent" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="received" stackId="a" fill="#10B981" name="Received" radius={[0, 0, 4, 4]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-80 flex items-center justify-center text-gray-500 bg-gray-50 rounded-xl">
-              <div className="text-center">
-                <MessageCircle size={48} className="mx-auto mb-4 text-gray-300" />
-                <p className="font-medium">No message data available</p>
-                <p className="text-sm mt-1">Message activity will appear here</p>
-              </div>
-            </div>
-          )}
-          <div className="mt-4 p-4 bg-cyan-50 rounded-xl">
-            <p className="text-sm text-cyan-800">
-              <strong>Impact:</strong> {scoreImpacts.mutualInteractions?.impact || "Active messaging builds relationships"}
-            </p>
-          </div>
-        </Card>
-        </div>
-      )}
 
       {/* Audience Distribution */}
-      {!showEmptyState && (
+      {metadata.hasRecentActivity && audienceInsights.totalConnections > 0 && (
         <Card variant="glass" className="p-8 bg-gradient-to-br from-white to-gray-50 border-2 border-gray-100">
           <div className="flex items-center space-x-3 mb-8">
             <div className="p-3 bg-gradient-to-r from-gray-600 to-gray-700 rounded-xl">
@@ -650,16 +485,10 @@ export const Analytics = () => {
             <div className="bg-white p-6 rounded-xl border border-gray-200">
               <div className="flex items-center justify-between mb-6">
                 <h4 className="text-lg font-bold text-gray-900">Top Industries</h4>
-                <div className="relative group">
-                  <Info size={16} className="text-gray-400 cursor-help hover:text-gray-600 transition-colors" />
-                  <div className="absolute bottom-full left-0 mb-2 w-72 p-3 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-lg">
-                    Shows the top industries represented in your LinkedIn network
-                  </div>
-                </div>
               </div>
-              {audienceDistribution.industries.length > 0 ? (
+              {audienceInsights.industries.length > 0 ? (
                 <div className="space-y-3 max-h-80 overflow-y-auto">
-                  {audienceDistribution.industries.slice(0, 10).map((industry, index) => (
+                  {audienceInsights.industries.slice(0, 10).map((industry, index) => (
                     <div key={industry.name} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                       <div className="flex items-center space-x-3">
                         <div className={`w-3 h-3 rounded-full`} style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
@@ -667,7 +496,7 @@ export const Analytics = () => {
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-gray-900">{industry.value || 0}</div>
-                        <div className="text-xs text-gray-500">connections</div>
+                        <div className="text-xs text-gray-500">{industry.percentage}%</div>
                       </div>
                     </div>
                   ))}
@@ -686,16 +515,10 @@ export const Analytics = () => {
             <div className="bg-white p-6 rounded-xl border border-gray-200">
               <div className="flex items-center justify-between mb-6">
                 <h4 className="text-lg font-bold text-gray-900">Top Positions</h4>
-                <div className="relative group">
-                  <Info size={16} className="text-gray-400 cursor-help hover:text-gray-600 transition-colors" />
-                  <div className="absolute bottom-full left-0 mb-2 w-72 p-3 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-lg">
-                    Shows the most common job titles in your LinkedIn network
-                  </div>
-                </div>
               </div>
-              {audienceDistribution.positions.length > 0 ? (
+              {audienceInsights.positions.length > 0 ? (
                 <div className="space-y-3 max-h-80 overflow-y-auto">
-                  {audienceDistribution.positions.slice(0, 10).map((position, index) => (
+                  {audienceInsights.positions.slice(0, 10).map((position, index) => (
                     <div key={position.name} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                       <div className="flex items-center space-x-3">
                         <div className={`w-3 h-3 rounded-full`} style={{ backgroundColor: COLORS[(index + 3) % COLORS.length] }}></div>
@@ -703,7 +526,7 @@ export const Analytics = () => {
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-gray-900">{position.value || 0}</div>
-                        <div className="text-xs text-gray-500">connections</div>
+                        <div className="text-xs text-gray-500">{position.percentage}%</div>
                       </div>
                     </div>
                   ))}
@@ -722,16 +545,10 @@ export const Analytics = () => {
             <div className="bg-white p-6 rounded-xl border border-gray-200">
               <div className="flex items-center justify-between mb-6">
                 <h4 className="text-lg font-bold text-gray-900">Locations</h4>
-                <div className="relative group">
-                  <Info size={16} className="text-gray-400 cursor-help hover:text-gray-600 transition-colors" />
-                  <div className="absolute bottom-full right-0 mb-2 w-72 p-3 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg">
-                    Geographic diversity can expand your professional reach
-                  </div>
-                </div>
               </div>
-              {audienceDistribution.locations.length > 0 ? (
+              {audienceInsights.locations.length > 0 ? (
                 <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={audienceDistribution.locations.slice(0, 8)} layout="horizontal">
+                  <BarChart data={audienceInsights.locations.slice(0, 8)} layout="horizontal">
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis type="number" />
                   <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 11 }} />
@@ -759,39 +576,39 @@ export const Analytics = () => {
         </Card>
       )}
 
-      {/* Score Improvement Tips */}
-      {!showEmptyState && Object.keys(scoreImpacts).length > 0 && (
+      {/* Performance Insights */}
+      {metadata.hasRecentActivity && performanceMetrics && (
         <Card variant="glass" className="p-8 bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200">
           <div className="flex items-center space-x-3 mb-8">
             <div className="p-3 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl">
               <TrendingUp size={24} className="text-white" />
             </div>
             <div>
-              <h3 className="text-2xl font-bold text-gray-900">Improvement Recommendations</h3>
-              <p className="text-gray-600">Actionable tips to boost your LinkedIn performance</p>
+              <h3 className="text-2xl font-bold text-gray-900">Performance Insights</h3>
+              <p className="text-gray-600">Key metrics and optimization opportunities</p>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {Object.entries(scoreImpacts).slice(0, 6).map(([key, impact]) => (
-              <motion.div 
-                key={key} 
-                className="bg-white p-6 rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-300"
-                whileHover={{ y: -2 }}
-              >
-                <h4 className="font-bold text-gray-900 capitalize mb-3 text-lg">
-                  {key.replace(/([A-Z])/g, ' $1').trim()}
-                </h4>
-                <p className="text-sm text-gray-700 mb-4 leading-relaxed">{impact?.description || "No description available"}</p>
-                <ul className="text-sm text-gray-600 space-y-2">
-                  {(impact?.tips ?? []).map((tip, index) => (
-                    <li key={index} className="flex items-start space-x-2">
-                      <span className="w-2 h-2 bg-indigo-500 rounded-full mt-2 flex-shrink-0"></span>
-                      <span className="leading-relaxed">{tip}</span>
-                    </li>
-                  ))}
-                </ul>
-              </motion.div>
-            ))}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-white p-6 rounded-xl border border-gray-200">
+              <h4 className="font-bold text-gray-900 mb-2">Total Engagement</h4>
+              <div className="text-3xl font-bold text-indigo-600">{performanceMetrics.totalEngagement || 0}</div>
+              <p className="text-sm text-gray-600 mt-1">Across all posts</p>
+            </div>
+            <div className="bg-white p-6 rounded-xl border border-gray-200">
+              <h4 className="font-bold text-gray-900 mb-2">Avg per Post</h4>
+              <div className="text-3xl font-bold text-green-600">{performanceMetrics.avgEngagementPerPost || 0}</div>
+              <p className="text-sm text-gray-600 mt-1">Likes + Comments</p>
+            </div>
+            <div className="bg-white p-6 rounded-xl border border-gray-200">
+              <h4 className="font-bold text-gray-900 mb-2">Posting Frequency</h4>
+              <div className="text-3xl font-bold text-purple-600">{timeBasedInsights.postingFrequency || 0}</div>
+              <p className="text-sm text-gray-600 mt-1">Posts per week</p>
+            </div>
+            <div className="bg-white p-6 rounded-xl border border-gray-200">
+              <h4 className="font-bold text-gray-900 mb-2">Best Format</h4>
+              <div className="text-lg font-bold text-orange-600">{contentFormats[0]?.name || 'TEXT'}</div>
+              <p className="text-sm text-gray-600 mt-1">{contentFormats[0]?.percentage || 0}% of posts</p>
+            </div>
           </div>
         </Card>
       )}

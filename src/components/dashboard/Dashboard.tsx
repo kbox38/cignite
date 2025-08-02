@@ -155,31 +155,15 @@ export const Dashboard = () => {
   // Transform data for components
   const profileEvaluation = {
     overallScore: dashboardData.scores.overall,
-    scores: {
-      profileCompleteness: dashboardData.scores.profileCompleteness,
-      postingActivity: dashboardData.scores.postingActivity,
-      engagementQuality: dashboardData.scores.engagementQuality,
-      networkGrowth: dashboardData.scores.networkGrowth,
-      audienceRelevance: dashboardData.scores.audienceRelevance,
-      contentDiversity: dashboardData.scores.contentDiversity,
-      engagementRate: dashboardData.scores.engagementRate,
-      mutualInteractions: dashboardData.scores.mutualInteractions,
-      profileVisibility: dashboardData.scores.profileVisibility,
-      professionalBrand: dashboardData.scores.professionalBrand,
-    },
-    explanations: dashboardData.methodology
+    scores: dashboardData.scores,
+    analysis: dashboardData.analysis
   };
 
   const summaryKPIs = {
     totalConnections: dashboardData.summary.totalConnections,
-    postsLast30Days: dashboardData.summary.posts30d,
-    engagementRate: `${dashboardData.summary.engagementRatePct}%`,
-    connectionsLast30Days: dashboardData.summary.newConnections28d
-  };
-
-  const miniTrends = {
-    posts: Object.entries(dashboardData.trends.weeklyPosts || {}).map(([date, value]) => ({ date, value })),
-    engagements: Object.entries(dashboardData.trends.weeklyEngagements || {}).map(([date, value]) => ({ date, value }))
+    totalPosts: dashboardData.summary.totalPosts,
+    avgEngagementPerPost: dashboardData.summary.avgEngagementPerPost,
+    postsPerWeek: dashboardData.summary.postsPerWeek
   };
 
   return (
@@ -229,7 +213,7 @@ export const Dashboard = () => {
       </div>
 
       {/* AI Insights Panel */}
-      {showAIInsights && dashboardData?.aiInsights && (
+      {showAIInsights && dashboardData?.analysis && (
         <Card variant="glass" className="p-6 bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold flex items-center text-purple-900">
@@ -245,12 +229,12 @@ export const Dashboard = () => {
             </Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {Object.entries(dashboardData.aiInsights).map(([key, insight]) => (
+            {Object.entries(dashboardData.analysis).map(([key, analysis]) => (
               <div key={key} className="bg-white p-4 rounded-lg border border-purple-200">
                 <h4 className="font-medium text-purple-900 capitalize mb-2">
                   {key.replace(/([A-Z])/g, ' $1').trim()}
                 </h4>
-                <p className="text-sm text-purple-800">{insight}</p>
+                <p className="text-sm text-purple-800">{analysis.aiInsight || 'Analysis in progress...'}</p>
               </div>
             ))}
           </div>
@@ -281,7 +265,7 @@ export const Dashboard = () => {
             <div className="flex items-center space-x-2">
               <span className="font-medium">Data Source:</span>
               <span className={`px-2 py-1 rounded ${dashboardData.metadata.hasRecentActivity ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                {dashboardData.metadata.dataSource}
+            <span className={`px-2 py-1 rounded ${dashboardData.metadata.hasRecentActivity ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
               </span>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -290,6 +274,10 @@ export const Dashboard = () => {
                   <strong className="text-blue-900">Scores:</strong>
                   <div className="mt-1 text-sm">Overall: <span className="font-bold">{dashboardData.scores.overall}/10</span></div>
                   <div className="text-xs text-gray-600 mt-1">Individual: {Object.values(dashboardData.scores).slice(1).join(', ')}</div>
+                <div className="text-xs text-gray-600 mt-1">
+                  Profile: {dashboardData.scores.profileCompleteness || 'N/A'}, 
+                  Posting: {dashboardData.scores.postingActivity || 'N/A'}, 
+                  Engagement: {dashboardData.scores.engagementQuality || 'N/A'}
                 </div>
               </div>
               <div>
@@ -298,9 +286,9 @@ export const Dashboard = () => {
                   <div className="mt-1 text-sm space-y-1">
                     <div>Connections: <span className="font-bold">{dashboardData.summary.totalConnections}</span></div>
                     <div>Posts (28d): <span className="font-bold">{dashboardData.summary.posts30d}</span></div>
-                    <div>Engagement Rate: <span className="font-bold">{dashboardData.summary.engagementRatePct}%</span></div>
-                    <div>New Connections: <span className="font-bold">{dashboardData.summary.newConnections28d}</span></div>
-                  </div>
+                  <div>Total Posts: <span className="font-bold">{dashboardData.summary.totalPosts}</span></div>
+                  <div>Avg Engagement: <span className="font-bold">{dashboardData.summary.avgEngagementPerPost}</span></div>
+                  <div>Posts/Week: <span className="font-bold">{dashboardData.summary.postsPerWeek}</span></div>
                 </div>
               </div>
             </div>
@@ -311,9 +299,9 @@ export const Dashboard = () => {
       {/* Profile Evaluation - Main Focus */}
       <div className="mb-8">
         <ProfileEvaluationCard 
-          scores={profileEvaluation.scores}
+          scores={dashboardData.scores}
           overallScore={profileEvaluation.overallScore}
-          explanations={profileEvaluation.explanations}
+          analysis={dashboardData.analysis}
         />
       </div>
 
@@ -355,11 +343,13 @@ export const Dashboard = () => {
 
       {/* Summary KPIs */}
       <div className="mb-8">
-        <SummaryKPIsCard kpis={summaryKPIs} />
+        <SummaryKPIsCard kpis={{
+          totalConnections: dashboardData.summary.totalConnections,
+          totalPosts: dashboardData.summary.totalPosts,
+          avgEngagementPerPost: dashboardData.summary.avgEngagementPerPost,
+          postsPerWeek: dashboardData.summary.postsPerWeek
+        }} />
       </div>
-
-      {/* Mini Trends */}
-      <MiniTrendsCard trends={miniTrends} />
 
       {/* Quick Actions */}
       <Card variant="glass" className="p-6">

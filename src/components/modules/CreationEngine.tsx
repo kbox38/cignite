@@ -1,326 +1,147 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Lightbulb, TrendingUp, Target, Zap, RefreshCw } from "lucide-react";
+import { Lightbulb, TrendingUp, Target, Zap, RefreshCw, Sparkles, Clock, BarChart3 } from "lucide-react";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
 import {
-  useLinkedInSnapshot,
-  useLinkedInChangelog,
+  useLinkedInSnapshot
 } from "../../hooks/useLinkedInData";
 import { LoadingSpinner } from "../ui/LoadingSpinner";
-import { generateContentStrategy } from "../../services/openai";
 import { useAppStore } from "../../stores/appStore";
 
-interface ContentStrategy {
-  type: string;
-  description: string;
-  examples: string[];
-  engagementRate: number;
-  frequency: string;
-}
-
-interface ContentIdea {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  difficulty: "Easy" | "Medium" | "Hard";
-  estimatedEngagement: number;
-}
-
-interface IdeaData {
-  title: string;
-  description: string;
-  category: string;
-  timestamp: number;
-}
-
-// Constants for better maintainability
-const GENERATION_DELAY = 1500;
-const SESSION_STORAGE_KEY = "ideaContent";
-const FALLBACK_IDEAS: ContentIdea[] = [
-  {
-    id: "fallback-1",
-    title: "Quick Professional Tip",
-    description: "Share a valuable professional insight or tip",
-    category: "Educational",
-    difficulty: "Easy",
-    estimatedEngagement: 75,
-  },
-  {
-    id: "fallback-2",
-    title: "Industry Question",
-    description: "Ask an engaging question about your industry",
-    category: "Engagement",
-    difficulty: "Easy",
-    estimatedEngagement: 80,
-  },
-];
-
 export const CreationEngine = () => {
-  const [selectedStrategy, setSelectedStrategy] = useState<string>("");
-  const [generatedIdeas, setGeneratedIdeas] = useState<ContentIdea[]>([]);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [aiStrategy, setAiStrategy] = useState<string>("");
+  const [contentIdeas, setContentIdeas] = useState<string>("");
+  const [postingStrategy, setPostingStrategy] = useState<string>("");
+  const [algorithmOptimization, setAlgorithmOptimization] = useState<string>("");
+  const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
   const [isGeneratingStrategy, setIsGeneratingStrategy] = useState(false);
+  const [isGeneratingOptimization, setIsGeneratingOptimization] = useState(false);
 
   const { setCurrentModule } = useAppStore();
-  const { data: snapshotData, isLoading: snapshotLoading } =
-    useLinkedInSnapshot();
-  const { data: changelogData, isLoading: changelogLoading } =
-    useLinkedInChangelog();
+  const { data: profileSnapshot, isLoading: profileLoading } = useLinkedInSnapshot("PROFILE");
+  const { data: postsSnapshot, isLoading: postsLoading } = useLinkedInSnapshot("MEMBER_SHARE_INFO");
 
-  // Analyze user's posting patterns
-  const analysis = useMemo(() => {
-    if (!snapshotData || !changelogData) return null;
+  // Extract user profile and industry
+  const userProfile = useMemo(() => {
+    if (!profileSnapshot) return null;
 
-    const posts =
-      changelogData.elements?.filter((e) => e.resourceName === "ugcPosts") ||
-      [];
-    const likes =
-      changelogData.elements?.filter(
-        (e) => e.resourceName === "socialActions/likes"
-      ) || [];
-    const comments =
-      changelogData.elements?.filter(
-        (e) => e.resourceName === "socialActions/comments"
-      ) || [];
+    const profile = profileSnapshot.elements?.[0]?.snapshotData?.[0] || {};
+    const posts = postsSnapshot?.elements?.[0]?.snapshotData || [];
 
-    // Analyze content types from posts
-    const contentTypes = {
-      text: 0,
-      image: 0,
-      video: 0,
-      carousel: 0,
-      poll: 0,
-    };
-
-    posts.forEach((post) => {
-      const specificContent =
-        post.activity?.specificContent?.["com.linkedin.ugc.ShareContent"];
-      const media = specificContent?.media;
-
-      if (media && media.length > 0) {
-        if (media.length > 1) {
-          contentTypes.carousel++;
-        } else {
-          contentTypes.image++;
-        }
-      } else {
-        contentTypes.text++;
-      }
-    });
-
-    // Calculate engagement rates
-    const totalEngagement = likes.length + comments.length;
-    const avgEngagement = posts.length > 0 ? totalEngagement / posts.length : 0;
-
-    // Analyze best performing times
-    const postTimes = posts.map((p) => new Date(p.capturedAt).getHours());
-    const hourCounts = postTimes.reduce((acc, hour) => {
-      acc[hour] = (acc[hour] || 0) + 1;
-      return acc;
-    }, {} as Record<number, number>);
-
-    const optimalHour =
-      Object.entries(hourCounts).sort(([, a], [, b]) => b - a)[0]?.[0] || "9";
+    // Calculate posting metrics
+    const totalPosts = posts.length;
+    const totalEngagement = posts.reduce((sum, post) => {
+      return sum + parseInt(post.LikesCount || "0") + parseInt(post.CommentsCount || "0");
+    }, 0);
+    const avgEngagement = totalPosts > 0 ? totalEngagement / totalPosts : 0;
 
     return {
-      totalPosts: posts.length,
+      industry: profile.Industry || profile.industry || "Professional Services",
+      headline: profile.Headline || profile.headline || "",
+      location: profile.Location || profile.location || "",
+      totalPosts,
       avgEngagement,
-      contentTypes,
-      optimalHour: parseInt(optimalHour),
-      bestPerformingType:
-        Object.entries(contentTypes).sort(([, a], [, b]) => b - a)[0]?.[0] ||
-        "text",
+      recentPosts: posts.slice(0, 3).map(post => ({
+        text: (post.ShareCommentary || "").substring(0, 200),
+        mediaType: post.MediaType || "TEXT",
+        engagement: parseInt(post.LikesCount || "0") + parseInt(post.CommentsCount || "0")
+      }))
     };
-  }, [snapshotData, changelogData]);
-
-  // Content strategies based on analysis
-  const strategies: ContentStrategy[] = [
-    {
-      type: "Thought Leadership",
-      description: "Share industry insights and personal perspectives",
-      examples: [
-        "Industry trend analysis",
-        "Lessons learned",
-        "Controversial opinions",
-      ],
-      engagementRate: 8.5,
-      frequency: "2-3x per week",
-    },
-    {
-      type: "Personal Stories",
-      description: "Share authentic personal experiences",
-      examples: ["Career journey", "Failure stories", "Behind-the-scenes"],
-      engagementRate: 9.2,
-      frequency: "1-2x per week",
-    },
-    {
-      type: "Educational Content",
-      description: "Teach valuable skills and knowledge",
-      examples: ["How-to guides", "Industry tips", "Tool recommendations"],
-      engagementRate: 7.8,
-      frequency: "3-4x per week",
-    },
-    {
-      type: "Engagement Posts",
-      description: "Posts designed to spark conversation",
-      examples: ["Questions", "Polls", "Controversial takes"],
-      engagementRate: 9.8,
-      frequency: "1x per week",
-    },
-  ];
+  }, [profileSnapshot, postsSnapshot]);
 
   const generateContentIdeas = async () => {
-    setIsGenerating(true);
-
+    if (!userProfile) return;
+    
+    setIsGeneratingIdeas(true);
     try {
-      // Simulate AI generation
-      await new Promise((resolve) => setTimeout(resolve, GENERATION_DELAY));
+      const response = await fetch('/.netlify/functions/creation-engine-ai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'content_ideas',
+          industry: userProfile.industry,
+          userProfile
+        })
+      });
 
-      // Two idea sets for variety (reduced from 3 for better performance)
-      const ideaSets = [
-        [
-          {
-            id: "1",
-            title: "The Hidden Cost of Remote Work",
-            description:
-              "Share your personal experience with remote work challenges and solutions",
-            category: "Personal Story",
-            difficulty: "Easy",
-            estimatedEngagement: 85,
-          },
-          {
-            id: "2",
-            title: "5 Tools That Changed My Productivity",
-            description:
-              "Create a carousel post showcasing your favorite productivity tools",
-            category: "Educational",
-            difficulty: "Medium",
-            estimatedEngagement: 92,
-          },
-          {
-            id: "3",
-            title: "What Would You Do? Career Dilemma",
-            description:
-              "Present a career scenario and ask for community advice",
-            category: "Engagement",
-            difficulty: "Easy",
-            estimatedEngagement: 78,
-          },
-          {
-            id: "4",
-            title: "Industry Prediction: AI in 2024",
-            description:
-              "Share your predictions about AI trends in your industry",
-            category: "Thought Leadership",
-            difficulty: "Hard",
-            estimatedEngagement: 95,
-          },
-        ],
-        [
-          {
-            id: "5",
-            title: "The Power of Networking in 2024",
-            description:
-              "Share how networking has evolved and your best networking tips",
-            category: "Professional Tips",
-            difficulty: "Medium",
-            estimatedEngagement: 88,
-          },
-          {
-            id: "6",
-            title: "My Biggest Career Mistake (And What I Learned)",
-            description:
-              "Share a personal failure story and the valuable lessons learned",
-            category: "Personal Story",
-            difficulty: "Easy",
-            estimatedEngagement: 91,
-          },
-          {
-            id: "7",
-            title: "3 Skills That Will Be Essential in 2025",
-            description:
-              "Predict which skills will be most valuable in the coming year",
-            category: "Thought Leadership",
-            difficulty: "Medium",
-            estimatedEngagement: 87,
-          },
-          {
-            id: "8",
-            title: "Poll: What's Your Biggest Work Challenge?",
-            description:
-              "Create an engaging poll to understand your audience better",
-            category: "Engagement",
-            difficulty: "Easy",
-            estimatedEngagement: 82,
-          },
-        ],
-      ];
+      if (!response.ok) {
+        throw new Error('Failed to generate content ideas');
+      }
 
-      // Randomly select one of the idea sets
-      const randomIndex = Math.floor(Math.random() * ideaSets.length);
-      const ideas = ideaSets[randomIndex];
-
-      setGeneratedIdeas(ideas);
-      
-      // Scroll to bottom after ideas are generated
-      setTimeout(() => {
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-      }, 200);
+      const data = await response.json();
+      setContentIdeas(data.content);
     } catch (error) {
       console.error("Failed to generate content ideas:", error);
-      // Fallback ideas
-      setGeneratedIdeas(FALLBACK_IDEAS);
+      setContentIdeas("Failed to generate content ideas. Please check your OpenAI configuration and try again.");
     } finally {
-      setIsGenerating(false);
+      setIsGeneratingIdeas(false);
     }
   };
 
-  const generateAIStrategy = async () => {
-    if (!snapshotData || !changelogData) return;
+  const generatePostingStrategy = async () => {
+    if (!userProfile) return;
 
     setIsGeneratingStrategy(true);
     try {
-      const posts = changelogData.elements?.filter(e => e.resourceName === "ugcPosts") || [];
-      const cleanPosts = posts.slice(0, 3).map(post => ({
-        text: post.activity?.specificContent?.["com.linkedin.ugc.ShareContent"]?.shareCommentary?.text?.substring(0, 200) || "Post content",
-        timestamp: post.capturedAt
-      }));
+      const response = await fetch('/.netlify/functions/creation-engine-ai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'posting_strategy',
+          industry: userProfile.industry,
+          userProfile
+        })
+      });
 
-      const strategy = await generateContentStrategy(cleanPosts, analysis || {});
-      setAiStrategy(strategy);
+      if (!response.ok) {
+        throw new Error('Failed to generate posting strategy');
+      }
+
+      const data = await response.json();
+      setPostingStrategy(data.content);
     } catch (error) {
-      console.error("AI Strategy Error:", error);
-      setAiStrategy("Strategy generation failed. Please try again.");
+      console.error("Failed to generate posting strategy:", error);
+      setPostingStrategy("Failed to generate posting strategy. Please check your OpenAI configuration and try again.");
     } finally {
       setIsGeneratingStrategy(false);
     }
   };
 
-  const handleUseIdea = (idea: ContentIdea) => {
+  const generateAlgorithmOptimization = async () => {
+    if (!userProfile) return;
+
+    setIsGeneratingOptimization(true);
     try {
-      // Store the idea content in sessionStorage for PostGen to use
-      const ideaData: IdeaData = {
-        title: idea.title,
-        description: idea.description,
-        category: idea.category,
-        timestamp: Date.now(),
-      };
+      const response = await fetch('/.netlify/functions/creation-engine-ai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'algorithm_optimization',
+          userProfile
+        })
+      });
 
-      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(ideaData));
+      if (!response.ok) {
+        throw new Error('Failed to generate algorithm optimization');
+      }
 
-      // Navigate to PostGen
-      setCurrentModule("postgen");
+      const data = await response.json();
+      setAlgorithmOptimization(data.content);
     } catch (error) {
-      console.error("Failed to handle idea selection:", error);
-      // Fallback: try direct navigation without sessionStorage
-      setCurrentModule("postgen");
+      console.error("Failed to generate algorithm optimization:", error);
+      setAlgorithmOptimization("Failed to generate algorithm optimization. Please check your OpenAI configuration and try again.");
+    } finally {
+      setIsGeneratingOptimization(false);
     }
   };
 
-  if (snapshotLoading || changelogLoading) {
+  if (profileLoading || postsLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />
@@ -340,185 +161,201 @@ export const CreationEngine = () => {
         <div className="flex space-x-3">
           <Button
             variant="outline"
-            onClick={generateAIStrategy}
+            onClick={generatePostingStrategy}
             disabled={isGeneratingStrategy}
           >
-            <Zap size={16} className="mr-2" />
-            {isGeneratingStrategy ? "Analyzing..." : "AI Strategy"}
+            <Clock size={16} className="mr-2" />
+            {isGeneratingStrategy ? "Generating..." : "Posting Strategy"}
           </Button>
           <Button
             variant="primary"
             onClick={generateContentIdeas}
-            disabled={isGenerating}
+            disabled={isGeneratingIdeas}
           >
             <Lightbulb size={16} className="mr-2" />
-            {isGenerating ? "Generating..." : "Generate Ideas"}
+            {isGeneratingIdeas ? "Generating..." : "Content Ideas"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={generateAlgorithmOptimization}
+            disabled={isGeneratingOptimization}
+          >
+            <BarChart3 size={16} className="mr-2" />
+            {isGeneratingOptimization ? "Analyzing..." : "Algorithm Tips"}
           </Button>
         </div>
       </div>
 
-      {/* AI Strategy Section */}
-      {aiStrategy && (
+      {/* User Profile Analysis */}
+      {userProfile && (
         <Card variant="glass" className="p-6">
-          <h3 className="text-lg font-semibold mb-4 flex items-center">
-            <Zap className="mr-2 text-purple-500" size={20} />
-            AI Content Strategy
-          </h3>
-          <div className="prose prose-sm max-w-none">
-            <div className="whitespace-pre-line text-gray-900 dark:text-gray-100">
-              {aiStrategy}
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Performance Analysis */}
-      {analysis && (
-        <Card variant="glass" className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Your Content Analysis</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <h3 className="text-lg font-semibold mb-4">Your Profile Analysis</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">
-                {analysis.totalPosts}
-              </div>
+              <div className="text-2xl font-bold text-blue-600">{userProfile.industry}</div>
+              <div className="text-sm text-gray-500">Industry</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">{userProfile.totalPosts}</div>
               <div className="text-sm text-gray-500">Total Posts</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">
-                {analysis.avgEngagement.toFixed(1)}
-              </div>
+              <div className="text-2xl font-bold text-purple-600">{Math.round(userProfile.avgEngagement * 10) / 10}</div>
               <div className="text-sm text-gray-500">Avg Engagement</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">
-                {analysis.optimalHour}:00
-              </div>
-              <div className="text-sm text-gray-500">Optimal Hour</div>
+              <div className="text-2xl font-bold text-orange-600">{userProfile.recentPosts.length}</div>
+              <div className="text-sm text-gray-500">Recent Posts</div>
             </div>
           </div>
-          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-            <p className="text-sm">
-              <strong>Recommendation:</strong> Your{" "}
-              {analysis.bestPerformingType} posts perform best. Consider posting
-              around {analysis.optimalHour}:00 for maximum engagement.
-            </p>
-          </div>
         </Card>
       )}
 
-      {/* Content Strategies */}
-      <Card variant="glass" className="p-6">
-        <h3 className="text-lg font-semibold mb-4">Recommended Strategies</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {strategies.map((strategy, index) => (
-            <motion.div
-              key={strategy.type}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                selectedStrategy === strategy.type
-                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                  : "border-gray-200 hover:border-gray-300"
-              }`}
-              onClick={() => setSelectedStrategy(strategy.type)}
+      {/* Content Ideas Section */}
+      {contentIdeas && (
+        <Card variant="glass" className="p-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
+            <Sparkles className="mr-2 text-blue-500" size={20} />
+            AI-Generated Content Ideas for {userProfile?.industry}
+          </h3>
+          <div className="prose prose-sm max-w-none">
+            <div className="whitespace-pre-line text-gray-900 bg-blue-50 p-4 rounded-lg">
+              {contentIdeas}
+            </div>
+          </div>
+          <div className="mt-4 flex space-x-3">
+            <Button
+              variant="primary"
+              onClick={() => setCurrentModule("postgen")}
             >
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="font-semibold">{strategy.type}</h4>
-                <div className="flex items-center space-x-1">
-                  <TrendingUp size={14} className="text-green-500" />
-                  <span className="text-sm text-green-600">
-                    {strategy.engagementRate}%
-                  </span>
-                </div>
-              </div>
-              <p className="text-sm text-gray-600 mb-3">
-                {strategy.description}
-              </p>
-              <div className="space-y-1">
-                {strategy.examples.map((example, i) => (
-                  <div key={i} className="text-xs text-gray-500">
-                    • {example}
-                  </div>
-                ))}
-              </div>
-              <div className="mt-3 text-xs text-blue-600">
-                Frequency: {strategy.frequency}
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </Card>
-
-      {/* Generated Ideas */}
-      {generatedIdeas.length > 0 && (
-        <Card variant="glass" className="p-6" data-ideas-section>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Content Ideas</h3>
+              <Zap size={16} className="mr-2" />
+              Create Post from Ideas
+            </Button>
             <Button
               variant="outline"
-              size="sm"
               onClick={generateContentIdeas}
-              disabled={isGenerating}
+              disabled={isGeneratingIdeas}
             >
-              <RefreshCw size={14} className="mr-1" />
-              {isGenerating ? "Generating..." : "Refresh"}
+              <RefreshCw size={16} className="mr-2" />
+              Regenerate Ideas
             </Button>
-          </div>
-          <div className="space-y-4">
-            {generatedIdeas.map((idea, index) => (
-              <motion.div
-                key={idea.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="p-6 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-3">
-                      <h4 className="font-semibold text-gray-900">
-                        {idea.title}
-                      </h4>
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          idea.difficulty === "Easy"
-                            ? "bg-green-100 text-green-800"
-                            : idea.difficulty === "Medium"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {idea.difficulty}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-700 mb-3">
-                      {idea.description}
-                    </p>
-                    <div className="flex items-center space-x-4 text-xs text-gray-600">
-                      <span>Category: {idea.category}</span>
-                      <span>Est. Engagement: {idea.estimatedEngagement}%</span>
-                    </div>
-                  </div>
-                  <div className="flex space-x-2 ml-4">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => handleUseIdea(idea)}
-                    >
-                      <Zap size={14} className="mr-1" />
-                      Use Idea
-                    </Button>
-                    <Button variant="ghost" size="sm">
-                      <Target size={14} />
-                    </Button>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
           </div>
         </Card>
       )}
+
+      {/* Posting Strategy Section */}
+      {postingStrategy && (
+        <Card variant="glass" className="p-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
+            <Clock className="mr-2 text-green-500" size={20} />
+            Weekly Posting Strategy for {userProfile?.industry}
+          </h3>
+          <div className="prose prose-sm max-w-none">
+            <div className="whitespace-pre-line text-gray-900 bg-green-50 p-4 rounded-lg">
+              {postingStrategy}
+            </div>
+          </div>
+          <div className="mt-4 flex space-x-3">
+            <Button
+              variant="primary"
+              onClick={() => setCurrentModule("scheduler")}
+            >
+              <Calendar size={16} className="mr-2" />
+              Set Up Schedule
+            </Button>
+            <Button
+              variant="outline"
+              onClick={generatePostingStrategy}
+              disabled={isGeneratingStrategy}
+            >
+              <RefreshCw size={16} className="mr-2" />
+              Regenerate Strategy
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Algorithm Optimization Section */}
+      {algorithmOptimization && (
+        <Card variant="glass" className="p-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
+            <BarChart3 className="mr-2 text-purple-500" size={20} />
+            LinkedIn Algorithm Optimization
+          </h3>
+          <div className="prose prose-sm max-w-none">
+            <div className="whitespace-pre-line text-gray-900 bg-purple-50 p-4 rounded-lg">
+              {algorithmOptimization}
+            </div>
+          </div>
+          <div className="mt-4 flex space-x-3">
+            <Button
+              variant="primary"
+              onClick={() => setCurrentModule("algo")}
+            >
+              <TrendingUp size={16} className="mr-2" />
+              View Algorithm Insights
+            </Button>
+            <Button
+              variant="outline"
+              onClick={generateAlgorithmOptimization}
+              disabled={isGeneratingOptimization}
+            >
+              <RefreshCw size={16} className="mr-2" />
+              Regenerate Tips
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* LinkedIn Algorithm Rules */}
+      <Card variant="glass" className="p-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-2 border-indigo-200">
+        <h3 className="text-lg font-semibold mb-4 flex items-center">
+          <Target className="mr-2 text-indigo-500" size={20} />
+          LinkedIn Algorithm Golden Rules
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-3">
+            <h4 className="font-semibold text-indigo-900">✅ Engagement Signals</h4>
+            <ul className="text-sm text-indigo-800 space-y-1">
+              <li>• Dwell time is king — longer reads signal valuable content</li>
+              <li>• Comments > Reactions > Shares > Likes in ranking power</li>
+              <li>• First 60 minutes post-publish is critical</li>
+              <li>• Reply to comments within 15 minutes for maximum reach</li>
+              <li>• Native content (no outbound links) is preferred</li>
+            </ul>
+          </div>
+          <div className="space-y-3">
+            <h4 className="font-semibold text-indigo-900">📈 Content Format Ranking</h4>
+            <ul className="text-sm text-indigo-800 space-y-1">
+              <li>• Text + Image posts (especially carousels/PDFs)</li>
+              <li>• Mini-article style text posts (150–400 words)</li>
+              <li>• Native videos (short-form, 30–90 sec)</li>
+              <li>• Avoid external links in posts (use first comment)</li>
+              <li>• No engagement bait ("Comment YES if you agree")</li>
+            </ul>
+          </div>
+          <div className="space-y-3">
+            <h4 className="font-semibold text-indigo-900">🕐 Optimal Timing</h4>
+            <ul className="text-sm text-indigo-800 space-y-1">
+              <li>• 3–5 posts per week is ideal</li>
+              <li>• Tuesday-Thursday: 8–10 AM or 12–2 PM</li>
+              <li>• Avoid multiple posts per day</li>
+              <li>• Engage with others 15-30 min before posting</li>
+              <li>• Avoid weekends unless global/startup focused</li>
+            </ul>
+          </div>
+          <div className="space-y-3">
+            <h4 className="font-semibold text-indigo-900">🏷️ Hashtag Strategy</h4>
+            <ul className="text-sm text-indigo-800 space-y-1">
+              <li>• Use 3–5 niche-relevant hashtags</li>
+              <li>• Avoid trending/general ones (#LinkedIn, #Success)</li>
+              <li>• Don't tag more than 3 people</li>
+              <li>• Focus on industry-specific tags</li>
+              <li>• Research hashtag performance regularly</li>
+            </ul>
+          </div>
+        </div>
+      </Card>
     </motion.div>
   );
 };

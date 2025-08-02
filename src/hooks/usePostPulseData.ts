@@ -15,6 +15,16 @@ export interface PostPulsePost {
   source: "changelog" | "historical";
   daysSincePosted: number;
   canRepost: boolean;
+  repurposeStatus: {
+    status: "too_soon" | "close" | "ready";
+    label: string;
+    color: string;
+    canRepost: boolean;
+    daysUntilReady?: number;
+  };
+  likes: number;
+  comments: number;
+  shares: number;
 }
 
 export interface PostPulseDataOptions {
@@ -62,7 +72,7 @@ export const usePostPulseData = (
         params.append('searchTerm', searchTerm);
       }
 
-      const response = await fetch(`/.netlify/functions/postpulse-data?${params}`, {
+      const response = await fetch(`/.netlify/functions/postpulse-data-v2?${params}`, {
         headers: {
           'Authorization': `Bearer ${dmaToken}`,
           'Content-Type': 'application/json',
@@ -80,33 +90,11 @@ export const usePostPulseData = (
         throw new Error(result.error);
       }
       
-      // Filter posts by search term on frontend for better UX
-      let filteredPosts = result.posts || [];
-      if (searchTerm) {
-        filteredPosts = filteredPosts.filter(post => 
-          post.text.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          post.title.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-      }
-      
-      // Recalculate pagination for filtered results
-      const totalFiltered = filteredPosts.length;
-      const totalPages = Math.ceil(totalFiltered / pageSize);
-      const startIndex = (page - 1) * pageSize;
-      const endIndex = startIndex + pageSize;
-      const paginatedPosts = filteredPosts.slice(startIndex, endIndex);
-      
       return {
-        posts: paginatedPosts,
+        posts: result.posts,
         isLoading: false,
         error: null,
-        pagination: {
-          currentPage: page,
-          totalPages,
-          totalPosts: totalFiltered,
-          hasNextPage: page < totalPages,
-          hasPrevPage: page > 1,
-        },
+        pagination: result.pagination,
         metadata: result.metadata || {
           fetchTimeMs: 0,
           timeFilter,
@@ -141,3 +129,10 @@ export const usePostPulseData = (
     lastUpdated: new Date().toISOString(),
   };
 }
+
+// V2 hook for new PostPulse functionality
+export const usePostPulseDataV2 = (
+  options: PostPulseDataOptions
+): PostPulseDataResponse => {
+  return usePostPulseData(options);
+};

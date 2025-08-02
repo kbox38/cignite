@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/authStore';
 
-export interface PostEngagementTrend {
+export interface PostingTrend {
   date: string;
   posts: number;
   likes: number;
@@ -9,23 +9,13 @@ export interface PostEngagementTrend {
   totalEngagement: number;
 }
 
-export interface ConnectionGrowth {
-  date: string;
-  totalConnections: number;
-  newConnections: number;
-}
-
-export interface PostType {
+export interface ContentFormat {
   name: string;
   value: number;
+  percentage: number;
 }
 
-export interface Hashtag {
-  hashtag: string;
-  count: number;
-}
-
-export interface PostEngagement {
+export interface EngagementAnalysis {
   postId: string;
   content: string;
   likes: number;
@@ -33,44 +23,63 @@ export interface PostEngagement {
   shares: number;
   totalEngagement: number;
   createdAt: number;
+  engagementRate: number;
 }
 
-export interface MessageData {
-  date: string;
-  sent: number;
-  received: number;
+export interface HashtagTrend {
+  hashtag: string;
+  count: number;
+  posts: number;
 }
 
-export interface AudienceDistribution {
-  industries: Array<{ name: string; value: number }>;
-  positions: Array<{ name: string; value: number }>;
-  locations: Array<{ name: string; value: number }>;
+export interface AudienceInsights {
+  industries: Array<{ name: string; value: number; percentage: number }>;
+  positions: Array<{ name: string; value: number; percentage: number }>;
+  locations: Array<{ name: string; value: number; percentage: number }>;
+  totalConnections: number;
 }
 
-export interface ScoreImpact {
-  description: string;
-  impact: string;
-  tips: string[];
+export interface PerformanceMetrics {
+  totalEngagement: number;
+  avgEngagementPerPost: number;
+  bestPerformingPost: {
+    content: string;
+    engagement: number;
+    date: string;
+  } | null;
+  engagementDistribution: {
+    low: number;
+    medium: number;
+    high: number;
+  };
+}
+
+export interface TimeBasedInsights {
+  bestPostingDays: Array<{ day: string; count: number }>;
+  bestPostingHours: Array<{ hour: number; count: number }>;
+  postingFrequency: number;
 }
 
 export interface AnalyticsData {
-  postsEngagementsTrend: PostEngagementTrend[];
-  connectionsGrowth: ConnectionGrowth[];
-  postTypesBreakdown: PostType[];
-  topHashtags: Hashtag[];
-  engagementPerPost: PostEngagement[];
-  messagesSentReceived: MessageData[];
-  audienceDistribution: AudienceDistribution;
-  scoreImpacts: Record<string, ScoreImpact>;
+  postingTrends: PostingTrend[];
+  contentFormats: ContentFormat[];
+  engagementAnalysis: EngagementAnalysis[];
+  hashtagTrends: HashtagTrend[];
+  audienceInsights: AudienceInsights;
+  performanceMetrics: PerformanceMetrics;
+  timeBasedInsights: TimeBasedInsights;
   timeRange: string;
   lastUpdated: string;
+  aiNarrative?: string;
   metadata?: {
     hasRecentActivity: boolean;
     dataSource: string;
-    eventCount: number;
+    postsCount: number;
+    totalPostsCount: number;
+    connectionsCount: number;
+    fetchTimeMs: number;
     description?: string;
   };
-  note?: string;
   error?: string;
 }
 
@@ -94,33 +103,45 @@ export const useAnalyticsData = (timeRange: '7d' | '30d' | '90d' = '30d') => {
 
       const data = await response.json();
       
-      if (data.error && !data.postsEngagementsTrend) {
+      if (data.error && !data.postingTrends) {
         throw new Error(data.message || data.error);
       }
       
       // Ensure all required fields exist with safe defaults
       return {
-        postsEngagementsTrend: data.postsEngagementsTrend || [],
-        connectionsGrowth: data.connectionsGrowth || [],
-        postTypesBreakdown: data.postTypesBreakdown || [],
-        topHashtags: data.topHashtags || [],
-        engagementPerPost: data.engagementPerPost || [],
-        messagesSentReceived: data.messagesSentReceived || [],
-        audienceDistribution: data.audienceDistribution || {
+        postingTrends: data.postingTrends || [],
+        contentFormats: data.contentFormats || [],
+        engagementAnalysis: data.engagementAnalysis || [],
+        hashtagTrends: data.hashtagTrends || [],
+        audienceInsights: data.audienceInsights || {
           industries: [],
           positions: [],
-          locations: []
+          locations: [],
+          totalConnections: 0
         },
-        scoreImpacts: data.scoreImpacts || {},
+        performanceMetrics: data.performanceMetrics || {
+          totalEngagement: 0,
+          avgEngagementPerPost: 0,
+          bestPerformingPost: null,
+          engagementDistribution: { low: 0, medium: 0, high: 0 }
+        },
+        timeBasedInsights: data.timeBasedInsights || {
+          bestPostingDays: [],
+          bestPostingHours: [],
+          postingFrequency: 0
+        },
         timeRange: data.timeRange || timeRange,
         lastUpdated: data.lastUpdated || new Date().toISOString(),
+        aiNarrative: data.aiNarrative,
         metadata: data.metadata || {
           hasRecentActivity: false,
           dataSource: "unknown",
-          eventCount: 0,
+          postsCount: 0,
+          totalPostsCount: 0,
+          connectionsCount: 0,
+          fetchTimeMs: 0,
           description: ""
         },
-        note: data.note,
         error: data.error
       };
     },

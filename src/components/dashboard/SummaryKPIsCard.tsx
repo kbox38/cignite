@@ -1,10 +1,14 @@
 import { motion } from 'framer-motion';
-import { Users, FileText, Heart, UserPlus, TrendingUp } from 'lucide-react';
+import { Users, FileText, Heart, Calendar, TrendingUp } from 'lucide-react';
 import { Card } from '../ui/Card';
-import { SummaryKPIs } from '../../hooks/useDashboardData';
 
 interface SummaryKPIsCardProps {
-  kpis: SummaryKPIs;
+  kpis: {
+    totalConnections: number;
+    totalPosts: number;
+    avgEngagementPerPost: number;
+    postsPerWeek: number;
+  };
 }
 
 export const SummaryKPIsCard = ({ kpis }: SummaryKPIsCardProps) => {
@@ -18,25 +22,25 @@ export const SummaryKPIsCard = ({ kpis }: SummaryKPIsCardProps) => {
       textColor: 'text-blue-600'
     },
     {
-      label: 'Posts (30 days)',
-      value: kpis.postsLast30Days,
+      label: 'Total Posts',
+      value: kpis.totalPosts,
       icon: FileText,
       color: 'from-green-500 to-green-600',
       bgColor: 'bg-green-100',
       textColor: 'text-green-600'
     },
     {
-      label: 'Engagement Rate',
-      value: kpis.engagementRate,
+      label: 'Avg Engagement',
+      value: Math.round(kpis.avgEngagementPerPost * 10) / 10,
       icon: Heart,
       color: 'from-purple-500 to-purple-600',
       bgColor: 'bg-purple-100',
       textColor: 'text-purple-600'
     },
     {
-      label: 'New Connections',
-      value: kpis.connectionsLast30Days,
-      icon: UserPlus,
+      label: 'Posts per Week',
+      value: Math.round(kpis.postsPerWeek * 10) / 10,
+      icon: Calendar,
       color: 'from-orange-500 to-orange-600',
       bgColor: 'bg-orange-100',
       textColor: 'text-orange-600'

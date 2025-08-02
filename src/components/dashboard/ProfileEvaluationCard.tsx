@@ -1,19 +1,19 @@
 import { motion } from 'framer-motion';
 import { Info, TrendingUp, TrendingDown, Minus, Award, Target } from 'lucide-react';
 import { Card } from '../ui/Card';
-import { ProfileScore, Methodology } from '../../hooks/useDashboardData';
+import { ProfileScore, MetricAnalysis } from '../../hooks/useDashboardData';
 import { useAppStore } from '../../stores/appStore';
 
 interface ProfileEvaluationCardProps {
   scores: ProfileScore;
   overallScore: number;
-  explanations: Methodology;
+  analysis: Record<string, MetricAnalysis>;
 }
 
 export const ProfileEvaluationCard = ({ 
   scores, 
   overallScore, 
-  explanations 
+  analysis 
 }: ProfileEvaluationCardProps) => {
   const { setCurrentModule } = useAppStore();
 
@@ -32,50 +32,26 @@ export const ProfileEvaluationCard = ({
   };
 
   const getScoreLabel = (score: number) => {
-    if (score === null) return 'Not Available';
+    if (score === null || score === undefined) return 'Not Available';
     if (score >= 8) return 'Excellent';
     if (score >= 5) return 'Good';
     return 'Needs Work';
   };
 
-  const formatMethodologyTooltip = (methodology: any) => {
-    if (!methodology) return "No calculation data available";
+  const formatAnalysisTooltip = (metricKey: string, metricAnalysis: MetricAnalysis) => {
+    if (!metricAnalysis) return "No analysis data available";
     
-    // Convert technical formulas to user-friendly explanations
-    const userFriendlyExplanations = {
-      profileCompleteness: "Based on how complete your LinkedIn profile is - includes your photo, headline, summary, work experience, and skills.",
-      postingActivity: "Measures how often you post on LinkedIn in the last 28 days. More posts = higher score.",
-      engagementQuality: "Looks at how many likes and comments your posts get on average. Higher engagement = better score.",
-      networkGrowth: "Tracks your networking activity - sending connection requests and growing your network in the last 28 days.",
-      audienceRelevance: "Analyzes if your connections are in relevant industries and locations for your professional goals.",
-      contentDiversity: "Measures how varied your content is - mixing text posts, images, videos, and articles gets a higher score.",
-      engagementRate: "Compares your total engagement (likes + comments) to the number of posts you make.",
-      mutualInteractions: "Counts meaningful conversations - when you and others comment back and forth on posts.",
-      profileVisibility: "Measures how often people view your profile and find you in LinkedIn searches.",
-      professionalBrand: "Based on recommendations and endorsements you've received from your network."
-    };
+    let tooltip = `Score: ${metricAnalysis.score}/10\n\n`;
     
-    // Find the metric key from the methodology
-    const metricKey = Object.keys(userFriendlyExplanations).find(key => 
-      methodology.formula?.toLowerCase().includes(key.toLowerCase()) ||
-      methodology.note?.toLowerCase().includes(key.toLowerCase())
-    );
-    
-    let tooltip = userFriendlyExplanations[metricKey] || "This metric helps measure your LinkedIn performance.";
-    
-    // Add simple calculation if inputs are available
-    if (methodology.inputs && Object.keys(methodology.inputs).length > 0) {
-      tooltip += "\n\nYour numbers:";
-      Object.entries(methodology.inputs).forEach(([key, value]) => {
-        if (key !== 'note' && key !== 'error' && typeof value !== 'object') {
-          const friendlyKey = key.replace(/([A-Z])/g, ' $1').toLowerCase().replace(/^\w/, c => c.toUpperCase());
-          tooltip += `\n• ${friendlyKey}: ${value}`;
-        }
+    if (metricAnalysis.recommendations.length > 0) {
+      tooltip += "Recommendations:\n";
+      metricAnalysis.recommendations.forEach(rec => {
+        tooltip += `• ${rec}\n`;
       });
     }
     
-    if (methodology.note) {
-      tooltip += `\n\n${methodology.note}`;
+    if (metricAnalysis.aiInsight) {
+      tooltip += `\nAI Insight: ${metricAnalysis.aiInsight}`;
     }
     
     return tooltip;
@@ -85,13 +61,9 @@ export const ProfileEvaluationCard = ({
     { key: 'profileCompleteness', label: 'Profile Completeness', score: scores.profileCompleteness },
     { key: 'postingActivity', label: 'Posting Activity', score: scores.postingActivity },
     { key: 'engagementQuality', label: 'Engagement Quality', score: scores.engagementQuality },
-    { key: 'networkGrowth', label: 'Network Growth', score: scores.networkGrowth },
-    { key: 'audienceRelevance', label: 'Audience Relevance', score: scores.audienceRelevance },
+    { key: 'contentImpact', label: 'Content Impact', score: scores.contentImpact },
     { key: 'contentDiversity', label: 'Content Diversity', score: scores.contentDiversity },
-    { key: 'engagementRate', label: 'Engagement Rate', score: scores.engagementRate },
-    { key: 'mutualInteractions', label: 'Mutual Interactions', score: scores.mutualInteractions },
-    { key: 'profileVisibility', label: 'Profile Visibility', score: scores.profileVisibility },
-    { key: 'professionalBrand', label: 'Professional Brand', score: scores.professionalBrand },
+    { key: 'postingConsistency', label: 'Posting Consistency', score: scores.postingConsistency },
   ];
 
   return (
@@ -158,7 +130,7 @@ export const ProfileEvaluationCard = ({
                 <div className="relative">
                   <Info size={16} className="text-gray-400 cursor-help" />
                   <div className="absolute bottom-full right-0 mb-2 w-80 p-4 bg-gray-900 text-white text-sm rounded-xl opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none shadow-xl">
-                    {formatMethodologyTooltip(explanations[item.key])}
+                    {formatAnalysisTooltip(item.key, analysis[item.key])}
                   </div>
                 </div>
               </div>

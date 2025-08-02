@@ -1,17 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/authStore';
 
+export interface MetricAnalysis {
+  score: number;
+  breakdown?: any;
+  recommendations: string[];
+  aiInsight?: string;
+}
+
 export interface ProfileScore {
   profileCompleteness: number | null;
-  postingActivity: number;
-  engagementQuality: number;
-  networkGrowth: number;
-  audienceRelevance: number | null;
-  contentDiversity: number;
-  engagementRate: number;
-  mutualInteractions: number;
-  profileVisibility: number | null;
-  professionalBrand: number | null;
+  postingActivity: number | null;
+  engagementQuality: number | null;
+  contentImpact: number | null;
+  contentDiversity: number | null;
+  postingConsistency: number | null;
 }
 
 export interface SummaryKPIs {
@@ -38,33 +41,26 @@ export interface DashboardData {
   scores: {
     overall: number;
   } & ProfileScore;
+  analysis: {
+    profileCompleteness: MetricAnalysis;
+    postingActivity: MetricAnalysis;
+    engagementQuality: MetricAnalysis;
+    contentImpact: MetricAnalysis;
+    contentDiversity: MetricAnalysis;
+    postingConsistency: MetricAnalysis;
+  };
   summary: {
     totalConnections: number;
-    posts30d: number;
-    engagementRatePct: number;
-    newConnections28d: number;
+    totalPosts: number;
+    avgEngagementPerPost: number;
+    postsPerWeek: number;
   };
-  trends: {
-    weeklyPosts: Record<string, number>;
-    weeklyEngagements: Record<string, number>;
-  };
-  content: {
-    types: Record<string, number>;
-  };
-  methodology: Methodology;
   metadata: {
     fetchTimeMs: number;
-    processingTimeMs: number;
-    totalTimeMs: number;
     dataSource: string;
     hasRecentActivity: boolean;
-    personPostsCount: number;
-    totalPostsCount: number;
-    filteredEngagements: {
-      likes: number;
-      comments: number;
-      total: number;
-    };
+    profileDataAvailable: boolean;
+    postsDataAvailable: boolean;
   };
   lastUpdated: string;
   error?: string;
@@ -81,7 +77,7 @@ export const useDashboardData = () => {
         throw new Error('DMA token is required for dashboard data');
       }
       
-      const response = await fetch('/api/dashboard-data', {
+      const response = await fetch('/api/dashboard-data-v2', {
         headers: {
           'Authorization': `Bearer ${dmaToken}`,
           'Content-Type': 'application/json',
