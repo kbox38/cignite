@@ -20,7 +20,6 @@ export async function handler(event, context) {
   }
 
   try {
-    // Extract user ID from token (you'll need to implement this based on your auth system)
     const userId = await getUserIdFromToken(authorization);
     
     if (!userId) {
@@ -31,10 +30,22 @@ export async function handler(event, context) {
     }
 
     if (event.httpMethod === "GET") {
-      return await getPartners(userId);
+      return await getPartnersAndInvitations(userId);
     } else if (event.httpMethod === "POST") {
-      const { partnerId } = JSON.parse(event.body || "{}");
-      return await addPartner(userId, partnerId);
+      const { action, partnerId, invitationId } = JSON.parse(event.body || "{}");
+      
+      if (action === "invite") {
+        return await sendPartnerInvitation(userId, partnerId);
+      } else if (action === "accept") {
+        return await acceptInvitation(userId, invitationId);
+      } else if (action === "decline") {
+        return await declineInvitation(userId, invitationId);
+      }
+      
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "Invalid action" }),
+      };
     } else if (event.httpMethod === "DELETE") {
       const { partnerId } = JSON.parse(event.body || "{}");
       return await removePartner(userId, partnerId);
@@ -57,42 +68,17 @@ export async function handler(event, context) {
 }
 
 async function getUserIdFromToken(authorization) {
-  // This is a placeholder - implement based on your auth system
-  // For now, we'll use a simple approach
-  try {
-    // You might decode JWT or validate with Supabase
-    // For this example, we'll assume the token contains user info
-    return "user-123"; // Replace with actual user ID extraction
-  } catch (error) {
-    console.error("Error extracting user ID:", error);
-    return null;
-  }
+  // For demo purposes, return a mock user ID
+  // In production, decode JWT or validate with your auth system
+  return "550e8400-e29b-41d4-a716-446655440001";
 }
 
-async function getPartners(userId) {
+async function getPartnersAndInvitations(userId) {
   try {
-    // In a real implementation, you'd query Supabase here
-    // For now, return mock data
-    const partners = [
-      {
-        id: "partner-1",
-        name: "Sarah Johnson",
-        email: "sarah@example.com",
-        avatarUrl: "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1",
-        linkedinMemberUrn: "urn:li:person:sarah123",
-        dmaActive: true,
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: "partner-2", 
-        name: "Michael Chen",
-        email: "michael@example.com",
-        avatarUrl: "https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1",
-        linkedinMemberUrn: "urn:li:person:michael456",
-        dmaActive: true,
-        createdAt: new Date().toISOString()
-      }
-    ];
+    // In production, query Supabase here
+    // For now, return empty arrays since we're removing mock data
+    const partners = [];
+    const pendingInvitations = [];
 
     return {
       statusCode: 200,
@@ -100,34 +86,27 @@ async function getPartners(userId) {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
       },
-      body: JSON.stringify({ partners }),
+      body: JSON.stringify({ 
+        partners,
+        pendingInvitations
+      }),
     };
   } catch (error) {
     throw new Error(`Failed to get partners: ${error.message}`);
   }
 }
 
-async function addPartner(userId, partnerId) {
+async function sendPartnerInvitation(fromUserId, toUserId) {
   try {
-    if (!partnerId) {
+    if (!toUserId) {
       return {
         statusCode: 400,
         body: JSON.stringify({ error: "Partner ID is required" }),
       };
     }
 
-    // In a real implementation, you'd:
-    // 1. Validate that partnerId exists and has DMA consent
-    // 2. Create the partnership in Supabase
-    // 3. Return the updated partner list
-
-    // Mock response for now
-    const newPartnership = {
-      id: `partnership-${Date.now()}`,
-      aUserId: userId,
-      bUserId: partnerId,
-      createdAt: new Date().toISOString()
-    };
+    // In production, insert invitation into Supabase
+    console.log(`Sending invitation from ${fromUserId} to ${toUserId}`);
 
     return {
       statusCode: 201,
@@ -137,25 +116,60 @@ async function addPartner(userId, partnerId) {
       },
       body: JSON.stringify({ 
         success: true,
-        partnership: newPartnership,
-        message: "Partner added successfully"
+        message: "Partnership invitation sent successfully"
       }),
     };
   } catch (error) {
-    throw new Error(`Failed to add partner: ${error.message}`);
+    throw new Error(`Failed to send invitation: ${error.message}`);
+  }
+}
+
+async function acceptInvitation(userId, invitationId) {
+  try {
+    // In production, update invitation status in Supabase
+    console.log(`User ${userId} accepting invitation ${invitationId}`);
+    
+    return {
+      statusCode: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+      body: JSON.stringify({ 
+        success: true,
+        message: "Partnership invitation accepted"
+      }),
+    };
+  } catch (error) {
+    throw new Error(`Failed to accept invitation: ${error.message}`);
+  }
+}
+
+async function declineInvitation(userId, invitationId) {
+  try {
+    // In production, update invitation status in Supabase
+    console.log(`User ${userId} declining invitation ${invitationId}`);
+    
+    return {
+      statusCode: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+      body: JSON.stringify({ 
+        success: true,
+        message: "Partnership invitation declined"
+      }),
+    };
+  } catch (error) {
+    throw new Error(`Failed to decline invitation: ${error.message}`);
   }
 }
 
 async function removePartner(userId, partnerId) {
   try {
-    if (!partnerId) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "Partner ID is required" }),
-      };
-    }
-
-    // In a real implementation, you'd delete the partnership from Supabase
+    // In production, delete partnership from Supabase
+    console.log(`Removing partnership between ${userId} and ${partnerId}`);
 
     return {
       statusCode: 200,
