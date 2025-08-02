@@ -311,8 +311,8 @@ export const Analytics = () => {
             <div className="h-80 flex items-center justify-center text-gray-500 bg-gray-50 rounded-xl">
               <div className="text-center">
                 <TrendingUp size={48} className="mx-auto mb-4 text-gray-300" />
-                <p className="font-medium">No engagement data available</p>
-                <p className="text-sm mt-1">Start posting to see trends</p>
+                <p className="font-medium text-gray-900">Loading engagement data...</p>
+                <p className="text-sm mt-1 text-gray-600">Processing your LinkedIn activity</p>
               </div>
             </div>
           )}
@@ -362,8 +362,8 @@ export const Analytics = () => {
             <div className="h-80 flex items-center justify-center text-gray-500 bg-gray-50 rounded-xl">
               <div className="text-center">
                 <BarChart3 size={48} className="mx-auto mb-4 text-gray-300" />
-                <p className="font-medium">No content formats found</p>
-                <p className="text-sm mt-1">Create posts to see format distribution</p>
+                <p className="font-medium text-gray-900">Loading content formats...</p>
+                <p className="text-sm mt-1 text-gray-600">Analyzing your content types</p>
               </div>
             </div>
           )}

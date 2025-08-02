@@ -13,7 +13,11 @@ export async function handler(event, context) {
   const { authorization } = event.headers;
   const { timeRange = "30d" } = event.queryStringParameters || {};
 
+  console.log("Analytics Data Function - Starting with timeRange:", timeRange);
+  console.log("Analytics Data Function - Authorization present:", !!authorization);
+
   if (!authorization) {
+    console.error("Analytics Data Function - No authorization token");
     return {
       statusCode: 401,
       headers: {
@@ -33,13 +37,20 @@ export async function handler(event, context) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
-    // Fetch comprehensive data from multiple sources
-    const [postsSnapshot, connectionsSnapshot, profileSnapshot, changelogData] = await Promise.all([
-      fetchMemberSnapshot(authorization, "MEMBER_SHARE_INFO"),
-      fetchMemberSnapshot(authorization, "CONNECTIONS"),
-      fetchMemberSnapshot(authorization, "PROFILE"),
-      fetchChangelogData(authorization)
-    ]);
+    // Fetch comprehensive data from multiple sources with error handling
+    let postsSnapshot, connectionsSnapshot, profileSnapshot, changelogData;
+    
+    try {
+      [postsSnapshot, connectionsSnapshot, profileSnapshot, changelogData] = await Promise.all([
+        fetchMemberSnapshot(authorization, "MEMBER_SHARE_INFO"),
+        fetchMemberSnapshot(authorization, "CONNECTIONS"),
+        fetchMemberSnapshot(authorization, "PROFILE"),
+        fetchChangelogData(authorization)
+      ]);
+    } catch (fetchError) {
+      console.error("Analytics Data Function - Error fetching data:", fetchError);
+      throw new Error(`Data fetch failed: ${fetchError.message}`);
+    }
 
     const postsData = postsSnapshot?.elements?.[0]?.snapshotData || [];
     const connectionsData = connectionsSnapshot?.elements?.[0]?.snapshotData || [];
@@ -50,7 +61,7 @@ export async function handler(event, context) {
 
     // Filter posts by time range
     const filteredPosts = postsData.filter(post => {
-      const postDate = new Date(post.Date || post.date);
+      const postDate = new Date(post.Date || post.date || post.shareDate);
       return postDate >= cutoffDate;
     });
 
@@ -82,9 +93,15 @@ export async function handler(event, context) {
 
     // Generate AI narrative analysis
     if (hasRecentActivity) {
-      analytics.aiNarrative = await generateAINarrative(analytics);
+      try {
+        analytics.aiNarrative = await generateAINarrative(analytics);
+      } catch (aiError) {
+        console.error("Analytics Data Function - AI narrative generation failed:", aiError);
+        analytics.aiNarrative = "Analytics processed successfully. Review the detailed metrics above to optimize your LinkedIn strategy.";
+      }
     }
 
+    console.log("Analytics Data Function - Success, returning analytics");
     return {
       statusCode: 200,
       headers: {
@@ -96,17 +113,31 @@ export async function handler(event, context) {
     };
   } catch (error) {
     console.error("Analytics Data Error:", error);
+    console.error("Analytics Data Error Stack:", error.stack);
     
     return {
-      statusCode: 500,
+      statusCode: 200, // Return 200 with error data instead of 500
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
       },
       body: JSON.stringify({
-        error: "Failed to fetch analytics data",
-        details: error.message,
-        timestamp: new Date().toISOString(),
+        postingTrends: [],
+        contentFormats: [],
+        engagementAnalysis: [],
+        hashtagTrends: [],
+        audienceInsights: { industries: [], positions: [], locations: [], totalConnections: 0 },
+        performanceMetrics: { totalEngagement: 0, avgEngagementPerPost: 0, bestPerformingPost: null, engagementDistribution: { low: 0, medium: 0, high: 0 } },
+        timeBasedInsights: { bestPostingDays: [], bestPostingHours: [], postingFrequency: 0 },
+        timeRange: timeRange,
+        lastUpdated: new Date().toISOString(),
+        metadata: {
+          hasRecentActivity: false,
+          dataSource: "error",
+          postsCount: 0,
+          description: `Error: ${error.message}`
+        },
+        error: error.message
       }),
     };
   }

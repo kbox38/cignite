@@ -160,7 +160,7 @@ export const TheAlgo = () => {
             AI Algorithm Analysis
           </h3>
           <div className="prose prose-sm max-w-none">
-            <div className="whitespace-pre-line text-gray-700 dark:text-gray-300">
+            <div className="whitespace-pre-line text-gray-900">
               {aiAnalysis}
             </div>
           </div>

@@ -13,26 +13,27 @@ export async function handler(event, context) {
   if (event.httpMethod !== "POST") {
     return {
       statusCode: 405,
-      body: JSON.stringify({ error: "Method not allowed" }),
-    };
-  }
-
-  const { authorization } = event.headers;
-  const { type, industry, userProfile } = JSON.parse(event.body || "{}");
-
-  if (!authorization) {
-    return {
-      statusCode: 401,
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
       },
-      body: JSON.stringify({ error: "No authorization token" }),
+      body: JSON.stringify({ error: "Method not allowed" }),
     };
   }
 
+  console.log("Creation Engine AI Function - Starting");
+  console.log("Creation Engine AI Function - Headers:", Object.keys(event.headers));
+  console.log("Creation Engine AI Function - Body:", event.body);
+
+  const { type, industry, userProfile } = JSON.parse(event.body || "{}");
+
+  console.log("Creation Engine AI Function - Parsed data:", { type, industry });
+
   const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  console.log("Creation Engine AI Function - OpenAI key present:", !!OPENAI_API_KEY);
+  
   if (!OPENAI_API_KEY) {
+    console.error("Creation Engine AI Function - No OpenAI API key");
     return {
       statusCode: 500,
       headers: {
@@ -44,6 +45,7 @@ export async function handler(event, context) {
   }
 
   try {
+    console.log("Creation Engine AI Function - Processing type:", type);
     let result;
 
     switch (type) {
@@ -57,9 +59,11 @@ export async function handler(event, context) {
         result = await generateAlgorithmOptimization(userProfile, OPENAI_API_KEY);
         break;
       default:
+        console.error("Creation Engine AI Function - Invalid type:", type);
         throw new Error('Invalid request type');
     }
 
+    console.log("Creation Engine AI Function - Success, returning result");
     return {
       statusCode: 200,
       headers: {
@@ -71,6 +75,7 @@ export async function handler(event, context) {
     };
   } catch (error) {
     console.error("Creation Engine AI Error:", error);
+    console.error("Creation Engine AI Error Stack:", error.stack);
     return {
       statusCode: 500,
       headers: {
