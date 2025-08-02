@@ -90,7 +90,7 @@ export async function handler(event, context) {
 }
 
 async function generateCommentSuggestion(post, viewerProfile) {
-  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY;
   
   if (!OPENAI_API_KEY) {
     console.warn("OpenAI API key not configured, returning fallback suggestion");
