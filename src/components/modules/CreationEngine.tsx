@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Lightbulb, TrendingUp, Target, Zap, RefreshCw, Sparkles, Clock, BarChart3 } from "lucide-react";
+import { Lightbulb, TrendingUp, Target, Zap, RefreshCw, Sparkles, Clock, BarChart3, Calendar } from "lucide-react";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
 import {

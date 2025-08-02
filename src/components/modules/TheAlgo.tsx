@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp, TrendingDown, Zap, Clock, Users, Eye, BarChart3, Target, Award, RefreshCw } from 'lucide-react';
+import { TrendingUp, TrendingDown, Zap, Clock, Users, Eye, BarChart3, Target, Award, RefreshCw, Heart } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { LoadingSpinner } from '../ui/LoadingSpinner';

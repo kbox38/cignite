@@ -23,6 +23,10 @@ export async function handler(event, context) {
   if (!authorization) {
     return {
       statusCode: 401,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
       body: JSON.stringify({ error: "No authorization token" }),
     };
   }
@@ -31,6 +35,10 @@ export async function handler(event, context) {
   if (!OPENAI_API_KEY) {
     return {
       statusCode: 500,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
       body: JSON.stringify({ error: "OpenAI API key not configured" }),
     };
   }

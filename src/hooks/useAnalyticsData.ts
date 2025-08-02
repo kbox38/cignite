@@ -89,7 +89,7 @@ export const useAnalyticsData = (timeRange: '7d' | '30d' | '90d' = '30d') => {
   return useQuery({
     queryKey: ['analytics-data', timeRange],
     queryFn: async (): Promise<AnalyticsData> => {
-      const response = await fetch(`/api/analytics-data?timeRange=${timeRange}`, {
+      const response = await fetch(`/.netlify/functions/analytics-data?timeRange=${timeRange}`, {
         headers: {
           'Authorization': `Bearer ${dmaToken}`,
           'Content-Type': 'application/json',
