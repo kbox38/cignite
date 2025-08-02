@@ -539,7 +539,7 @@ function generateMockBestHours() {
 }
 
 async function generateAINarrative(analytics) {
-  const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY;
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
   
   if (!OPENAI_API_KEY) {
     return "Analytics show good activity patterns. Your LinkedIn engagement is performing well with consistent posting and diverse content formats. Continue focusing on valuable content that resonates with your professional network.";

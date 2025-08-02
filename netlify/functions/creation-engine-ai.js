@@ -31,7 +31,7 @@ export async function handler(event, context) {
     };
   }
 
-  const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY;
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
   if (!OPENAI_API_KEY) {
     return {
       statusCode: 500,
