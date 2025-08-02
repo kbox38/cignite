@@ -20,6 +20,11 @@ export async function handler(event, context) {
   const { authorization } = event.headers;
   const { search = "", limit = "10" } = event.queryStringParameters || {};
 
+  console.log("=== SYNERGY USER SEARCH (REAL DATABASE) ===");
+  console.log("Search term:", search);
+  console.log("Limit:", limit);
+  console.log("Authorization present:", !!authorization);
+
   if (!authorization) {
     return {
       statusCode: 401,
@@ -32,25 +37,90 @@ export async function handler(event, context) {
   }
 
   try {
-    console.log("Synergy User Search:", { search, limit });
-
-    // Get current user ID from token
+    // Get current user ID from LinkedIn token
     const currentUserId = await getUserIdFromToken(authorization);
     if (!currentUserId) {
+      console.error("Failed to get user ID from token");
       return {
         statusCode: 401,
-        body: JSON.stringify({ error: "Invalid token" }),
+        body: JSON.stringify({ error: "Invalid token or user not found in database" }),
       };
     }
 
-    // Query Supabase for real users
+    console.log("Current user ID:", currentUserId);
+
+    // Initialize Supabase client
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    // Build search query
+    console.log("Supabase client initialized");
+
+    // First, let's check how many total users exist
+    const { count: totalUsers, error: countError } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true });
+
+    console.log("Total users in database:", totalUsers);
+    if (countError) {
+      console.error("Error counting users:", countError);
+    }
+
+    // Check how many DMA active users exist
+    const { count: dmaUsers, error: dmaCountError } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true })
+      .eq('dma_active', true);
+
+    console.log("DMA active users:", dmaUsers);
+    if (dmaCountError) {
+      console.error("Error counting DMA users:", dmaCountError);
+    }
+
+    // Get existing partnerships to exclude
+    const { data: existingPartnerships, error: partnershipsError } = await supabase
+      .from('synergy_partners')
+      .select('a_user_id, b_user_id')
+      .or(`a_user_id.eq.${currentUserId},b_user_id.eq.${currentUserId}`)
+      .eq('partnership_status', 'active');
+
+    if (partnershipsError) {
+      console.error("Error fetching partnerships:", partnershipsError);
+    }
+
+    const partnerIds = new Set();
+    existingPartnerships?.forEach(partnership => {
+      if (partnership.a_user_id === currentUserId) {
+        partnerIds.add(partnership.b_user_id);
+      } else {
+        partnerIds.add(partnership.a_user_id);
+      }
+    });
+
+    console.log("Existing partner IDs:", Array.from(partnerIds));
+
+    // Get pending invitations to exclude
+    const { data: pendingInvitations, error: invitationsError } = await supabase
+      .from('synergy_invitations')
+      .select('from_user_id, to_user_id')
+      .or(`from_user_id.eq.${currentUserId},to_user_id.eq.${currentUserId}`)
+      .eq('invitation_status', 'pending');
+
+    if (invitationsError) {
+      console.error("Error fetching invitations:", invitationsError);
+    }
+
+    const pendingIds = new Set();
+    pendingInvitations?.forEach(invitation => {
+      pendingIds.add(invitation.from_user_id);
+      pendingIds.add(invitation.to_user_id);
+    });
+
+    console.log("Pending invitation IDs:", Array.from(pendingIds));
+
+    // Build search query for real users
     let query = supabase
       .from('users')
       .select(`
@@ -70,71 +140,51 @@ export async function handler(event, context) {
         )
       `)
       .eq('dma_active', true)
-      .neq('id', currentUserId) // Exclude current user
+      .eq('account_status', 'active')
+      .neq('id', currentUserId)
       .limit(parseInt(limit));
 
     // Add search filters if search term provided
     if (search && search.trim()) {
-      const searchTerm = `%${search.toLowerCase()}%`;
+      const searchTerm = search.trim();
+      console.log("Applying search filter for:", searchTerm);
+      
+      // Use ilike for case-insensitive partial matching
       query = query.or(`
-        name.ilike.${searchTerm},
-        email.ilike.${searchTerm},
-        headline.ilike.${searchTerm},
-        industry.ilike.${searchTerm},
-        location.ilike.${searchTerm}
+        name.ilike.%${searchTerm}%,
+        email.ilike.%${searchTerm}%,
+        headline.ilike.%${searchTerm}%,
+        industry.ilike.%${searchTerm}%,
+        location.ilike.%${searchTerm}%
       `);
     }
 
-    const { data: users, error } = await query;
+    const { data: users, error: usersError } = await query;
 
-    if (error) {
-      console.error("Database error:", error);
+    if (usersError) {
+      console.error("Database error:", usersError);
       return {
         statusCode: 500,
         body: JSON.stringify({ 
           error: "Database query failed",
-          details: error.message 
+          details: usersError.message 
         }),
       };
     }
 
-    // Filter out existing partners
-    const { data: existingPartnerships } = await supabase
-      .from('synergy_partners')
-      .select('a_user_id, b_user_id')
-      .or(`a_user_id.eq.${currentUserId},b_user_id.eq.${currentUserId}`)
-      .eq('partnership_status', 'active');
-
-    const partnerIds = new Set();
-    existingPartnerships?.forEach(partnership => {
-      if (partnership.a_user_id === currentUserId) {
-        partnerIds.add(partnership.b_user_id);
-      } else {
-        partnerIds.add(partnership.a_user_id);
-      }
-    });
+    console.log("Raw users from database:", users?.length || 0);
 
     // Filter out existing partners and pending invitations
-    const { data: pendingInvitations } = await supabase
-      .from('synergy_invitations')
-      .select('from_user_id, to_user_id')
-      .or(`from_user_id.eq.${currentUserId},to_user_id.eq.${currentUserId}`)
-      .eq('invitation_status', 'pending');
-
-    const pendingIds = new Set();
-    pendingInvitations?.forEach(invitation => {
-      pendingIds.add(invitation.from_user_id);
-      pendingIds.add(invitation.to_user_id);
-    });
-
     const availableUsers = users?.filter(user => 
       !partnerIds.has(user.id) && !pendingIds.has(user.id)
     ) || [];
 
-    // Format response
+    console.log("Available users after filtering:", availableUsers.length);
+
+    // Format response with real user data
     const formattedUsers = availableUsers.map(user => ({
       id: user.id,
-      name: user.name || 'Unknown User',
+      name: user.name || 'LinkedIn User',
       email: user.email,
       headline: user.headline || 'LinkedIn Professional',
       industry: user.industry || 'Professional Services',
@@ -144,11 +194,11 @@ export async function handler(event, context) {
       dmaActive: user.dma_active,
       totalConnections: user.user_profiles?.total_connections || 0,
       profileCompleteness: user.user_profiles?.profile_completeness_score || 0,
-      mutualConnections: Math.floor(Math.random() * 20), // This would be calculated from actual connections in production
+      mutualConnections: 0, // Would need complex query to calculate real mutual connections
       joinedDate: user.created_at
     }));
 
-    console.log(`Found ${formattedUsers.length} available users for partnerships`);
+    console.log(`Returning ${formattedUsers.length} formatted users`);
 
     return {
       statusCode: 200,
@@ -165,6 +215,8 @@ export async function handler(event, context) {
         metadata: {
           searchPerformed: !!search,
           currentUserId,
+          totalUsersInDb: totalUsers,
+          dmaActiveUsers: dmaUsers,
           excludedPartners: partnerIds.size,
           excludedPending: pendingIds.size,
           timestamp: new Date().toISOString()
@@ -181,7 +233,8 @@ export async function handler(event, context) {
       },
       body: JSON.stringify({
         error: "Failed to search users",
-        details: error.message
+        details: error.message,
+        stack: error.stack
       }),
     };
   }
@@ -189,6 +242,8 @@ export async function handler(event, context) {
 
 async function getUserIdFromToken(authorization) {
   try {
+    console.log("Getting user ID from LinkedIn token...");
+    
     // Extract user info from LinkedIn token
     const response = await fetch('https://api.linkedin.com/v2/userinfo', {
       headers: {
@@ -198,11 +253,19 @@ async function getUserIdFromToken(authorization) {
     });
 
     if (!response.ok) {
+      console.error("LinkedIn userinfo API error:", response.status, response.statusText);
       throw new Error('Failed to get user info from LinkedIn');
     }
 
     const userInfo = await response.json();
+    console.log("LinkedIn user info:", {
+      sub: userInfo.sub,
+      name: userInfo.name,
+      email: userInfo.email
+    });
+    
     const linkedinUrn = `urn:li:person:${userInfo.sub}`;
+    console.log("LinkedIn URN:", linkedinUrn);
 
     // Find user in database by LinkedIn URN
     const { createClient } = await import('@supabase/supabase-js');
@@ -211,13 +274,49 @@ async function getUserIdFromToken(authorization) {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    const { data: user } = await supabase
+    const { data: user, error } = await supabase
       .from('users')
-      .select('id')
+      .select('id, name, dma_active')
       .eq('linkedin_member_urn', linkedinUrn)
       .single();
 
-    return user?.id || null;
+    if (error) {
+      console.error("Database lookup error:", error);
+      
+      // If user doesn't exist, create them
+      if (error.code === 'PGRST116') {
+        console.log("User not found in database, creating new user...");
+        
+        const { data: newUser, error: createError } = await supabase
+          .from('users')
+          .insert({
+            email: userInfo.email,
+            name: userInfo.name,
+            given_name: userInfo.given_name,
+            family_name: userInfo.family_name,
+            avatar_url: userInfo.picture,
+            linkedin_member_urn: linkedinUrn,
+            headline: userInfo.headline || '',
+            dma_active: true,
+            dma_consent_date: new Date().toISOString()
+          })
+          .select('id')
+          .single();
+
+        if (createError) {
+          console.error("Error creating user:", createError);
+          throw new Error('Failed to create user in database');
+        }
+
+        console.log("Created new user:", newUser.id);
+        return newUser.id;
+      }
+      
+      throw new Error('Database lookup failed');
+    }
+
+    console.log("Found user in database:", user.id, user.name, "DMA active:", user.dma_active);
+    return user.id;
   } catch (error) {
     console.error('Error getting user ID from token:', error);
     return null;

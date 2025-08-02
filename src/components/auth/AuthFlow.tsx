@@ -55,8 +55,38 @@ export const AuthFlow = ({ isDark = false }: AuthFlowProps) => {
     if (profile) {
       console.log('AuthFlow - Setting profile:', profile);
       setProfile(profile);
+      
+      // Register user in database when profile is available
+      if (accessToken || dmaToken) {
+        registerUserInDatabase();
+      }
     }
   }, [profile, setProfile]);
+
+  const registerUserInDatabase = async () => {
+    try {
+      const token = dmaToken || accessToken;
+      if (!token) return;
+      
+      console.log('Registering user in database...');
+      const response = await fetch('/.netlify/functions/user-registration', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('User registration result:', result);
+      } else {
+        console.error('User registration failed:', response.status);
+      }
+    } catch (error) {
+      console.error('Error registering user:', error);
+    }
+  };
 
   // Handle authentication completion
   useEffect(() => {
