@@ -40,7 +40,7 @@ export const PostPulse = () => {
     error,
     pagination,
     metadata,
-  } = usePostPulseDataV2({
+  } = usePostPulseData({
     timeFilter,
     searchTerm,
     page: currentPage,
