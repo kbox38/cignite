@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Plus, 
@@ -19,7 +19,10 @@ import {
   RefreshCw,
   Wand2,
   Search,
-  UserPlus
+  UserPlus,
+  Bell,
+  Check,
+  XCircle
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -34,6 +37,17 @@ interface SynergyPartner {
   avatarUrl?: string;
   linkedinMemberUrn?: string;
   dmaActive: boolean;
+  createdAt: string;
+}
+
+interface PendingInvitation {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  fromUserName: string;
+  fromUserAvatar?: string;
+  fromUserHeadline?: string;
+  message?: string;
   createdAt: string;
 }
 
@@ -61,6 +75,7 @@ export const Synergy = () => {
   const { dmaToken } = useAuthStore();
   const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -68,27 +83,29 @@ export const Synergy = () => {
   const [suggestions, setSuggestions] = useState<Record<string, string>>({});
   const queryClient = useQueryClient();
 
-  // Mock partners data (in production, fetch from your database)
-  const partners: SynergyPartner[] = [
-    {
-      id: "partner-1",
-      name: "Sarah Johnson",
-      email: "sarah@example.com",
-      avatarUrl: "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1",
-      linkedinMemberUrn: "urn:li:person:sarah123",
-      dmaActive: true,
-      createdAt: new Date().toISOString()
+  // Fetch partners from database
+  const { data: partnersData, isLoading: partnersLoading, refetch: refetchPartners } = useQuery({
+    queryKey: ['synergy-partners'],
+    queryFn: async () => {
+      const response = await fetch('/.netlify/functions/synergy-partners-v2', {
+        headers: {
+          'Authorization': `Bearer ${dmaToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch partners');
+      }
+      
+      return response.json();
     },
-    {
-      id: "partner-2", 
-      name: "Michael Chen",
-      email: "michael@example.com",
-      avatarUrl: "https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1",
-      linkedinMemberUrn: "urn:li:person:michael456",
-      dmaActive: true,
-      createdAt: new Date().toISOString()
-    }
-  ];
+    enabled: !!dmaToken,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  const partners = partnersData?.partners || [];
+  const pendingInvitations = partnersData?.pendingInvitations || [];
 
   // Fetch partner posts using Snapshot API
   const { data: partnerPostsData, isLoading: postsLoading, error: postsError } = useQuery({
@@ -116,9 +133,93 @@ export const Synergy = () => {
 
       return response.json();
     },
-    enabled: !!selectedPartner && !!dmaToken,
+    enabled: !!selectedPartner && !!dmaToken && partners.length > 0,
     staleTime: 10 * 60 * 1000, // 10 minutes cache
     retry: 2,
+  });
+
+  // Send invitation mutation
+  const sendInvitationMutation = useMutation({
+    mutationFn: async (partnerId: string) => {
+      const response = await fetch('/.netlify/functions/synergy-partners-v2', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${dmaToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'invite',
+          partnerId
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to send invitation');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      refetchPartners();
+      setShowAddModal(false);
+      setSearchTerm('');
+      setSearchResults([]);
+    },
+  });
+
+  // Accept invitation mutation
+  const acceptInvitationMutation = useMutation({
+    mutationFn: async (invitationId: string) => {
+      const response = await fetch('/.netlify/functions/synergy-partners-v2', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${dmaToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'accept',
+          invitationId
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to accept invitation');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      refetchPartners();
+    },
+  });
+
+  // Decline invitation mutation
+  const declineInvitationMutation = useMutation({
+    mutationFn: async (invitationId: string) => {
+      const response = await fetch('/.netlify/functions/synergy-partners-v2', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${dmaToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'decline',
+          invitationId
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to decline invitation');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      refetchPartners();
+    },
   });
 
   // Generate comment suggestion
@@ -211,7 +312,7 @@ export const Synergy = () => {
 
   const selectedPartnerData = useMemo(() => {
     return partners.find(p => p.id === selectedPartner);
-  }, [selectedPartner]);
+  }, [selectedPartner, partners]);
 
   const searchUsers = async () => {
     if (!searchTerm.trim()) {
@@ -245,20 +346,16 @@ export const Synergy = () => {
     }
   };
 
-  const addPartnerFromSearch = async (user: any) => {
-    try {
-      // In a real implementation, this would add the partnership to your database
-      console.log('Adding partner:', user);
-      
-      // For demo, we'll just show a success message
-      alert(`Partnership request sent to ${user.name}! They will appear in your partners list once they accept.`);
-      setShowAddModal(false);
-      setSearchTerm('');
-      setSearchResults([]);
-    } catch (error) {
-      console.error('Error adding partner:', error);
-      alert('Failed to add partner. Please try again.');
-    }
+  const sendInvitation = (userId: string) => {
+    sendInvitationMutation.mutate(userId);
+  };
+
+  const acceptInvitation = (invitationId: string) => {
+    acceptInvitationMutation.mutate(invitationId);
+  };
+
+  const declineInvitation = (invitationId: string) => {
+    declineInvitationMutation.mutate(invitationId);
   };
 
   if (!dmaToken) {
@@ -297,17 +394,106 @@ export const Synergy = () => {
         <div>
           <h2 className="text-2xl font-bold">Synergy Partners</h2>
           <p className="text-gray-600 mt-1">
-            Collaborate and engage with your strategic LinkedIn partners using Snapshot data
+            Collaborate and engage with your strategic LinkedIn partners
           </p>
         </div>
-        <Button 
-          variant="primary" 
-          onClick={() => setShowAddModal(true)}
-        >
-          <Plus size={20} className="mr-2" />
-          Add Partner
-        </Button>
+        <div className="flex space-x-3">
+          {/* Notifications Button */}
+          <Button 
+            variant="outline" 
+            onClick={() => setShowNotifications(true)}
+            className="relative"
+          >
+            <Bell size={20} className="mr-2" />
+            Notifications
+            {pendingInvitations.length > 0 && (
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                {pendingInvitations.length}
+              </span>
+            )}
+          </Button>
+          
+          <Button 
+            variant="primary" 
+            onClick={() => setShowAddModal(true)}
+          >
+            <Plus size={20} className="mr-2" />
+            Add Partner
+          </Button>
+        </div>
       </div>
+
+      {/* Notifications Modal */}
+      {showNotifications && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Partnership Invitations</h3>
+              <Button variant="ghost" onClick={() => setShowNotifications(false)}>
+                <X size={20} />
+              </Button>
+            </div>
+
+            {pendingInvitations.length === 0 ? (
+              <div className="text-center py-8">
+                <Bell size={48} className="mx-auto text-gray-300 mb-4" />
+                <p className="text-gray-500">No pending invitations</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {pendingInvitations.map((invitation) => (
+                  <div key={invitation.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <img
+                        src={invitation.fromUserAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(invitation.fromUserName)}&background=0ea5e9&color=fff`}
+                        alt={invitation.fromUserName}
+                        className="w-12 h-12 rounded-full"
+                      />
+                      <div>
+                        <h4 className="font-medium text-gray-900">{invitation.fromUserName}</h4>
+                        <p className="text-sm text-gray-600">{invitation.fromUserHeadline || 'LinkedIn Professional'}</p>
+                        <p className="text-xs text-gray-500">
+                          Sent {new Date(invitation.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => acceptInvitation(invitation.id)}
+                        disabled={acceptInvitationMutation.isPending}
+                      >
+                        <Check size={14} className="mr-1" />
+                        Accept
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => declineInvitation(invitation.id)}
+                        disabled={declineInvitationMutation.isPending}
+                      >
+                        <XCircle size={14} className="mr-1" />
+                        Decline
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        </motion.div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-200px)]">
         {/* Partners List */}
@@ -318,43 +504,59 @@ export const Synergy = () => {
               Partners ({partners.length})
             </h3>
             
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {partners.map((partner, index) => (
-                <motion.div
-                  key={partner.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                    selectedPartner === partner.id
-                      ? 'bg-blue-50 border-2 border-blue-200'
-                      : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
-                  }`}
-                  onClick={() => setSelectedPartner(partner.id)}
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="relative">
-                      <img
-                        src={partner.avatarUrl}
-                        alt={partner.name}
-                        className="w-12 h-12 rounded-full"
-                      />
-                      <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
-                        partner.dmaActive ? 'bg-green-500' : 'bg-gray-400'
-                      }`}></div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-gray-900 truncate">
-                        {partner.name}
-                      </h4>
-                      <p className="text-sm text-gray-500 truncate">
-                        {partner.dmaActive ? 'DMA Active' : 'DMA Inactive'}
-                      </p>
-                    </div>
+            {partnersLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="animate-pulse">
+                    <div className="h-16 bg-gray-200 rounded-lg"></div>
                   </div>
-                </motion.div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : partners.length === 0 ? (
+              <div className="text-center py-8">
+                <Users size={48} className="mx-auto text-gray-300 mb-4" />
+                <p className="text-gray-500 mb-2">No partners yet</p>
+                <p className="text-sm text-gray-400">Add your first synergy partner to get started</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {partners.map((partner, index) => (
+                  <motion.div
+                    key={partner.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                      selectedPartner === partner.id
+                        ? 'bg-blue-50 border-2 border-blue-200'
+                        : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
+                    }`}
+                    onClick={() => setSelectedPartner(partner.id)}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="relative">
+                        <img
+                          src={partner.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(partner.name)}&background=0ea5e9&color=fff`}
+                          alt={partner.name}
+                          className="w-12 h-12 rounded-full"
+                        />
+                        <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
+                          partner.dmaActive ? 'bg-green-500' : 'bg-gray-400'
+                        }`}></div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-gray-900 truncate">
+                          {partner.name}
+                        </h4>
+                        <p className="text-sm text-gray-500 truncate">
+                          {partner.dmaActive ? 'DMA Active' : 'DMA Inactive'}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
           </Card>
         </div>
 
@@ -684,10 +886,17 @@ export const Synergy = () => {
                         <Button
                           variant="primary"
                           size="sm"
-                          onClick={() => addPartnerFromSearch(user)}
+                          onClick={() => sendInvitation(user.id)}
+                          disabled={sendInvitationMutation.isPending}
                         >
-                          <UserPlus size={14} className="mr-1" />
-                          Add Partner
+                          {sendInvitationMutation.isPending ? (
+                            <LoadingSpinner size="sm" />
+                          ) : (
+                            <>
+                              <UserPlus size={14} className="mr-1" />
+                              Send Invitation
+                            </>
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -709,7 +918,7 @@ export const Synergy = () => {
                   <AlertCircle size={16} className="text-blue-600 mt-0.5" />
                   <div className="text-sm text-blue-800">
                     <p className="font-medium mb-1">DMA Requirement</p>
-                    <p>Only users with active LinkedIn DMA consent can be added as Synergy partners. This ensures secure data sharing via LinkedIn's Snapshot API.</p>
+                    <p>Only users with active LinkedIn DMA consent can be added as Synergy partners. Invitations will be sent through the platform notification system.</p>
                   </div>
                 </div>
               </div>

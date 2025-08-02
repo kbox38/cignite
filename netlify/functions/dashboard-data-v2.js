@@ -229,9 +229,9 @@ async function analyzeProfileCompleteness(profileSnapshot) {
   };
 
   // Basic Info (20 points)
-  if (profile["First Name"] && profile["Last Name"]) breakdown.basicInfo += 10;
-  if (profile["Industry"] && profile["Industry"].trim()) breakdown.basicInfo += 5;
-  if (profile["Location"] && profile["Location"].trim()) breakdown.basicInfo += 5;
+  if (profile["First Name"] && profile["Last Name"]) breakdown.basicInfo += 8;
+  if (profile["Industry"] && profile["Industry"].trim()) breakdown.basicInfo += 6;
+  if (profile["Location"] && profile["Location"].trim()) breakdown.basicInfo += 6;
 
   // Headline (20 points)
   if (profile["Headline"] && profile["Headline"].trim()) {
@@ -250,24 +250,34 @@ async function analyzeProfileCompleteness(profileSnapshot) {
   }
 
   // Experience (20 points)
-  if (profile["Current Position"] || profile["Position"]) breakdown.experience += 10;
-  if (profile["Company"] || profile["Current Company"]) breakdown.experience += 10;
+  if (profile["Current Position"] || profile["Position"] || profile["Headline"]) breakdown.experience += 12;
+  if (profile["Company"] || profile["Current Company"]) breakdown.experience += 8;
 
   // Skills (20 points)
-  if (profile["Skills"] || profile["Top Skills"]) breakdown.skills = 20;
+  // Skills are often not available in PROFILE snapshot, so we'll estimate from other fields
+  if (profile["Skills"] || profile["Top Skills"]) {
+    breakdown.skills = 20;
+  } else if (profile["Industry"] && profile["Headline"]) {
+    // If we have industry and headline, assume some skills are present
+    breakdown.skills = 12;
+  }
 
   const totalScore = Object.values(breakdown).reduce((sum, val) => sum + val, 0);
-  const score = Math.round((totalScore / 100) * 10 * 10) / 10;
+  // More realistic scoring - most profiles will score between 6-9
+  const score = Math.min(Math.round((totalScore / 100) * 10 * 10) / 10, 10);
 
   const recommendations = [];
   if (breakdown.headline < 15) recommendations.push("Improve your headline with specific skills and value proposition");
   if (breakdown.summary < 15) recommendations.push("Add a compelling summary that tells your professional story");
   if (breakdown.experience < 15) recommendations.push("Complete your work experience section");
   if (breakdown.skills < 15) recommendations.push("Add relevant skills to showcase your expertise");
+  if (totalScore >= 80) recommendations.push("Excellent profile! Your LinkedIn presence is well-optimized");
 
   return {
-    score: Math.min(score, 10),
+    score: Math.max(score, 3), // Minimum score of 3 for any profile with basic info
     breakdown,
+    totalScore,
+    completionPercentage: Math.round((totalScore / 100) * 100),
     recommendations,
   };
 }
