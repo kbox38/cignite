@@ -461,7 +461,7 @@ function generateOptimizationRecommendations(metrics, posts) {
 }
 
 async function generateAlgorithmAIAnalysis(metrics, posts, profile) {
-  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY;
   
   if (!OPENAI_API_KEY) {
     return "Algorithm analysis complete. Focus on consistent posting and engaging content for optimal performance.";
