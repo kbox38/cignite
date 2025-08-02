@@ -60,7 +60,7 @@ export const usePostPulseData = (
   const { dmaToken } = useAuthStore();
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['postpulse-data', timeFilter, searchTerm, page, pageSize],
+    queryKey: ['postpulse-data-v2', timeFilter, searchTerm, page, pageSize],
     queryFn: async (): Promise<PostPulseDataResponse> => {
       const params = new URLSearchParams({
         timeFilter,
@@ -72,7 +72,7 @@ export const usePostPulseData = (
         params.append('searchTerm', searchTerm);
       }
 
-      const response = await fetch(`/.netlify/functions/postpulse-data-v2?${params}`, {
+      const response = await fetch(`/.netlify/functions/postpulse-data?${params}`, {
         headers: {
           'Authorization': `Bearer ${dmaToken}`,
           'Content-Type': 'application/json',

@@ -163,6 +163,8 @@ export const Analytics = () => {
     description: ""
   };
 
+  // Create postsEngagementsTrend from postingTrends for compatibility
+  const postsEngagementsTrend = postingTrends || [];
   if (!dmaToken) {
     return (
       <motion.div

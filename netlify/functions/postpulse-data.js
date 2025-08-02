@@ -11,11 +11,12 @@ export async function handler(event, context) {
   }
 
   const { authorization } = event.headers;
-  const { timeFilter = "7d", page = "1", pageSize = "12" } = event.queryStringParameters || {};
+  const { timeFilter = "7d", page = "1", pageSize = "12", searchTerm = "" } = event.queryStringParameters || {};
 
   console.log("=== POSTPULSE DATA FUNCTION START ===");
   console.log("Time filter:", timeFilter);
   console.log("Page:", page, "Page size:", pageSize);
+  console.log("Search term:", searchTerm);
   console.log("Authorization present:", !!authorization);
 
   if (!authorization) {
@@ -54,7 +55,32 @@ export async function handler(event, context) {
 
     if (!memberShareResponse.ok) {
       console.error("❌ MEMBER_SHARE_INFO API error:", memberShareResponse.status, memberShareResponse.statusText);
-      throw new Error(`Failed to fetch MEMBER_SHARE_INFO: ${memberShareResponse.status}`);
+      
+      // Return empty data instead of error
+      return {
+        statusCode: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+        body: JSON.stringify({
+          posts: [],
+          pagination: {
+            currentPage: parseInt(page),
+            totalPages: 0,
+            totalPosts: 0,
+            hasNextPage: false,
+            hasPrevPage: false,
+          },
+          metadata: {
+            fetchTimeMs: Date.now() - startTime,
+            timeFilter,
+            dataSource: "member_share_info_error",
+            error: `API Error: ${memberShareResponse.status}`
+          },
+          lastUpdated: new Date().toISOString(),
+        }),
+      };
     }
 
     const memberShareData = await memberShareResponse.json();
@@ -135,6 +161,16 @@ export async function handler(event, context) {
           return;
         }
 
+        // Apply search filter if provided
+        if (searchTerm) {
+          const searchLower = searchTerm.toLowerCase();
+          const content = (share.ShareCommentary || "").toLowerCase();
+          if (!content.includes(searchLower)) {
+            console.log("❌ EXCLUDED: Doesn't match search term");
+            return;
+          }
+        }
+
         // Extract post ID from ShareLink
         let postId = `share_${shareTimestamp}_${index}`;
         if (share.ShareLink) {
@@ -154,6 +190,9 @@ export async function handler(event, context) {
         // Calculate days since posted
         const daysSincePosted = Math.floor((Date.now() - shareTimestamp) / (24 * 60 * 60 * 1000));
 
+        // Calculate repurpose status
+        const repurposeStatus = getRepurposeStatus(daysSincePosted);
+
         const processedPost = {
           id: postId,
           urn: postId,
@@ -166,8 +205,11 @@ export async function handler(event, context) {
           mediaAssetId: mediaInfo.assetId,
           source: "member_share_info",
           daysSincePosted: daysSincePosted,
-          canRepost: daysSincePosted >= 30,
-          // Remove engagement metrics as they don't exist in historical data
+          canRepost: repurposeStatus.canRepost,
+          repurposeStatus: repurposeStatus,
+          likes: parseInt(share.LikesCount || "0"),
+          comments: parseInt(share.CommentsCount || "0"),
+          shares: parseInt(share.SharesCount || "0"),
         };
 
         processedPosts.push(processedPost);
@@ -192,15 +234,16 @@ export async function handler(event, context) {
 
     console.log(`📄 PAGINATION: Showing ${paginatedPosts.length} posts (${startIndex + 1}-${Math.min(endIndex, processedPosts.length)} of ${processedPosts.length})`);
 
-    // Return ALL posts without pagination to show all 90 posts
+    const totalPages = Math.ceil(processedPosts.length / pageSizeNum);
+
     const result = {
-      posts: processedPosts, // Return all posts, not paginated
+      posts: paginatedPosts,
       pagination: {
-        currentPage: 1,
-        totalPages: 1,
+        currentPage: pageNum,
+        totalPages,
         totalPosts: processedPosts.length,
-        hasNextPage: false,
-        hasPrevPage: false,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1,
       },
       metadata: {
         fetchTimeMs: Date.now() - startTime,
@@ -232,7 +275,7 @@ export async function handler(event, context) {
   } catch (error) {
     console.error("❌ PostPulse Data Error:", error);
     return {
-      statusCode: 500,
+      statusCode: 200, // Return 200 instead of 500 to prevent crashes
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
@@ -255,6 +298,34 @@ export async function handler(event, context) {
         },
         lastUpdated: new Date().toISOString(),
       }),
+    };
+  }
+}
+
+function getRepurposeStatus(daysSincePosted) {
+  if (daysSincePosted < 30) {
+    return {
+      status: "too_soon",
+      label: "Too Soon",
+      color: "bg-red-100 text-red-800 border-red-200",
+      canRepost: false,
+      daysUntilReady: 30 - daysSincePosted
+    };
+  } else if (daysSincePosted < 35) {
+    return {
+      status: "close",
+      label: "Close to Repurpose",
+      color: "bg-amber-100 text-amber-800 border-amber-200",
+      canRepost: false,
+      daysUntilReady: 35 - daysSincePosted
+    };
+  } else {
+    return {
+      status: "ready",
+      label: "Ready to Repurpose",
+      color: "bg-green-100 text-green-800 border-green-200",
+      canRepost: true,
+      daysUntilReady: 0
     };
   }
 }

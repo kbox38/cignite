@@ -36,7 +36,7 @@ export async function handler(event, context) {
 
     // In a real implementation, this would query your user database
     // For now, we'll return mock users that represent platform users with DMA active
-    const mockUsers = [
+    const allMockUsers = [
       {
         id: "user-001",
         name: "Sarah Johnson",
@@ -98,21 +98,61 @@ export async function handler(event, context) {
         location: "Seattle, WA",
         avatarUrl: "https://images.pexels.com/photos/762020/pexels-photo-762020.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1",
         linkedinMemberUrn: "urn:li:person:lisa202",
-        dmaActive: false, // This user doesn't have DMA active
+        dmaActive: true, // Changed to true so user appears in search
         mutualConnections: 3,
         joinedDate: "2024-02-28"
+      },
+      {
+        id: "user-006",
+        name: "Alex Thompson",
+        email: "alex.thompson@example.com",
+        headline: "Data Scientist at AI Corp",
+        industry: "Data Science",
+        location: "Boston, MA",
+        avatarUrl: "https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1",
+        linkedinMemberUrn: "urn:li:person:alex303",
+        dmaActive: true,
+        mutualConnections: 9,
+        joinedDate: "2024-01-20"
+      },
+      {
+        id: "user-007",
+        name: "Jessica Wang",
+        email: "jessica.wang@example.com",
+        headline: "UX Designer at DesignStudio",
+        industry: "Design",
+        location: "Los Angeles, CA",
+        avatarUrl: "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1",
+        linkedinMemberUrn: "urn:li:person:jessica404",
+        dmaActive: true,
+        mutualConnections: 7,
+        joinedDate: "2024-02-15"
+      },
+      {
+        id: "user-008",
+        name: "Robert Martinez",
+        email: "robert.martinez@example.com",
+        headline: "Financial Analyst at FinanceGroup",
+        industry: "Finance",
+        location: "Miami, FL",
+        avatarUrl: "https://images.pexels.com/photos/1681010/pexels-photo-1681010.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1",
+        linkedinMemberUrn: "urn:li:person:robert505",
+        dmaActive: true,
+        mutualConnections: 11,
+        joinedDate: "2024-03-01"
       }
     ];
 
     // Filter users based on search term
-    let filteredUsers = mockUsers;
+    let filteredUsers = allMockUsers;
     if (search && search.trim()) {
       const searchLower = search.toLowerCase();
-      filteredUsers = mockUsers.filter(user => 
+      filteredUsers = allMockUsers.filter(user => 
         user.name.toLowerCase().includes(searchLower) ||
         user.email.toLowerCase().includes(searchLower) ||
         user.headline.toLowerCase().includes(searchLower) ||
-        user.industry.toLowerCase().includes(searchLower)
+        user.industry.toLowerCase().includes(searchLower) ||
+        user.location.toLowerCase().includes(searchLower)
       );
     }
 
