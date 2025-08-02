@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { DivideIcon as LucideIcon } from 'lucide-react';
-import { useAppStore } from '../../stores/appStore';
+import { Link, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 
 interface NavItemProps {
@@ -8,24 +8,25 @@ interface NavItemProps {
   label: string;
   icon: LucideIcon;
   collapsed: boolean;
+  href: string;
 }
 
-export const NavItem = ({ id, label, icon: Icon, collapsed }: NavItemProps) => {
-  const { currentModule, setCurrentModule } = useAppStore();
-  const isActive = currentModule === id;
+export const NavItem = ({ id, label, icon: Icon, collapsed, href }: NavItemProps) => {
+  const location = useLocation();
+  const isActive = location.pathname === href;
 
   return (
-    <motion.button
-      onClick={() => setCurrentModule(id)}
+    <Link to={href}>
+      <motion.div
       className={clsx(
         "w-full flex items-center p-3 rounded-xl transition-all duration-200 group relative",
         isActive 
           ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg" 
           : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
       )}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-    >
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+      >
       <Icon size={20} className="flex-shrink-0" />
       
       {!collapsed && (
@@ -58,6 +59,7 @@ export const NavItem = ({ id, label, icon: Icon, collapsed }: NavItemProps) => {
           transition={{ duration: 0.2 }}
         />
       )}
-    </motion.button>
+      </motion.div>
+    </Link>
   );
 };

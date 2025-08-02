@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, TrendingUp, Users, MessageCircle, Eye, BarChart3, Heart, FileText, Info, RefreshCw, AlertCircle, Filter, Download, Share2, ExternalLink, Zap } from 'lucide-react';
+import { Calendar, TrendingUp, Users, MessageCircle, Eye, BarChart3, Heart, FileText, Info, RefreshCw, AlertCircle, Filter, Download, Share2, ExternalLink, Zap, FileDown } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
+import { AIAnalysisText } from '../ui/AIAnalysisText';
 import { useAuthStore } from '../../stores/authStore';
 import { useAnalyticsData } from '../../hooks/useAnalyticsData';
 import { 
@@ -30,8 +31,121 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82ca9d'
 export const Analytics = () => {
   const [timeRange, setTimeRange] = useState<TimeRange>('30d');
   const [debugMode, setDebugMode] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const { dmaToken } = useAuthStore();
   const { data: analyticsData, isLoading, error, refetch } = useAnalyticsData(timeRange);
+
+  const generatePDFReport = async () => {
+    setIsGeneratingPDF(true);
+    try {
+      // Dynamic import for PDF generation libraries
+      const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+        import('jspdf'),
+        import('html2canvas')
+      ]);
+      
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      
+      // Add header
+      pdf.setFontSize(20);
+      pdf.setTextColor(59, 130, 246); // Blue color
+      pdf.text('LinkedIn Analytics Report', 20, 25);
+      
+      pdf.setFontSize(12);
+      pdf.setTextColor(107, 114, 128); // Gray color
+      pdf.text(`Generated on ${new Date().toLocaleDateString()}`, 20, 35);
+      pdf.text(`Time Range: ${timeRange === '7d' ? '7 Days' : timeRange === '30d' ? '30 Days' : '90 Days'}`, 20, 42);
+      
+      let yPosition = 55;
+      
+      // Add performance metrics
+      if (performanceMetrics) {
+        pdf.setFontSize(16);
+        pdf.setTextColor(0, 0, 0);
+        pdf.text('Performance Overview', 20, yPosition);
+        yPosition += 10;
+        
+        pdf.setFontSize(11);
+        pdf.setTextColor(75, 85, 99);
+        pdf.text(`Total Engagement: ${performanceMetrics.totalEngagement || 0}`, 20, yPosition);
+        yPosition += 7;
+        pdf.text(`Average per Post: ${performanceMetrics.avgEngagementPerPost || 0}`, 20, yPosition);
+        yPosition += 7;
+        pdf.text(`Posting Frequency: ${timeBasedInsights.postingFrequency || 0} posts/week`, 20, yPosition);
+        yPosition += 15;
+      }
+      
+      // Add content formats
+      if (contentFormats.length > 0) {
+        pdf.setFontSize(16);
+        pdf.setTextColor(0, 0, 0);
+        pdf.text('Content Formats', 20, yPosition);
+        yPosition += 10;
+        
+        pdf.setFontSize(11);
+        pdf.setTextColor(75, 85, 99);
+        contentFormats.forEach(format => {
+          pdf.text(`${format.name}: ${format.value} posts (${format.percentage}%)`, 20, yPosition);
+          yPosition += 7;
+        });
+        yPosition += 10;
+      }
+      
+      // Add top hashtags
+      if (hashtagTrends.length > 0) {
+        pdf.setFontSize(16);
+        pdf.setTextColor(0, 0, 0);
+        pdf.text('Top Hashtags', 20, yPosition);
+        yPosition += 10;
+        
+        pdf.setFontSize(11);
+        pdf.setTextColor(75, 85, 99);
+        hashtagTrends.slice(0, 10).forEach(hashtag => {
+          pdf.text(`${hashtag.hashtag}: ${hashtag.count} uses`, 20, yPosition);
+          yPosition += 7;
+        });
+        yPosition += 10;
+      }
+      
+      // Add AI narrative if available
+      if (aiNarrative) {
+        if (yPosition > pageHeight - 50) {
+          pdf.addPage();
+          yPosition = 25;
+        }
+        
+        pdf.setFontSize(16);
+        pdf.setTextColor(0, 0, 0);
+        pdf.text('AI Analysis', 20, yPosition);
+        yPosition += 10;
+        
+        pdf.setFontSize(10);
+        pdf.setTextColor(75, 85, 99);
+        
+        // Split AI narrative into lines that fit the page
+        const lines = pdf.splitTextToSize(aiNarrative, pageWidth - 40);
+        lines.forEach((line: string) => {
+          if (yPosition > pageHeight - 20) {
+            pdf.addPage();
+            yPosition = 25;
+          }
+          pdf.text(line, 20, yPosition);
+          yPosition += 5;
+        });
+      }
+      
+      // Save the PDF
+      pdf.save(`LinkedIn_Analytics_Report_${timeRange}_${new Date().toISOString().split('T')[0]}.pdf`);
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF report. Please try again.');
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
 
   // Null-safe data extraction with defaults
   const postingTrends = analyticsData?.postingTrends ?? [];
@@ -134,9 +248,18 @@ export const Analytics = () => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
-          <Button variant="outline" size="sm">
-            <Download size={16} className="mr-2" />
-            Export
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={generatePDFReport}
+            disabled={isGeneratingPDF}
+          >
+            {isGeneratingPDF ? (
+              <LoadingSpinner size="sm" className="mr-2" />
+            ) : (
+              <FileDown size={16} className="mr-2" />
+            )}
+            {isGeneratingPDF ? 'Generating...' : 'Download PDF'}
           </Button>
           <Button variant="outline" size="sm">
             <Share2 size={16} className="mr-2" />
@@ -160,11 +283,7 @@ export const Analytics = () => {
             <Zap className="mr-2 text-purple-500" size={20} />
             AI Analytics Summary
           </h3>
-          <div className="prose prose-sm max-w-none">
-            <div className="whitespace-pre-line text-gray-700 dark:text-gray-300">
-              {aiNarrative}
-            </div>
-          </div>
+          <AIAnalysisText content={aiNarrative} />
         </Card>
       )}
 

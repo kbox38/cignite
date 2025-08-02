@@ -1,14 +1,21 @@
 import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { useAppStore } from './stores/appStore';
 import { AuthFlow } from './components/auth/AuthFlow';
 import { LandingPage } from './components/landing/LandingPage';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
-import { AppContent } from './components/AppContent';
-import { DMATestPage } from './components/modules/DMATestPage';
+import { Dashboard } from './components/dashboard/Dashboard';
+import { Analytics } from './components/modules/Analytics';
+import { Synergy } from './components/modules/Synergy';
+import { PostPulse } from './components/modules/PostPulse';
+import { PostGen } from './components/modules/PostGen';
+import { Scheduler } from './components/modules/Scheduler';
+import { CreationEngine } from './components/modules/CreationEngine';
+import { TheAlgo } from './components/modules/TheAlgo';
+import { Settings } from './components/modules/Settings';
 import clsx from 'clsx';
 
 const queryClient = new QueryClient({
@@ -112,20 +119,29 @@ function App() {
             // Show Dashboard if fully authenticated
             if (isBasicAuthenticated && isFullyAuthenticated && dmaToken) {
               return (
-                <div className="flex h-screen">
-                  <Sidebar />
-                  <div className={clsx(
-                    'flex-1 flex flex-col overflow-hidden transition-all duration-300',
-                    sidebarCollapsed ? 'ml-0' : 'ml-0'
-                  )}>
-                    <Header />
-                    <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50">
+                <div className="app-container">
+                  <div className="flex flex-1 overflow-hidden">
+                    <div className="sidebar-container">
+                      <Sidebar />
+                    </div>
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                      <Header />
+                      <main className="main-content-area bg-gray-50 p-6">
                       <Routes>
-                        <Route path="/" element={<AppContent />} />
-                        <Route path="/dma-test" element={<DMATestPage />} />
-                        <Route path="/admin" element={<div>Admin Panel (Coming Soon)</div>} />
+                          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                          <Route path="/dashboard" element={<Dashboard />} />
+                          <Route path="/analytics" element={<Analytics />} />
+                          <Route path="/synergy" element={<Synergy />} />
+                          <Route path="/postpulse" element={<PostPulse />} />
+                          <Route path="/postgen" element={<PostGen />} />
+                          <Route path="/scheduler" element={<Scheduler />} />
+                          <Route path="/creation-engine" element={<CreationEngine />} />
+                          <Route path="/algo" element={<TheAlgo />} />
+                          <Route path="/settings" element={<Settings />} />
+                          <Route path="*" element={<Navigate to="/dashboard" replace />} />
                       </Routes>
-                    </main>
+                      </main>
+                    </div>
                   </div>
                 </div>
               );

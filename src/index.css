@@ -1,3 +1,58 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Root layout fix for footer overlap */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Main app container */
+.app-container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Content area that grows and scrolls */
+.main-content-area {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* Ensure sidebar doesn't get cut off */
+.sidebar-container {
+  height: 100vh;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+/* AI Analysis text formatting */
+.ai-analysis-content h3 {
+  @apply text-lg font-bold text-blue-600 mt-4 mb-2;
+}
+
+.ai-analysis-content h4 {
+  @apply text-base font-semibold text-purple-600 mt-3 mb-2;
+}
+
+.ai-analysis-content p {
+  @apply text-gray-900 mb-2 leading-relaxed;
+}
+
+.ai-analysis-content strong {
+  @apply font-semibold text-gray-900;
+}
+
+.ai-analysis-content ul {
+  @apply list-disc list-inside mb-3 space-y-1;
+}
+
+.ai-analysis-content li {
+  @apply text-gray-900;
+}

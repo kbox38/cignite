@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Lightbulb, TrendingUp, Target, Zap, RefreshCw, Sparkles, Clock, BarChart3, Calendar } from "lucide-react";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
+import { AIAnalysisText } from "../ui/AIAnalysisText";
 import {
   useLinkedInSnapshot
 } from "../../hooks/useLinkedInData";
@@ -260,10 +261,8 @@ These ideas are designed to showcase your expertise and engage your professional
             <Sparkles className="mr-2 text-blue-500" size={20} />
             AI-Generated Content Ideas for {userProfile?.industry}
           </h3>
-          <div className="prose prose-sm max-w-none">
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <FormattedContent content={contentIdeas} />
-            </div>
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <AIAnalysisText content={contentIdeas} />
           </div>
           <div className="mt-4 flex space-x-3">
             <Button
@@ -292,10 +291,8 @@ These ideas are designed to showcase your expertise and engage your professional
             <Clock className="mr-2 text-green-500" size={20} />
             Weekly Posting Strategy for {userProfile?.industry}
           </h3>
-          <div className="prose prose-sm max-w-none">
-            <div className="bg-green-50 p-4 rounded-lg">
-              <FormattedContent content={postingStrategy} />
-            </div>
+          <div className="bg-green-50 p-4 rounded-lg">
+            <AIAnalysisText content={postingStrategy} />
           </div>
           <div className="mt-4 flex space-x-3">
             <Button
@@ -324,10 +321,8 @@ These ideas are designed to showcase your expertise and engage your professional
             <BarChart3 className="mr-2 text-purple-500" size={20} />
             LinkedIn Algorithm Optimization
           </h3>
-          <div className="prose prose-sm max-w-none">
-            <div className="bg-purple-50 p-4 rounded-lg">
-              <FormattedContent content={algorithmOptimization} />
-            </div>
+          <div className="bg-purple-50 p-4 rounded-lg">
+            <AIAnalysisText content={algorithmOptimization} />
           </div>
           <div className="mt-4 flex space-x-3">
             <Button
@@ -400,54 +395,4 @@ These ideas are designed to showcase your expertise and engage your professional
       </Card>
     </motion.div>
   );
-};
-
-// Component to format AI-generated content with proper styling
-const FormattedContent = ({ content }: { content: string }) => {
-  const formatContent = (text: string) => {
-    // Split by lines and process each line
-    const lines = text.split('\n');
-    
-    return lines.map((line, index) => {
-      // Remove multiple # symbols and clean up headers
-      if (line.match(/^#{1,6}\s/)) {
-        const cleanHeader = line.replace(/^#{1,6}\s/, '').trim();
-        return (
-          <h3 key={index} className="text-lg font-bold text-blue-600 mt-4 mb-2">
-            {cleanHeader}
-          </h3>
-        );
-      }
-      
-      // Process bold text **text** -> <strong>text</strong>
-      if (line.includes('**')) {
-        const parts = line.split(/(\*\*[^*]+\*\*)/);
-        return (
-          <p key={index} className="text-gray-900 mb-2 leading-relaxed">
-            {parts.map((part, partIndex) => {
-              if (part.startsWith('**') && part.endsWith('**')) {
-                const boldText = part.slice(2, -2);
-                return <strong key={partIndex} className="font-semibold text-gray-900">{boldText}</strong>;
-              }
-              return part;
-            })}
-          </p>
-        );
-      }
-      
-      // Regular text
-      if (line.trim()) {
-        return (
-          <p key={index} className="text-gray-900 mb-2 leading-relaxed">
-            {line}
-          </p>
-        );
-      }
-      
-      // Empty line
-      return <br key={index} />;
-    });
-  };
-
-  return <div>{formatContent(content)}</div>;
 };

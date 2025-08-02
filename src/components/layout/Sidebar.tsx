@@ -16,16 +16,15 @@ import { useAppStore } from '../../stores/appStore';
 import { NavItem } from './NavItem';
 
 const menuItems = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'synergy', label: 'Synergy', icon: Users },
-  { id: 'postpulse', label: 'PostPulse', icon: FileText },
-  { id: 'postgen', label: 'PostGen', icon: PenTool },
-  { id: 'scheduler', label: 'Scheduler', icon: Calendar },
-  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-  { id: 'creation', label: 'Creation Engine', icon: Lightbulb },
-  { id: 'algo', label: 'The Algo', icon: TrendingUp },
-  { id: 'dma-test', label: 'LinkedIn DMA Test', icon: Settings },
-  { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
+  { id: 'synergy', label: 'Synergy', icon: Users, href: '/synergy' },
+  { id: 'postpulse', label: 'PostPulse', icon: FileText, href: '/postpulse' },
+  { id: 'postgen', label: 'PostGen', icon: PenTool, href: '/postgen' },
+  { id: 'scheduler', label: 'Scheduler', icon: Calendar, href: '/scheduler' },
+  { id: 'analytics', label: 'Analytics', icon: BarChart3, href: '/analytics' },
+  { id: 'creation', label: 'Creation Engine', icon: Lightbulb, href: '/creation-engine' },
+  { id: 'algo', label: 'The Algo', icon: TrendingUp, href: '/algo' },
+  { id: 'settings', label: 'Settings', icon: Settings, href: '/settings' },
 ];
 
 export const Sidebar = () => {
@@ -80,6 +79,7 @@ export const Sidebar = () => {
               label={item.label}
               icon={item.icon}
               collapsed={sidebarCollapsed}
+              href={item.href}
             />
           </motion.div>
         ))}

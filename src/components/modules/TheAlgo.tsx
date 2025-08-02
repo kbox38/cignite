@@ -4,6 +4,7 @@ import { TrendingUp, TrendingDown, Zap, Clock, Users, Eye, BarChart3, Target, Aw
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
+import { AIAnalysisText } from '../ui/AIAnalysisText';
 import { useAuthStore } from '../../stores/authStore';
 
 export const TheAlgo = () => {
@@ -159,11 +160,7 @@ export const TheAlgo = () => {
             <Zap className="mr-2 text-purple-500" size={20} />
             AI Algorithm Analysis
           </h3>
-          <div className="prose prose-sm max-w-none">
-            <div>
-              <FormattedContent content={aiAnalysis} />
-            </div>
-          </div>
+          <AIAnalysisText content={aiAnalysis} />
         </Card>
       )}
 
@@ -381,53 +378,4 @@ export const TheAlgo = () => {
       </Card>
     </motion.div>
   );
-};
-
-// Component to format AI-generated content with proper styling
-const FormattedContent = ({ content }: { content: string }) => {
-  const formatContent = (text: string) => {
-    const lines = text.split('\n');
-    
-    return lines.map((line, index) => {
-      // Remove multiple # symbols and clean up headers
-      if (line.match(/^#{1,6}\s/)) {
-        const cleanHeader = line.replace(/^#{1,6}\s/, '').trim();
-        return (
-          <h3 key={index} className="text-lg font-bold text-purple-600 mt-4 mb-2">
-            {cleanHeader}
-          </h3>
-        );
-      }
-      
-      // Process bold text **text** -> <strong>text</strong>
-      if (line.includes('**')) {
-        const parts = line.split(/(\*\*[^*]+\*\*)/);
-        return (
-          <p key={index} className="text-gray-900 mb-2 leading-relaxed">
-            {parts.map((part, partIndex) => {
-              if (part.startsWith('**') && part.endsWith('**')) {
-                const boldText = part.slice(2, -2);
-                return <strong key={partIndex} className="font-semibold text-gray-900">{boldText}</strong>;
-              }
-              return part;
-            })}
-          </p>
-        );
-      }
-      
-      // Regular text
-      if (line.trim()) {
-        return (
-          <p key={index} className="text-gray-900 mb-2 leading-relaxed">
-            {line}
-          </p>
-        );
-      }
-      
-      // Empty line
-      return <br key={index} />;
-    });
-  };
-
-  return <div>{formatContent(content)}</div>;
 };
