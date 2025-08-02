@@ -77,7 +77,7 @@ export const useDashboardData = () => {
         throw new Error('DMA token is required for dashboard data');
       }
       
-      const response = await fetch('/.netlify/functions/dashboard-data-v3', {
+      const response = await fetch('/.netlify/functions/dashboard-data', {
         headers: {
           'Authorization': `Bearer ${dmaToken}`,
           'Content-Type': 'application/json',

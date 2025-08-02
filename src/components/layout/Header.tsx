@@ -19,7 +19,7 @@ export const Header = () => {
   const { data: notificationsData } = useQuery({
     queryKey: ['pending-invitations'],
     queryFn: async () => {
-      const response = await fetch('/.netlify/functions/synergy-partners-v3', {
+      const response = await fetch('/.netlify/functions/synergy-partners', {
         headers: {
           'Authorization': `Bearer ${useAuthStore.getState().dmaToken}`,
           'Content-Type': 'application/json',
