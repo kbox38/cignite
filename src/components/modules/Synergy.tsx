@@ -17,7 +17,9 @@ import {
   CheckCircle,
   AlertCircle,
   RefreshCw,
-  Wand2
+  Wand2,
+  Search,
+  UserPlus
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -59,6 +61,9 @@ export const Synergy = () => {
   const { dmaToken } = useAuthStore();
   const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [suggestingFor, setSuggestingFor] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Record<string, string>>({});
   const queryClient = useQueryClient();
@@ -207,6 +212,54 @@ export const Synergy = () => {
   const selectedPartnerData = useMemo(() => {
     return partners.find(p => p.id === selectedPartner);
   }, [selectedPartner]);
+
+  const searchUsers = async () => {
+    if (!searchTerm.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const response = await fetch(
+        `/.netlify/functions/synergy-user-search?search=${encodeURIComponent(searchTerm)}&limit=10`,
+        {
+          headers: {
+            'Authorization': `Bearer ${dmaToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to search users');
+      }
+
+      const data = await response.json();
+      setSearchResults(data.users || []);
+    } catch (error) {
+      console.error('Error searching users:', error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const addPartnerFromSearch = async (user: any) => {
+    try {
+      // In a real implementation, this would add the partnership to your database
+      console.log('Adding partner:', user);
+      
+      // For demo, we'll just show a success message
+      alert(`Partnership request sent to ${user.name}! They will appear in your partners list once they accept.`);
+      setShowAddModal(false);
+      setSearchTerm('');
+      setSearchResults([]);
+    } catch (error) {
+      console.error('Error adding partner:', error);
+      alert('Failed to add partner. Please try again.');
+    }
+  };
 
   if (!dmaToken) {
     return (
@@ -560,7 +613,7 @@ export const Synergy = () => {
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
-            className="bg-white rounded-2xl p-6 w-full max-w-md"
+            className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto"
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">Add Synergy Partner</h3>
@@ -570,23 +623,93 @@ export const Synergy = () => {
             </div>
 
             <div className="space-y-4">
+              {/* Search Section */}
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  Partner's LinkedIn URN
-                </label>
-                <input
-                  type="text"
-                  placeholder="urn:li:person:ABC123"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+                <label className="block text-sm font-medium mb-2">Search Platform Users</label>
+                <div className="flex space-x-2">
+                  <div className="relative flex-1">
+                    <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search by name, email, or industry..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      onKeyPress={(e) => e.key === 'Enter' && searchUsers()}
+                    />
+                  </div>
+                  <Button
+                    variant="primary"
+                    onClick={searchUsers}
+                    disabled={isSearching || !searchTerm.trim()}
+                  >
+                    {isSearching ? <LoadingSpinner size="sm" /> : <Search size={16} />}
+                  </Button>
+                </div>
               </div>
+
+              {/* Search Results */}
+              {searchResults.length > 0 && (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  <h4 className="font-medium text-gray-900">Search Results ({searchResults.length} found)</h4>
+                  {searchResults.map((user) => (
+                    <div key={user.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                      <div className="flex items-center space-x-3">
+                        <img
+                          src={user.avatarUrl}
+                          alt={user.name}
+                          className="w-12 h-12 rounded-full"
+                        />
+                        <div>
+                          <h5 className="font-medium text-gray-900">{user.name}</h5>
+                          <p className="text-sm text-gray-600">{user.headline}</p>
+                          <div className="flex items-center space-x-2 mt-1">
+                            <span className="text-xs text-gray-500">{user.industry}</span>
+                            <span className="text-xs text-gray-500">•</span>
+                            <span className="text-xs text-gray-500">{user.location}</span>
+                            {user.mutualConnections > 0 && (
+                              <>
+                                <span className="text-xs text-gray-500">•</span>
+                                <span className="text-xs text-blue-600">{user.mutualConnections} mutual</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-1">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="text-xs text-green-600">DMA Active</span>
+                        </div>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => addPartnerFromSearch(user)}
+                        >
+                          <UserPlus size={14} className="mr-1" />
+                          Add Partner
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* No Results */}
+              {searchTerm && !isSearching && searchResults.length === 0 && (
+                <div className="text-center py-8">
+                  <Users size={48} className="mx-auto text-gray-300 mb-4" />
+                  <p className="text-gray-500">No users found with DMA consent matching "{searchTerm}"</p>
+                  <p className="text-sm text-gray-400 mt-2">Try searching with different keywords</p>
+                </div>
+              )}
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <div className="flex items-start space-x-2">
                   <AlertCircle size={16} className="text-blue-600 mt-0.5" />
                   <div className="text-sm text-blue-800">
                     <p className="font-medium mb-1">DMA Requirement</p>
-                    <p>Both you and your partner must have completed LinkedIn DMA consent to share synergy data via Snapshot API.</p>
+                    <p>Only users with active LinkedIn DMA consent can be added as Synergy partners. This ensures secure data sharing via LinkedIn's Snapshot API.</p>
                   </div>
                 </div>
               </div>
@@ -598,13 +721,6 @@ export const Synergy = () => {
                   className="flex-1"
                 >
                   Cancel
-                </Button>
-                <Button
-                  variant="primary"
-                  className="flex-1"
-                >
-                  <Plus size={16} className="mr-2" />
-                  Add Partner
                 </Button>
               </div>
             </div>
