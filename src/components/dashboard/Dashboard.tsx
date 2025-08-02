@@ -265,7 +265,7 @@ export const Dashboard = () => {
             <div className="flex items-center space-x-2">
               <span className="font-medium">Data Source:</span>
               <span className={`px-2 py-1 rounded ${dashboardData.metadata.hasRecentActivity ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-            <span className={`px-2 py-1 rounded ${dashboardData.metadata.hasRecentActivity ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                {dashboardData.metadata.hasRecentActivity ? 'Recent Activity' : 'Snapshot Data'}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -273,11 +273,11 @@ export const Dashboard = () => {
                 <div className="bg-white p-3 rounded-lg">
                   <strong className="text-blue-900">Scores:</strong>
                   <div className="mt-1 text-sm">Overall: <span className="font-bold">{dashboardData.scores.overall}/10</span></div>
-                  <div className="text-xs text-gray-600 mt-1">Individual: {Object.values(dashboardData.scores).slice(1).join(', ')}</div>
-                <div className="text-xs text-gray-600 mt-1">
-                  Profile: {dashboardData.scores.profileCompleteness || 'N/A'}, 
-                  Posting: {dashboardData.scores.postingActivity || 'N/A'}, 
-                  Engagement: {dashboardData.scores.engagementQuality || 'N/A'}
+                  <div className="text-xs text-gray-600 mt-1">
+                    Profile: {dashboardData.scores.profileCompleteness || 'N/A'}, 
+                    Posting: {dashboardData.scores.postingActivity || 'N/A'}, 
+                    Engagement: {dashboardData.scores.engagementQuality || 'N/A'}
+                  </div>
                 </div>
               </div>
               <div>
@@ -286,9 +286,10 @@ export const Dashboard = () => {
                   <div className="mt-1 text-sm space-y-1">
                     <div>Connections: <span className="font-bold">{dashboardData.summary.totalConnections}</span></div>
                     <div>Posts (28d): <span className="font-bold">{dashboardData.summary.posts30d}</span></div>
-                  <div>Total Posts: <span className="font-bold">{dashboardData.summary.totalPosts}</span></div>
-                  <div>Avg Engagement: <span className="font-bold">{dashboardData.summary.avgEngagementPerPost}</span></div>
-                  <div>Posts/Week: <span className="font-bold">{dashboardData.summary.postsPerWeek}</span></div>
+                    <div>Total Posts: <span className="font-bold">{dashboardData.summary.totalPosts}</span></div>
+                    <div>Avg Engagement: <span className="font-bold">{dashboardData.summary.avgEngagementPerPost}</span></div>
+                    <div>Posts/Week: <span className="font-bold">{dashboardData.summary.postsPerWeek}</span></div>
+                  </div>
                 </div>
               </div>
             </div>
