@@ -318,7 +318,7 @@ export const CreationEngine = () => {
             <h4 className="font-semibold text-indigo-900">✅ Engagement Signals</h4>
             <ul className="text-sm text-indigo-800 space-y-1">
               <li>• Dwell time is king — longer reads signal valuable content</li>
-              <li>• Comments > Reactions > Shares > Likes in ranking power</li>
+              <li>• Comments &gt; Reactions &gt; Shares &gt; Likes in ranking power</li>
               <li>• First 60 minutes post-publish is critical</li>
               <li>• Reply to comments within 15 minutes for maximum reach</li>
               <li>• Native content (no outbound links) is preferred</li>
