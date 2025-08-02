@@ -60,7 +60,7 @@ export async function handler(event, context) {
     const consistencyAnalysis = await analyzePostingConsistency(memberShareSnapshot);
 
     // Generate AI insights for each metric
-    const openaiKey = process.env.OPENAI_API_KEY;
+    const openaiKey = process.env.VITE_OPENAI_API_KEY;
     if (openaiKey) {
       try {
         const [
