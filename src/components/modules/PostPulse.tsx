@@ -47,6 +47,18 @@ export const PostPulse = () => {
     pageSize: 12,
   });
 
+  // Sort posts to show repurpose-ready posts first
+  const sortedPosts = useMemo(() => {
+    return [...posts].sort((a, b) => {
+      // Ready to repurpose posts first
+      if (a.repurposeStatus.canRepost && !b.repurposeStatus.canRepost) return -1;
+      if (!a.repurposeStatus.canRepost && b.repurposeStatus.canRepost) return 1;
+      
+      // Then by timestamp (newest first)
+      return b.timestamp - a.timestamp;
+    });
+  }, [posts]);
+
   const handleImageError = useCallback((postId: string) => {
     setImageLoadErrors(prev => new Set([...prev, postId]));
   }, []);
@@ -244,7 +256,7 @@ export const PostPulse = () => {
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {posts.map((post, index) => {
+            {sortedPosts.map((post, index) => {
               const status = post.repurposeStatus;
               const StatusIcon = status.canRepost ? Zap : Clock;
               const hasImageError = imageLoadErrors.has(post.id);
@@ -396,12 +408,16 @@ export const PostPulse = () => {
 
           {/* Posts Summary */}
           <div className="text-center text-sm text-gray-500 mt-4">
-            Showing {posts.length} of {pagination.totalPosts} posts from the
+            Showing {sortedPosts.length} of {pagination.totalPosts} posts from the
             last {timeFilter} • Page {pagination.currentPage} of{" "}
             {pagination.totalPages}
             {metadata.dataSource && (
               <span> • Data: {metadata.dataSource}</span>
             )}
+            <br />
+            <span className="text-green-600 font-medium">
+              {sortedPosts.filter(p => p.repurposeStatus.canRepost).length} posts ready to repurpose
+            </span>
           </div>
         </>
       )}

@@ -266,6 +266,14 @@ async function sendPartnerInvitation(fromUserId, toUserId) {
       };
     }
 
+    // Log activity
+    await supabase.rpc('log_user_activity', {
+      p_user_id: fromUserId,
+      p_activity_type: 'synergy_link_created',
+      p_description: 'Sent partnership invitation',
+      p_metadata: { to_user_id: toUserId, invitation_id: invitation.id }
+    });
+
     return {
       statusCode: 201,
       headers: {
@@ -318,7 +326,13 @@ async function acceptInvitation(userId, invitationId) {
       };
     }
 
-    // Partnership will be created automatically by database trigger
+    // Log activity
+    await supabase.rpc('log_user_activity', {
+      p_user_id: userId,
+      p_activity_type: 'partnership_created',
+      p_description: 'Accepted partnership invitation',
+      p_metadata: { invitation_id: invitationId, from_user_id: invitation.from_user_id }
+    });
 
     return {
       statusCode: 200,

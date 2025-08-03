@@ -55,10 +55,10 @@ export const CreationEngine = () => {
     
     setIsGeneratingIdeas(true);
     try {
-      console.log("Generating content ideas for industry:", userProfile.industry);
-      const response = await fetch('/.netlify/functions/creation-engine-ai', {
+      const response = await fetch('/.netlify/functions/creation-engine-data', {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${dmaToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -68,16 +68,12 @@ export const CreationEngine = () => {
         })
       });
 
-      console.log("Content ideas response status:", response.status);
-      
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Content ideas error response:", errorText);
         throw new Error(`Failed to generate content ideas: ${response.status} ${errorText}`);
       }
 
       const data = await response.json();
-      console.log("Content ideas data:", data);
       setContentIdeas(data.content);
     } catch (error) {
       console.error("Failed to generate content ideas:", error);
@@ -100,10 +96,10 @@ These ideas are designed to showcase your expertise and engage your professional
 
     setIsGeneratingStrategy(true);
     try {
-      console.log("Generating posting strategy for industry:", userProfile.industry);
-      const response = await fetch('/.netlify/functions/creation-engine-ai', {
+      const response = await fetch('/.netlify/functions/creation-engine-data', {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${dmaToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -113,16 +109,12 @@ These ideas are designed to showcase your expertise and engage your professional
         })
       });
 
-      console.log("Posting strategy response status:", response.status);
-      
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Posting strategy error response:", errorText);
         throw new Error(`Failed to generate posting strategy: ${response.status} ${errorText}`);
       }
 
       const data = await response.json();
-      console.log("Posting strategy data:", data);
       setPostingStrategy(data.content);
     } catch (error) {
       console.error("Failed to generate posting strategy:", error);

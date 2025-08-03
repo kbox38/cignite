@@ -58,27 +58,6 @@ export async function handler(event, context) {
 
     console.log("Supabase client initialized");
 
-    // First, let's check how many total users exist
-    const { count: totalUsers, error: countError } = await supabase
-      .from('users')
-      .select('*', { count: 'exact', head: true });
-
-    console.log("Total users in database:", totalUsers);
-    if (countError) {
-      console.error("Error counting users:", countError);
-    }
-
-    // Check how many DMA active users exist
-    const { count: dmaUsers, error: dmaCountError } = await supabase
-      .from('users')
-      .select('*', { count: 'exact', head: true })
-      .eq('dma_active', true);
-
-    console.log("DMA active users:", dmaUsers);
-    if (dmaCountError) {
-      console.error("Error counting DMA users:", dmaCountError);
-    }
-
     // Get existing partnerships to exclude
     const { data: existingPartnerships, error: partnershipsError } = await supabase
       .from('synergy_partners')
@@ -140,7 +119,6 @@ export async function handler(event, context) {
         )
       `)
       .eq('dma_active', true)
-      .eq('account_status', 'active')
       .neq('id', currentUserId)
       .limit(parseInt(limit));
 
@@ -149,7 +127,6 @@ export async function handler(event, context) {
       const searchTerm = search.trim();
       console.log("Applying search filter for:", searchTerm);
       
-      // Use ilike for case-insensitive partial matching
       query = query.or(`
         name.ilike.%${searchTerm}%,
         email.ilike.%${searchTerm}%,
@@ -215,8 +192,6 @@ export async function handler(event, context) {
         metadata: {
           searchPerformed: !!search,
           currentUserId,
-          totalUsersInDb: totalUsers,
-          dmaActiveUsers: dmaUsers,
           excludedPartners: partnerIds.size,
           excludedPending: pendingIds.size,
           timestamp: new Date().toISOString()
@@ -297,6 +272,8 @@ async function getUserIdFromToken(authorization) {
             avatar_url: userInfo.picture,
             linkedin_member_urn: linkedinUrn,
             headline: userInfo.headline || '',
+            industry: userInfo.industry || '',
+            location: userInfo.location || '',
             dma_active: true,
             dma_consent_date: new Date().toISOString()
           })

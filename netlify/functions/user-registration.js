@@ -79,11 +79,13 @@ export async function handler(event, context) {
           dma_active: true,
           dma_consent_date: new Date().toISOString(),
           last_login: new Date().toISOString(),
-          // Update profile info in case it changed
           name: userInfo.name,
           given_name: userInfo.given_name,
           family_name: userInfo.family_name,
-          avatar_url: userInfo.picture
+          avatar_url: userInfo.picture,
+          headline: userInfo.headline || '',
+          industry: userInfo.industry || '',
+          location: userInfo.location || ''
         })
         .eq('id', existingUser.id);
 
@@ -91,6 +93,13 @@ export async function handler(event, context) {
         console.error('Error updating user:', updateError);
       } else {
         console.log("User updated successfully");
+        
+        // Log activity
+        await supabase.rpc('log_user_activity', {
+          p_user_id: existingUser.id,
+          p_activity_type: 'login',
+          p_description: 'User logged in and updated profile'
+        });
       }
 
       return {
@@ -120,6 +129,8 @@ export async function handler(event, context) {
         avatar_url: userInfo.picture,
         linkedin_member_urn: linkedinUrn,
         headline: userInfo.headline || '',
+        industry: userInfo.industry || '',
+        location: userInfo.location || '',
         dma_active: true,
         dma_consent_date: new Date().toISOString(),
         onboarding_completed: false,
@@ -141,6 +152,13 @@ export async function handler(event, context) {
     }
 
     console.log("User created successfully:", newUser.id, newUser.name);
+
+    // Log activity for new user
+    await supabase.rpc('log_user_activity', {
+      p_user_id: newUser.id,
+      p_activity_type: 'login',
+      p_description: 'New user registered and logged in'
+    });
 
     return {
       statusCode: 201,
