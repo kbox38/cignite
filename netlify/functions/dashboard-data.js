@@ -106,27 +106,17 @@ async function getUserIdFromToken(authorization) {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to get user info from LinkedIn');
+      console.error('LinkedIn userinfo failed:', response.status);
+      return null;
     }
 
     const userInfo = await response.json();
-    const linkedinUrn = `urn:li:person:${userInfo.sub}`;
-
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-
-    const { data: user } = await supabase
-      .from('users')
-      .select('id')
-      .eq('linkedin_member_urn', linkedinUrn)
-      .single();
-
-    return user?.id || null;
+    console.log('LinkedIn userinfo success:', userInfo.sub);
+    
+    // For now, just return the LinkedIn ID
+    return userInfo.sub;
   } catch (error) {
-    console.error('Error getting user ID from token:', error);
+    console.error('Error getting user ID:', error);
     return null;
   }
 }
