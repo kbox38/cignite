@@ -1,138 +1,77 @@
-import { useState, useEffect, useMemo } from "react";
-import { useQuery } from '@tanstack/react-query';
-import { useAuthStore } from '../stores/authStore';
+import { useState, useEffect, useCallback } from 'react';
+import { getPostPulseData, processPostPulseData } from '../services/postpulse-processor';
+import { PostPulseData, CacheStatus } from '../types/linkedin';
 
-export interface PostPulsePost {
-  id: string;
-  urn: string;
-  title: string;
-  text: string;
-  url: string;
-  timestamp: number;
-  thumbnail: string | null;
-  mediaType: string;
-  mediaAssetId: string | null;
-  source: "changelog" | "historical";
-  daysSincePosted: number;
-  canRepost: boolean;
-  repurposeStatus: {
-    status: "too_soon" | "close" | "ready";
-    label: string;
-    color: string;
-    canRepost: boolean;
-    daysUntilReady?: number;
-  };
-  likes: number;
-  comments: number;
-  shares: number;
-}
-
-export interface PostPulseDataOptions {
-  timeFilter: "7d" | "30d" | "90d";
-  searchTerm: string;
-  page: number;
-  pageSize?: number;
-}
-
-export interface PostPulseDataResponse {
-  posts: PostPulsePost[];
-  isLoading: boolean;
-  error: Error | null;
-  pagination: {
-    currentPage: number;
-    totalPages: number;
-    totalPosts: number;
-    hasNextPage: boolean;
-    hasPrevPage: boolean;
-  };
-  metadata: {
-    fetchTimeMs: number;
-    timeFilter: string;
-    dataSource: string;
-  };
-  lastUpdated: string;
-}
-
-export const usePostPulseData = (
-  options: PostPulseDataOptions
-): PostPulseDataResponse => {
-  const { timeFilter, searchTerm, page, pageSize = 12 } = options;
-  const { dmaToken } = useAuthStore();
-
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['postpulse-data-v2', timeFilter, searchTerm, page, pageSize],
-    queryFn: async (): Promise<PostPulseDataResponse> => {
-      const params = new URLSearchParams({
-        timeFilter,
-        page: page.toString(),
-        pageSize: pageSize.toString(),
-      });
-      
-      if (searchTerm) {
-        params.append('searchTerm', searchTerm);
-      }
-
-      const response = await fetch(`/.netlify/functions/postpulse-data?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${dmaToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`PostPulse API error: ${response.status} - ${errorText}`);
-      }
-
-      const result = await response.json();
-      
-      if (result.error) {
-        throw new Error(result.error);
-      }
-      
-      return {
-        posts: result.posts,
-        isLoading: false,
-        error: null,
-        pagination: result.pagination,
-        metadata: result.metadata || {
-          fetchTimeMs: 0,
-          timeFilter,
-          dataSource: "api",
-        },
-        lastUpdated: result.lastUpdated || new Date().toISOString(),
-      };
-    },
-    enabled: !!dmaToken,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 30 * 60 * 1000, // 30 minutes
-    retry: 2,
-    refetchOnWindowFocus: false,
+export const usePostPulseData = () => {
+  const [allPosts, setAllPosts] = useState<PostPulseData[]>([]);
+  const [processedPosts, setProcessedPosts] = useState<PostPulseData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState({
+    timeFilter: '7d',
+    postType: 'all',
+    sortBy: 'engagement',
+  });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [cacheStatus, setCacheStatus] = useState<CacheStatus>({
+    isCached: false,
+    timestamp: null,
   });
 
-  return data || {
-    posts: [],
-    isLoading,
-    error,
-    pagination: {
-      currentPage: page,
-      totalPages: 0,
-      totalPosts: 0,
-      hasNextPage: false,
-      hasPrevPage: false,
-    },
-    metadata: {
-      fetchTimeMs: 0,
-      timeFilter,
-      dataSource: "loading",
-    },
-    lastUpdated: new Date().toISOString(),
-  };
-}
+  const POSTS_PER_PAGE = 9;
 
-// V2 hook for new PostPulse functionality
-export const usePostPulseDataV2 = (
-  options: PostPulseDataOptions
-): PostPulseDataResponse => {
-  return usePostPulseData(options);
+  const fetchData = useCallback(async (forceRefresh = false) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getPostPulseData(forceRefresh);
+      setAllPosts(data.posts);
+      setCacheStatus({
+        isCached: data.isCached,
+        timestamp: data.timestamp,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    const processed = processPostPulseData(allPosts, filters);
+    setProcessedPosts(processed);
+    setCurrentPage(1); // Reset to first page on filter change
+  }, [allPosts, filters]);
+
+  const totalPages = Math.ceil(processedPosts.length / POSTS_PER_PAGE);
+  const paginatedPosts = processedPosts.slice(
+    (currentPage - 1) * POSTS_PER_PAGE,
+    currentPage * POSTS_PER_PAGE
+  );
+
+  const refreshData = () => {
+    fetchData(true);
+  };
+
+  const returnState = {
+    posts: paginatedPosts,
+    loading,
+    error,
+    filters,
+    setFilters,
+    currentPage,
+    totalPages,
+    setCurrentPage,
+    cacheStatus,
+    refreshData,
+  };
+
+  // --- DIAGNOSTIC LOG ---
+  console.log('usePostPulseData hook is returning:', returnState);
+
+  return returnState;
 };

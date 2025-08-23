@@ -1,64 +1,58 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React from 'react';
 import { usePostPulseData } from '../../hooks/usePostPulseData';
 import { PostCard } from './PostPulse/PostCard';
-import { LoadingSpinner } from '../ui/LoadingSpinner';
-import { Pagination } from '../ui/Pagination';
 import { FilterControls } from './PostPulse/FilterControls';
-import { Post } from '../../types/linkedin';
+import { Pagination } from '../ui/Pagination';
+import { LoadingSpinner } from '../ui/LoadingSpinner';
+import { CacheStatusIndicator } from '../ui/CacheStatusIndicator';
 
-export const PostPulse: React.FC = () => {
-  const { posts, isLoading, error } = usePostPulseData();
-  const [filteredPosts, setFilteredPosts] = useState<Post[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const postsPerPage = 9;
+const PostPulse = () => {
+  const data = usePostPulseData();
 
-  useEffect(() => {
-    if (posts) {
-      setFilteredPosts(posts);
-    }
-  }, [posts]);
+  // --- DIAGNOSTIC LOG ---
+  console.log('PostPulse component received:', data);
+  
+  const {
+    posts,
+    loading,
+    error,
+    filters,
+    setFilters,
+    currentPage,
+    totalPages,
+    setCurrentPage,
+    cacheStatus,
+    refreshData
+  } = data || {}; // Adding a fallback just in case data itself is the issue.
 
-  const handleFilterChange = (filtered: Post[]) => {
-    setFilteredPosts(filtered);
-    setCurrentPage(1);
-  };
-
-  const paginatedPosts = useMemo(() => {
-    const startIndex = (currentPage - 1) * postsPerPage;
-    return filteredPosts.slice(startIndex, startIndex + postsPerPage);
-  }, [filteredPosts, currentPage]);
-
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-full">
-        <LoadingSpinner />
-      </div>
-    );
-  }
-
-  if (error) {
-    return <div className="text-red-500">Error loading posts: {error.message}</div>;
-  }
+  if (loading) return <LoadingSpinner />;
+  if (error) return <div className="text-red-500">Error: {error}</div>;
 
   return (
-    <div className="p-4 md:p-6 lg:p-8">
-      <h1 className="text-3xl font-bold mb-4">PostPulse</h1>
-      <p className="mb-6 text-gray-600">Analyze and repurpose your historical LinkedIn posts.</p>
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">Post Pulse</h1>
+        <div className="flex items-center space-x-4">
+          <CacheStatusIndicator status={cacheStatus} />
+          <button onClick={refreshData} className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Refresh Data</button>
+        </div>
+      </div>
       
-      <FilterControls allPosts={posts || []} onFilterChange={handleFilterChange} />
+      <FilterControls filters={filters} setFilters={setFilters} />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {paginatedPosts.map((post) => (
-          <PostCard key={post.id} post={post} />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+        {posts && posts.map(post => (
+          <PostCard key={(post as any).id} post={post} />
         ))}
       </div>
 
       <Pagination
         currentPage={currentPage}
-        totalItems={filteredPosts.length}
-        itemsPerPage={postsPerPage}
+        totalPages={totalPages}
         onPageChange={setCurrentPage}
       />
     </div>
   );
 };
+
+export default PostPulse;
