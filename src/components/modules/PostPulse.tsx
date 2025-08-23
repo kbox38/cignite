@@ -7,11 +7,6 @@ import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { CacheStatusIndicator } from '../ui/CacheStatusIndicator';
 
 const PostPulse = () => {
-  const data = usePostPulseData();
-
-  // --- DIAGNOSTIC LOG ---
-  console.log('PostPulse component received:', data);
-  
   const {
     posts,
     loading,
@@ -23,7 +18,7 @@ const PostPulse = () => {
     setCurrentPage,
     cacheStatus,
     refreshData
-  } = data || {}; // Adding a fallback just in case data itself is the issue.
+  } = usePostPulseData();
 
   if (loading) return <LoadingSpinner />;
   if (error) return <div className="text-red-500">Error: {error}</div>;

@@ -57,7 +57,7 @@ export const usePostPulseData = () => {
     fetchData(true);
   };
 
-  const returnState = {
+  return {
     posts: paginatedPosts,
     loading,
     error,
@@ -69,9 +69,4 @@ export const usePostPulseData = () => {
     cacheStatus,
     refreshData,
   };
-
-  // --- DIAGNOSTIC LOG ---
-  console.log('usePostPulseData hook is returning:', returnState);
-
-  return returnState;
 };
