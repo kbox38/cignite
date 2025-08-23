@@ -6,7 +6,8 @@ import { Pagination } from '../ui/Pagination';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { CacheStatusIndicator } from '../ui/CacheStatusIndicator';
 
-const PostPulse = () => {
+// FIX: Add the "export" keyword here to create a named export.
+export const PostPulse = () => {
   const {
     posts,
     loading,
@@ -50,4 +51,4 @@ const PostPulse = () => {
   );
 };
 
-export default PostPulse;
+// FIX: The "export default PostPulse;" line is no longer needed and should be removed.
