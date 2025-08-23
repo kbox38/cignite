@@ -7,7 +7,9 @@ const defaultFilters = {
   sortBy: 'engagement',
 };
 
-const FilterControls = ({ filters = defaultFilters, setFilters }) => {
+// FIX: Add the "export" keyword here to create a named export.
+// This will match the `import { FilterControls } from ...` in PostPulse.tsx.
+export const FilterControls = ({ filters = defaultFilters, setFilters }) => {
   // Now, even if `filters` is passed as undefined, it will use `defaultFilters`
   // and this destructuring will be safe.
   const { timeFilter, postType, sortBy } = filters;
@@ -73,4 +75,5 @@ const FilterControls = ({ filters = defaultFilters, setFilters }) => {
   );
 };
 
-export default FilterControls;
+// By adding `export` to the component declaration above, a separate `export default` is no longer needed.
+// This file will now correctly provide the named export that PostPulse.tsx is expecting.
