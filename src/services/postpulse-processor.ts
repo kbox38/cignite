@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { getCachedPostPulseData, setCachedPostPulseData } from './postpulse-cache';
 import { PostPulseData } from '../types/linkedin';
+import { useAuthStore } from '../stores/authStore';
 
 export const processPostPulseData = (posts: PostPulseData[], filters: { timeFilter: string; postType: string; sortBy: string; }) => {
   const { timeFilter, postType, sortBy } = filters;
@@ -37,11 +38,10 @@ export const processPostPulseData = (posts: PostPulseData[], filters: { timeFilt
   return filteredPosts;
 };
 
-// FIX: Add the "export" keyword here to make this function available for import.
 export const getPostPulseData = async (forceRefresh = false) => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user?.id) {
-    throw new Error("User not authenticated or session expired.");
+  const { dmaToken } = useAuthStore.getState();
+  if (!dmaToken) {
+    throw new Error("LinkedIn DMA token not found. Please reconnect your account.");
   }
   const user_id = session.user.id;
 
