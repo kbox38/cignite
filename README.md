@@ -5,7 +5,7 @@ Technology Stack
 Project Architecture
 Directory Structure
 Core Components
-Module Features
+Module Features.
 Services & APIs
 State Management
 Authentication Flow
