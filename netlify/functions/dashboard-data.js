@@ -113,13 +113,14 @@ async function getUserIdFromToken(authorization) {
     const userInfo = await response.json();
     console.log('LinkedIn userinfo success:', userInfo.sub);
     
-    // For now, just return the LinkedIn ID
+    // Return the LinkedIn ID directly instead of database lookup
     return userInfo.sub;
   } catch (error) {
     console.error('Error getting user ID:', error);
     return null;
   }
 }
+
 
 async function verifyDMAConsent(authorization) {
   try {
