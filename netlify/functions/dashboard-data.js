@@ -36,13 +36,6 @@ export async function handler(event, context) {
       };
     }
 
-    // Initialize Supabase
-    const { createClient } = await import("@supabase/supabase-js");
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-
     // Verify DMA consent
     const consentCheck = await verifyDMAConsent(authorization);
     if (!consentCheck.isActive) {
@@ -55,24 +48,13 @@ export async function handler(event, context) {
         body: JSON.stringify({
           error: "DMA not enabled",
           message: consentCheck.message,
-          needsReconnect: true,
+          needsReconnect: true
         }),
       };
     }
 
-    // Fetch or generate dashboard insights from database
-    const dashboardData = await getDashboardDataFromDB(
-      supabase,
-      userId,
-      authorization
-    );
-
-    // Log activity
-    await supabase.rpc("log_user_activity", {
-      p_user_id: userId,
-      p_activity_type: "dashboard_viewed",
-      p_description: "User viewed dashboard",
-    });
+    // Generate dashboard data with fallbacks
+    const dashboardData = await generateDashboardData(userId, authorization, startTime);
 
     return {
       statusCode: 200,
@@ -94,7 +76,7 @@ export async function handler(event, context) {
       body: JSON.stringify({
         error: "Failed to fetch dashboard data",
         details: error.message,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       }),
     };
   }
@@ -103,63 +85,49 @@ export async function handler(event, context) {
 async function getUserIdFromToken(authorization) {
   try {
     // Extract the token from "Bearer TOKEN"
-    const token = authorization.replace("Bearer ", "");
-
-    // Try with DMA token first, then fall back to basic token logic
-    // For now, just extract user ID from the token structure or use a different approach
-
-    // Since DMA tokens don't work with userinfo, let's use a different strategy
-    // We'll use the LinkedIn Member Authorization API instead
-    const response = await fetch(
-      "https://api.linkedin.com/rest/memberAuthorizations?q=memberAndApplication",
-      {
-        headers: {
-          Authorization: authorization,
-          "LinkedIn-Version": "202312",
-        },
+    const token = authorization.replace('Bearer ', '');
+    
+    // Use the LinkedIn Member Authorization API for DMA tokens
+    const response = await fetch('https://api.linkedin.com/rest/memberAuthorizations?q=memberAndApplication', {
+      headers: {
+        'Authorization': authorization,
+        'LinkedIn-Version': '202312'
       }
-    );
+    });
 
     if (!response.ok) {
-      console.error("LinkedIn member authorization failed:", response.status);
+      console.error('LinkedIn member authorization failed:', response.status);
       return null;
     }
 
     const data = await response.json();
     if (data.elements && data.elements.length > 0) {
       // Extract member URN from the response
-      const memberUrn =
-        data.elements[0].memberComplianceAuthorizationKey.member;
+      const memberUrn = data.elements[0].memberComplianceAuthorizationKey.member;
       // Extract the ID from "urn:li:person:XXXXX"
-      const userId = memberUrn.split(":").pop();
-      console.log("LinkedIn member ID success:", userId);
+      const userId = memberUrn.split(':').pop();
+      console.log('LinkedIn member ID success:', userId);
       return userId;
     }
 
     return null;
   } catch (error) {
-    console.error("Error getting user ID:", error);
+    console.error('Error getting user ID:', error);
     return null;
   }
 }
 
 async function verifyDMAConsent(authorization) {
   try {
-    const response = await fetch(
-      "https://api.linkedin.com/rest/memberAuthorizations?q=memberAndApplication",
-      {
-        headers: {
-          Authorization: authorization,
-          "LinkedIn-Version": "202312",
-        },
+    const response = await fetch("https://api.linkedin.com/rest/memberAuthorizations?q=memberAndApplication", {
+      headers: {
+        Authorization: authorization,
+        "LinkedIn-Version": "202312"
       }
-    );
+    });
 
     if (!response.ok) {
-      return {
-        isActive: false,
-        message: "Unable to verify DMA consent status",
-      };
+      return { isActive: false, message: "Unable to verify DMA consent status" };
     }
 
     const data = await response.json();
@@ -167,7 +135,7 @@ async function verifyDMAConsent(authorization) {
 
     return {
       isActive: hasConsent,
-      message: hasConsent ? "DMA consent active" : "DMA consent not active",
+      message: hasConsent ? "DMA consent active" : "DMA consent not active"
     };
   } catch (error) {
     console.error("Error verifying DMA consent:", error);
@@ -175,339 +143,149 @@ async function verifyDMAConsent(authorization) {
   }
 }
 
-async function getDashboardDataFromDB(supabase, userId, authorization) {
+async function generateDashboardData(userId, authorization, startTime) {
   try {
-    // Check for existing dashboard insights
-    const { data: existingInsights } = await supabase
-      .from("dashboard_insights")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("is_current", true);
+    // Fetch LinkedIn data with error handling
+    const [profileSnapshot, memberShareSnapshot, connectionsSnapshot] = await Promise.allSettled([
+      fetchMemberSnapshot(authorization, "PROFILE"),
+      fetchMemberSnapshot(authorization, "MEMBER_SHARE_INFO"),
+      fetchMemberSnapshot(authorization, "CONNECTIONS")
+    ]);
 
-    // Get user profile data
-    const { data: userProfile } = await supabase
-      .from("user_profiles")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
+    // Extract data with fallbacks
+    const profile = profileSnapshot.status === 'fulfilled' ? profileSnapshot.value?.elements?.[0]?.snapshotData || [] : [];
+    const posts = memberShareSnapshot.status === 'fulfilled' ? memberShareSnapshot.value?.elements?.[0]?.snapshotData || [] : [];
+    const connections = connectionsSnapshot.status === 'fulfilled' ? connectionsSnapshot.value?.elements?.[0]?.snapshotData || [] : [];
 
-    // Get posts from cache
-    const { data: userPosts } = await supabase
-      .from("post_cache")
-      .select("*")
-      .eq("user_id", userId)
-      .order("published_at", { ascending: false });
+    console.log(`Data fetched - Profile: ${profile.length}, Posts: ${posts.length}, Connections: ${connections.length}`);
 
-    // Calculate metrics if no existing insights or they're old
-    const needsRefresh =
-      !existingInsights ||
-      existingInsights.length === 0 ||
-      existingInsights.some(
-        (insight) =>
-          new Date(insight.generated_at) <
-          new Date(Date.now() - 24 * 60 * 60 * 1000)
-      );
+    // Calculate metrics with fallbacks
+    const profileAnalysis = analyzeProfileCompleteness(profile);
+    const postingAnalysis = analyzePostingActivity(posts);
+    const engagementAnalysis = analyzeEngagementQuality(posts);
+    const contentImpactAnalysis = analyzeContentImpact(posts);
 
-    let scores = {};
-    let analysis = {};
+    // Build scores
+    const scores = {
+      overall: calculateOverallScore([
+        profileAnalysis.score,
+        postingAnalysis.score,
+        engagementAnalysis.score,
+        contentImpactAnalysis.score
+      ]),
+      profileCompleteness: profileAnalysis.score,
+      postingActivity: postingAnalysis.score,
+      engagementQuality: engagementAnalysis.score,
+      contentImpact: contentImpactAnalysis.score,
+      contentDiversity: 0, // Placeholder
+      postingConsistency: 0, // Placeholder
+    };
 
-    if (needsRefresh) {
-      // Fetch fresh data from LinkedIn and calculate scores
-      const [profileSnapshot, memberShareSnapshot, connectionsSnapshot] =
-        await Promise.all([
-          fetchMemberSnapshot(authorization, "PROFILE"),
-          fetchMemberSnapshot(authorization, "MEMBER_SHARE_INFO"),
-          fetchMemberSnapshot(authorization, "CONNECTIONS"),
-        ]);
-
-      // Calculate all metrics
-      const profileAnalysis = await analyzeProfileCompleteness(profileSnapshot);
-      const postingAnalysis = await analyzePostingActivity(memberShareSnapshot);
-      const engagementAnalysis = await analyzeEngagementQuality(
-        memberShareSnapshot
-      );
-      const contentImpactAnalysis = await analyzeContentImpact(
-        memberShareSnapshot
-      );
-      const contentDiversityAnalysis = await analyzeContentDiversity(
-        memberShareSnapshot
-      );
-      const consistencyAnalysis = await analyzePostingConsistency(
-        memberShareSnapshot
-      );
-
-      scores = {
-        overall: calculateOverallScore([
-          profileAnalysis.score,
-          postingAnalysis.score,
-          engagementAnalysis.score,
-          contentImpactAnalysis.score,
-          contentDiversityAnalysis.score,
-          consistencyAnalysis.score,
-        ]),
-        profileCompleteness: profileAnalysis.score,
-        postingActivity: postingAnalysis.score,
-        engagementQuality: engagementAnalysis.score,
-        contentImpact: contentImpactAnalysis.score,
-        contentDiversity: contentDiversityAnalysis.score,
-        postingConsistency: consistencyAnalysis.score,
-      };
-
-      analysis = {
-        profileCompleteness: profileAnalysis,
-        postingActivity: postingAnalysis,
-        engagementQuality: engagementAnalysis,
-        contentImpact: contentImpactAnalysis,
-        contentDiversity: contentDiversityAnalysis,
-        postingConsistency: consistencyAnalysis,
-      };
-
-      // Save insights to database
-      await saveInsightsToDatabase(supabase, userId, scores, analysis);
-    } else {
-      // Load from database
-      scores = existingInsights.reduce((acc, insight) => {
-        acc[insight.metric_type] = insight.score;
-        return acc;
-      }, {});
-
-      analysis = existingInsights.reduce((acc, insight) => {
-        acc[insight.metric_type] = {
-          score: insight.score,
-          recommendations: insight.recommendations || [],
-          aiInsight: insight.insight_text,
-        };
-        return acc;
-      }, {});
-
-      scores.overall = calculateOverallScore(Object.values(scores));
-    }
+    // Build analysis
+    const analysis = {
+      profileCompleteness: profileAnalysis,
+      postingActivity: postingAnalysis,
+      engagementQuality: engagementAnalysis,
+      contentImpact: contentImpactAnalysis,
+      contentDiversity: { score: 0, recommendations: ["Feature coming soon"] },
+      postingConsistency: { score: 0, recommendations: ["Feature coming soon"] },
+    };
 
     // Calculate summary metrics
-    const posts = memberShareSnapshot?.elements?.[0]?.snapshotData || [];
-    const connections = connectionsSnapshot?.elements?.[0]?.snapshotData || [];
-
     const last28Days = new Date();
     last28Days.setDate(last28Days.getDate() - 28);
-
-    const recentPosts = posts.filter((post) => {
+    
+    const recentPosts = posts.filter(post => {
       const postDate = new Date(post.Date || post.date);
-      return postDate >= last28Days;
+      return !isNaN(postDate.getTime()) && postDate >= last28Days;
     });
 
     const totalEngagement = posts.reduce((sum, post) => {
-      return (
-        sum +
-        parseInt(post.LikesCount || "0") +
-        parseInt(post.CommentsCount || "0")
-      );
+      return sum + parseInt(post.LikesCount || "0") + parseInt(post.CommentsCount || "0");
     }, 0);
+
+    const summary = {
+      totalConnections: connections.length,
+      totalPosts: posts.length,
+      posts30d: recentPosts.length,
+      avgEngagementPerPost: posts.length > 0 ? Math.round((totalEngagement / posts.length) * 10) / 10 : 0,
+      postsPerWeek: postingAnalysis.postsPerWeek || 0,
+      engagementRatePct: posts.length > 0 ? Math.round((totalEngagement / posts.length) * 100) / 100 : 0,
+      newConnections28d: Math.min(Math.round(recentPosts.length * 0.5), 10),
+    };
 
     return {
       scores,
       analysis,
-      summary: {
-        totalConnections: connections.length,
-        totalPosts: posts.length,
-        posts30d: recentPosts.length,
-        avgEngagementPerPost:
-          posts.length > 0
-            ? Math.round((totalEngagement / posts.length) * 10) / 10
-            : 0,
-        postsPerWeek: postingAnalysis?.postsPerWeek || 0,
-        engagementRatePct:
-          posts.length > 0
-            ? Math.round((totalEngagement / posts.length) * 100) / 100
-            : 0,
-        newConnections28d: Math.min(Math.round(recentPosts.length * 0.5), 10),
-      },
+      summary,
       metadata: {
         fetchTimeMs: Date.now() - startTime,
-        dataSource: "database_driven",
+        dataSource: "linkedin_api",
         hasRecentActivity: posts.length > 0,
-        profileDataAvailable: !!profileSnapshot?.elements?.[0]?.snapshotData,
-        postsDataAvailable: !!memberShareSnapshot?.elements?.[0]?.snapshotData,
-        connectionsDataAvailable:
-          !!connectionsSnapshot?.elements?.[0]?.snapshotData,
+        profileDataAvailable: profile.length > 0,
+        postsDataAvailable: posts.length > 0,
+        connectionsDataAvailable: connections.length > 0,
+        postsCount: posts.length
       },
-      lastUpdated: new Date().toISOString(),
+      lastUpdated: new Date().toISOString()
     };
+
   } catch (error) {
-    console.error("Error getting dashboard data from DB:", error);
-    throw error;
+    console.error("Error generating dashboard data:", error);
+    
+    // Return fallback data on error
+    return generateFallbackDashboardData(startTime);
   }
 }
 
-async function saveInsightsToDatabase(supabase, userId, scores, analysis) {
-  try {
-    // Mark old insights as not current
-    await supabase
-      .from("dashboard_insights")
-      .update({ is_current: false })
-      .eq("user_id", userId);
-
-    // Insert new insights
-    const insights = Object.entries(analysis).map(([metricType, data]) => ({
-      user_id: userId,
-      metric_type: metricType,
-      insight_text: data.aiInsight || `${metricType} analysis complete`,
-      score: data.score,
-      recommendations: data.recommendations || [],
-      is_current: true,
-    }));
-
-    const { error } = await supabase
-      .from("dashboard_insights")
-      .insert(insights);
-
-    if (error) {
-      console.error("Error saving insights:", error);
-    } else {
-      console.log("Dashboard insights saved to database");
-    }
-  } catch (error) {
-    console.error("Error saving insights to database:", error);
-  }
-}
-
-function calculateOverallScore(scores) {
-  const validScores = scores.filter(
-    (score) => score !== null && score !== undefined
-  );
-  return validScores.length > 0
-    ? Math.round(
-        (validScores.reduce((sum, score) => sum + score, 0) /
-          validScores.length) *
-          10
-      ) / 10
-    : 0;
-}
-
-// Include the analysis functions from the previous implementation
 async function fetchMemberSnapshot(authorization, domain) {
   try {
-    const url = `https://api.linkedin.com/rest/memberSnapshotData?q=criteria&domain=${domain}`;
-
-    const response = await fetch(url, {
+    console.log(`Fetching snapshot for domain: ${domain}`);
+    const response = await fetch(`https://api.linkedin.com/rest/memberSnapshots?q=memberAndDomain&domain=${domain}`, {
       headers: {
-        Authorization: authorization,
-        "LinkedIn-Version": "202312",
-      },
+        'Authorization': authorization,
+        'LinkedIn-Version': '202312'
+      }
     });
 
     if (!response.ok) {
       console.warn(`Snapshot API for ${domain} returned ${response.status}`);
-      return null;
+      return { elements: [] };
     }
 
-    return await response.json();
+    const data = await response.json();
+    return data;
   } catch (error) {
-    console.error(`Error fetching snapshot for ${domain}:`, error);
-    return null;
+    console.error(`Error fetching ${domain} snapshot:`, error);
+    return { elements: [] };
   }
 }
 
-async function analyzeProfileCompleteness(profileSnapshot) {
-  const profile = profileSnapshot?.elements?.[0]?.snapshotData?.[0] || {};
+function analyzeProfileCompleteness(profileData) {
+  if (!profileData || profileData.length === 0) {
+    return {
+      score: 0,
+      breakdown: { headline: 0, summary: 0, experience: 0, skills: 0 },
+      recommendations: ["Complete your LinkedIn profile to improve visibility"],
+    };
+  }
 
-  let score = 0;
+  const profile = profileData[0] || {};
   const breakdown = {
-    basicInfo: 0,
-    headline: 0,
-    summary: 0,
-    experience: 0,
-    skills: 0,
+    headline: profile.Headline ? 30 : 0,
+    summary: profile.Summary ? 25 : 0,
+    experience: profile.Experience ? 25 : 0,
+    skills: profile.Skills ? 20 : 0
   };
 
-  // Basic Info (25 points)
-  if (profile["First Name"] && profile["Last Name"]) {
-    breakdown.basicInfo += 15;
-    score += 15;
-  }
-  if (profile["Industry"] && profile["Industry"].trim()) {
-    breakdown.basicInfo += 5;
-    score += 5;
-  }
-  if (profile["Location"] && profile["Location"].trim()) {
-    breakdown.basicInfo += 5;
-    score += 5;
-  }
-
-  // Headline (25 points)
-  if (profile["Headline"] && profile["Headline"].trim()) {
-    const headlineLength = profile["Headline"].length;
-    if (headlineLength > 30) {
-      breakdown.headline = 25;
-      score += 25;
-    } else if (headlineLength > 10) {
-      breakdown.headline = 20;
-      score += 20;
-    } else {
-      breakdown.headline = 15;
-      score += 15;
-    }
-  }
-
-  // Summary (20 points)
-  if (profile["Summary"] && profile["Summary"].trim()) {
-    const summaryLength = profile["Summary"].length;
-    if (summaryLength > 100) {
-      breakdown.summary = 20;
-      score += 20;
-    } else if (summaryLength > 50) {
-      breakdown.summary = 15;
-      score += 15;
-    } else {
-      breakdown.summary = 10;
-      score += 10;
-    }
-  }
-
-  // Experience (15 points)
-  if (
-    profile["Current Position"] ||
-    profile["Position"] ||
-    profile["Headline"]
-  ) {
-    breakdown.experience += 10;
-    score += 10;
-  }
-  if (profile["Company"] || profile["Current Company"]) {
-    breakdown.experience += 5;
-    score += 5;
-  }
-
-  // Skills (15 points)
-  if (profile["Skills"] || profile["Top Skills"]) {
-    breakdown.skills = 15;
-    score += 15;
-  } else if (profile["Industry"] && profile["Headline"]) {
-    breakdown.skills = 10;
-    score += 10;
-  }
-
-  const finalScore = Math.max(
-    Math.min(score / 10, 10),
-    profile["First Name"] ? 4 : 0
-  );
+  const finalScore = Object.values(breakdown).reduce((sum, val) => sum + val, 0) / 10;
 
   const recommendations = [];
-  if (breakdown.headline < 20)
-    recommendations.push(
-      "Enhance your headline with specific skills and value proposition"
-    );
-  if (breakdown.summary < 15)
-    recommendations.push(
-      "Add a compelling summary that tells your professional story"
-    );
-  if (breakdown.experience < 10)
-    recommendations.push("Complete your work experience section");
-  if (breakdown.skills < 10)
-    recommendations.push("Add relevant skills to showcase your expertise");
-  if (finalScore >= 8)
-    recommendations.push(
-      "Excellent profile! Your LinkedIn presence is well-optimized"
-    );
+  if (breakdown.headline === 0) recommendations.push("Add a compelling headline");
+  if (breakdown.summary === 0) recommendations.push("Write a professional summary");
+  if (breakdown.experience === 0) recommendations.push("Add your work experience");
+  if (breakdown.skills === 0) recommendations.push("List your key skills");
+  if (finalScore >= 8) recommendations.push("Great profile! Your LinkedIn presence is well-optimized");
 
   return {
     score: Math.round(finalScore * 10) / 10,
@@ -516,8 +294,7 @@ async function analyzeProfileCompleteness(profileSnapshot) {
   };
 }
 
-async function analyzePostingActivity(memberShareSnapshot) {
-  const posts = memberShareSnapshot?.elements?.[0]?.snapshotData || [];
+function analyzePostingActivity(posts) {
   const totalPosts = posts.length;
 
   if (totalPosts === 0) {
@@ -525,15 +302,13 @@ async function analyzePostingActivity(memberShareSnapshot) {
       score: 0,
       postsPerWeek: 0,
       totalPosts: 0,
-      recommendations: [
-        "Start posting regularly to build your LinkedIn presence",
-      ],
+      recommendations: ["Start posting regularly to build your LinkedIn presence"],
     };
   }
 
   const postDates = posts
-    .map((post) => new Date(post.Date || post.date))
-    .filter((date) => !isNaN(date.getTime()))
+    .map(post => new Date(post.Date || post.date))
+    .filter(date => !isNaN(date.getTime()))
     .sort((a, b) => b.getTime() - a.getTime());
 
   if (postDates.length === 0) {
@@ -547,10 +322,7 @@ async function analyzePostingActivity(memberShareSnapshot) {
 
   const oldestPost = postDates[postDates.length - 1];
   const newestPost = postDates[0];
-  const daysDiff = Math.max(
-    1,
-    (newestPost.getTime() - oldestPost.getTime()) / (1000 * 60 * 60 * 24)
-  );
+  const daysDiff = Math.max(1, (newestPost.getTime() - oldestPost.getTime()) / (1000 * 60 * 60 * 24));
   const postsPerWeek = (totalPosts / daysDiff) * 7;
 
   let score = 0;
@@ -562,22 +334,9 @@ async function analyzePostingActivity(memberShareSnapshot) {
   else score = 3;
 
   const recommendations = [];
-  if (postsPerWeek < 1)
-    recommendations.push(
-      "Aim for at least 1 post per week to maintain visibility"
-    );
-  else if (postsPerWeek < 3)
-    recommendations.push(
-      "Consider increasing to 3-5 posts per week for optimal engagement"
-    );
-  else if (postsPerWeek > 7)
-    recommendations.push(
-      "Consider reducing frequency to avoid audience fatigue"
-    );
-  else
-    recommendations.push(
-      "Great posting frequency! Keep up the consistent activity"
-    );
+  if (postsPerWeek < 1) recommendations.push("Aim for at least 1 post per week");
+  else if (postsPerWeek < 3) recommendations.push("Consider increasing to 3-5 posts per week");
+  else recommendations.push("Great posting frequency!");
 
   return {
     score,
@@ -587,70 +346,41 @@ async function analyzePostingActivity(memberShareSnapshot) {
   };
 }
 
-async function analyzeEngagementQuality(memberShareSnapshot) {
-  const posts = memberShareSnapshot?.elements?.[0]?.snapshotData || [];
-
+function analyzeEngagementQuality(posts) {
   if (posts.length === 0) {
     return {
       score: 0,
       avgEngagementPerPost: 0,
       totalEngagement: 0,
-      recommendations: ["Start posting to track engagement metrics"],
+      recommendations: ["Start creating content to build engagement"],
     };
   }
 
-  let totalEngagement = 0;
-  let postsWithEngagement = 0;
-
-  posts.forEach((post, index) => {
-    const likes = parseInt(
-      post.LikesCount ||
-        post["Likes Count"] ||
-        post.likesCount ||
-        post.likes ||
-        "0"
-    );
-
-    const comments = parseInt(
-      post.CommentsCount ||
-        post["Comments Count"] ||
-        post.commentsCount ||
-        post.comments ||
-        "0"
-    );
-
-    const engagement = likes + comments;
-    totalEngagement += engagement;
-    if (engagement > 0) postsWithEngagement++;
-  });
+  const totalEngagement = posts.reduce((sum, post) => {
+    const likes = parseInt(post.LikesCount || post["Likes Count"] || "0");
+    const comments = parseInt(post.CommentsCount || post["Comments Count"] || "0");
+    return sum + likes + comments;
+  }, 0);
 
   const avgEngagementPerPost = totalEngagement / posts.length;
-
+  
   let score = 0;
-  if (avgEngagementPerPost >= 25) score = 10;
-  else if (avgEngagementPerPost >= 15) score = 9;
-  else if (avgEngagementPerPost >= 10) score = 8;
-  else if (avgEngagementPerPost >= 5) score = 7;
-  else if (avgEngagementPerPost >= 3) score = 6;
-  else if (avgEngagementPerPost >= 1) score = 5;
-  else if (avgEngagementPerPost > 0) score = 4;
-  else score = 0;
+  if (avgEngagementPerPost >= 50) score = 10;
+  else if (avgEngagementPerPost >= 25) score = 9;
+  else if (avgEngagementPerPost >= 15) score = 8;
+  else if (avgEngagementPerPost >= 10) score = 7;
+  else if (avgEngagementPerPost >= 5) score = 6;
+  else if (avgEngagementPerPost >= 2) score = 5;
+  else if (avgEngagementPerPost >= 1) score = 4;
+  else score = 3;
 
   const recommendations = [];
-  if (avgEngagementPerPost === 0) {
-    recommendations.push(
-      "Focus on creating engaging content that sparks conversation"
-    );
-  } else if (avgEngagementPerPost < 3) {
-    recommendations.push("Ask questions in your posts to encourage comments");
+  if (avgEngagementPerPost < 2) {
+    recommendations.push("Focus on creating more engaging content");
   } else if (avgEngagementPerPost < 10) {
-    recommendations.push(
-      "Great engagement! Try varying content formats to increase further"
-    );
+    recommendations.push("Good engagement! Try asking questions to increase interaction");
   } else {
-    recommendations.push(
-      "Excellent engagement! Your content resonates well with your audience"
-    );
+    recommendations.push("Excellent engagement! Your content resonates well");
   }
 
   return {
@@ -661,197 +391,95 @@ async function analyzeEngagementQuality(memberShareSnapshot) {
   };
 }
 
-async function analyzeContentImpact(memberShareSnapshot) {
-  const posts = memberShareSnapshot?.elements?.[0]?.snapshotData || [];
+function analyzeContentImpact(posts) {
   const engagementThreshold = 5;
-
+  
   if (posts.length === 0) {
     return {
       score: 0,
       highEngagementPosts: 0,
-      engagementThreshold,
       recommendations: ["Create content that generates meaningful engagement"],
     };
   }
 
-  const highEngagementPosts = posts.filter((post) => {
-    const likes = parseInt(
-      post.LikesCount || post["Likes Count"] || post.likesCount || "0"
-    );
-    const comments = parseInt(
-      post.CommentsCount || post["Comments Count"] || post.commentsCount || "0"
-    );
-    return likes + comments >= engagementThreshold;
+  const highEngagementPosts = posts.filter(post => {
+    const likes = parseInt(post.LikesCount || "0");
+    const comments = parseInt(post.CommentsCount || "0");
+    return (likes + comments) >= engagementThreshold;
   }).length;
 
   const impactRatio = highEngagementPosts / posts.length;
-
+  
   let score = 0;
   if (impactRatio >= 0.7) score = 10;
   else if (impactRatio >= 0.5) score = 9;
   else if (impactRatio >= 0.3) score = 8;
   else if (impactRatio >= 0.2) score = 7;
   else if (impactRatio >= 0.1) score = 6;
-  else if (impactRatio > 0) score = 5;
-  else score = 0;
+  else score = 5;
 
   const recommendations = [];
   if (impactRatio === 0) {
-    recommendations.push(
-      "Focus on creating content that resonates with your audience"
-    );
+    recommendations.push("Focus on creating content that resonates with your audience");
   } else if (impactRatio < 0.3) {
-    recommendations.push(
-      "Analyze your high-performing posts and create similar content"
-    );
-  } else if (impactRatio < 0.5) {
-    recommendations.push(
-      "Good content impact! Try to maintain this quality consistently"
-    );
+    recommendations.push("Analyze your high-performing posts and create similar content");
   } else {
-    recommendations.push(
-      "Excellent content impact! Your posts consistently engage your audience"
-    );
+    recommendations.push("Great content impact!");
   }
 
   return {
     score,
     highEngagementPosts,
     impactRatio: Math.round(impactRatio * 100) / 100,
-    engagementThreshold,
     recommendations,
   };
 }
 
-async function analyzeContentDiversity(memberShareSnapshot) {
-  const posts = memberShareSnapshot?.elements?.[0]?.snapshotData || [];
-
-  if (posts.length === 0) {
-    return {
-      score: 0,
-      mediaTypes: [],
-      diversityRatio: 0,
-      recommendations: ["Start posting different types of content"],
-    };
-  }
-
-  const mediaTypes = new Set();
-  const typeBreakdown = {};
-
-  posts.forEach((post, index) => {
-    let mediaType = post.MediaType || post["Media Type"] || post.mediaType;
-
-    if (!mediaType || mediaType === "NONE") {
-      if (post.MediaUrl || post["Media URL"] || post.mediaUrl) {
-        mediaType = "IMAGE";
-      } else if (post.SharedUrl || post["Shared URL"] || post.sharedUrl) {
-        mediaType = "ARTICLE";
-      } else {
-        mediaType = "TEXT";
-      }
-    }
-
-    mediaTypes.add(mediaType);
-    typeBreakdown[mediaType] = (typeBreakdown[mediaType] || 0) + 1;
-  });
-
-  const uniqueTypes = Array.from(mediaTypes);
-  const diversityRatio = uniqueTypes.length / Math.min(posts.length, 4);
-
-  let score = 0;
-  if (uniqueTypes.length >= 4) score = 10;
-  else if (uniqueTypes.length === 3) score = 8;
-  else if (uniqueTypes.length === 2) score = 6;
-  else if (uniqueTypes.length === 1) score = 4;
-  else score = 0;
-
-  const recommendations = [];
-  if (uniqueTypes.length < 2) {
-    recommendations.push("Try mixing text posts with images and videos");
-  } else if (uniqueTypes.length < 3) {
-    recommendations.push(
-      "Experiment with different content formats like carousels and articles"
-    );
-  } else if (uniqueTypes.length < 4) {
-    recommendations.push(
-      "Great diversity! Consider adding video content for even better engagement"
-    );
-  } else {
-    recommendations.push(
-      "Excellent content diversity! You're using multiple formats effectively"
-    );
-  }
-
-  return {
-    score,
-    mediaTypes: uniqueTypes,
-    typeBreakdown,
-    diversityRatio: Math.round(diversityRatio * 100) / 100,
-    recommendations,
-  };
+function calculateOverallScore(scores) {
+  const validScores = scores.filter(score => score !== null && score !== undefined && score > 0);
+  return validScores.length > 0 
+    ? Math.round((validScores.reduce((sum, score) => sum + score, 0) / validScores.length) * 10) / 10
+    : 0;
 }
 
-async function analyzePostingConsistency(memberShareSnapshot) {
-  const posts = memberShareSnapshot?.elements?.[0]?.snapshotData || [];
-
-  if (posts.length === 0) {
-    return {
-      score: 0,
-      consistencyScore: 0,
-      avgGapDays: 0,
-      recommendations: ["Establish a consistent posting schedule"],
-    };
-  }
-
-  const postDates = posts
-    .map((post) => new Date(post.Date || post.date))
-    .filter((date) => !isNaN(date.getTime()))
-    .sort((a, b) => a.getTime() - b.getTime());
-
-  if (postDates.length < 2) {
-    return {
-      score: 5,
-      consistencyScore: 0,
-      avgGapDays: 0,
-      recommendations: ["Post more frequently to establish consistency"],
-    };
-  }
-
-  const gaps = [];
-  for (let i = 1; i < postDates.length; i++) {
-    const gap =
-      (postDates[i].getTime() - postDates[i - 1].getTime()) /
-      (1000 * 60 * 60 * 24);
-    gaps.push(gap);
-  }
-
-  const avgGap = gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
-
-  let consistency = 0;
-  if (avgGap <= 3) consistency = 1.0;
-  else if (avgGap <= 7) consistency = 0.9;
-  else if (avgGap <= 10) consistency = 0.8;
-  else if (avgGap <= 14) consistency = 0.7;
-  else if (avgGap <= 21) consistency = 0.5;
-  else if (avgGap <= 30) consistency = 0.3;
-  else consistency = 0.1;
-
-  const score = Math.round(consistency * 10);
-
-  const recommendations = [];
-  if (avgGap > 30) recommendations.push("Try to post at least once a month");
-  else if (avgGap > 14) recommendations.push("Aim for posting every 1-2 weeks");
-  else if (avgGap > 7)
-    recommendations.push("Great consistency! Try for weekly posting");
-  else
-    recommendations.push(
-      "Excellent posting consistency! Keep up the regular schedule"
-    );
-
+function generateFallbackDashboardData(startTime) {
   return {
-    score,
-    consistencyScore: Math.round(consistency * 100),
-    avgGapDays: Math.round(avgGap * 10) / 10,
-    recommendations,
+    scores: {
+      overall: 0,
+      profileCompleteness: 0,
+      postingActivity: 0,
+      engagementQuality: 0,
+      contentImpact: 0,
+      contentDiversity: 0,
+      postingConsistency: 0,
+    },
+    analysis: {
+      profileCompleteness: { score: 0, recommendations: ["Unable to analyze profile data"] },
+      postingActivity: { score: 0, recommendations: ["Unable to analyze posting activity"] },
+      engagementQuality: { score: 0, recommendations: ["Unable to analyze engagement"] },
+      contentImpact: { score: 0, recommendations: ["Unable to analyze content impact"] },
+      contentDiversity: { score: 0, recommendations: ["Feature temporarily unavailable"] },
+      postingConsistency: { score: 0, recommendations: ["Feature temporarily unavailable"] },
+    },
+    summary: {
+      totalConnections: 0,
+      totalPosts: 0,
+      posts30d: 0,
+      avgEngagementPerPost: 0,
+      postsPerWeek: 0,
+      engagementRatePct: 0,
+      newConnections28d: 0,
+    },
+    metadata: {
+      fetchTimeMs: Date.now() - startTime,
+      dataSource: "fallback",
+      hasRecentActivity: false,
+      profileDataAvailable: false,
+      postsDataAvailable: false,
+      connectionsDataAvailable: false,
+      postsCount: 0
+    },
+    lastUpdated: new Date().toISOString(),
+    error: "Unable to fetch LinkedIn data - using fallback"
   };
 }
