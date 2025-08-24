@@ -1,4 +1,3 @@
-import { supabase } from './supabase';
 import { getCachedPostPulseData, setCachedPostPulseData } from './postpulse-cache';
 import { PostPulseData } from '../types/linkedin';
 import { useAuthStore } from '../stores/authStore';
@@ -39,11 +38,18 @@ export const processPostPulseData = (posts: PostPulseData[], filters: { timeFilt
 };
 
 export const getPostPulseData = async (forceRefresh = false) => {
-  const { dmaToken } = useAuthStore.getState();
+  // Get auth data from the auth store
+  const { dmaToken, profile } = useAuthStore.getState();
+  
   if (!dmaToken) {
     throw new Error("LinkedIn DMA token not found. Please reconnect your account.");
   }
-  const user_id = session.user.id;
+  
+  if (!profile?.id) {
+    throw new Error("User profile not found. Please reconnect your account.");
+  }
+  
+  const user_id = profile.id;
 
   if (!forceRefresh) {
     const cachedData = getCachedPostPulseData(user_id);
@@ -56,7 +62,7 @@ export const getPostPulseData = async (forceRefresh = false) => {
   console.log('Fetching fresh Post Pulse data');
   const response = await fetch(`/.netlify/functions/postpulse-data?forceRefresh=${forceRefresh}`, {
     headers: {
-      'Authorization': `Bearer ${session.access_token}`,
+      'Authorization': `Bearer ${dmaToken}`,
     },
   });
 
