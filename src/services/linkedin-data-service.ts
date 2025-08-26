@@ -439,28 +439,30 @@ export class LinkedInDataService {
       const response = await fetch(
         `/.netlify/functions/linkedin-snapshot?domain=${domain}`
       );
-      
+
       if (!response.ok) {
-        console.error(`Error fetching ${domain}: HTTP ${response.status} ${response.statusText}`);
+        console.error(
+          `Error fetching ${domain}: HTTP ${response.status} ${response.statusText}`
+        );
         return { count: 0, sample: null };
       }
-      
+
       const data = await response.json();
       console.log(`${domain} API response:`, {
         status: response.status,
         hasElements: !!data.elements,
         elementsLength: data.elements?.length,
         firstElement: data.elements?.[0],
-        snapshotDataLength: data.elements?.[0]?.snapshotData?.length
+        snapshotDataLength: data.elements?.[0]?.snapshotData?.length,
       });
-      
+
       const result = data.elements?.[0] || { count: 0, sample: null };
       console.log(`${domain} processed result:`, {
         count: result.count,
         hasSample: !!result.sample,
-        sampleKeys: result.sample ? Object.keys(result.sample) : []
+        sampleKeys: result.sample ? Object.keys(result.sample) : [],
       });
-      
+
       return result;
     } catch (error) {
       console.error(`Error fetching ${domain} domain data:`, error);
@@ -470,27 +472,29 @@ export class LinkedInDataService {
 
   private async fetchChangelogData(): Promise<any> {
     try {
-      console.log('Fetching changelog data...');
+      console.log("Fetching changelog data...");
       const response = await fetch(
         "/.netlify/functions/linkedin-changelog?count=100"
       );
-      
+
       if (!response.ok) {
-        console.error(`Error fetching changelog: HTTP ${response.status} ${response.statusText}`);
+        console.error(
+          `Error fetching changelog: HTTP ${response.status} ${response.statusText}`
+        );
         return { elements: [] };
       }
-      
+
       const data = await response.json();
-      console.log('Changelog API response:', {
+      console.log("Changelog API response:", {
         status: response.status,
         hasElements: !!data.elements,
         elementsLength: data.elements?.length,
-        firstElement: data.elements?.[0]
+        firstElement: data.elements?.[0],
       });
-      
+
       return data;
     } catch (error) {
-      console.error('Error fetching changelog data:', error);
+      console.error("Error fetching changelog data:", error);
       return { elements: [] };
     }
   }
@@ -513,18 +517,45 @@ export class LinkedInDataService {
 
 // Debug function to explore all available data
 export async function debugLinkedInData(token: string) {
-  console.log("=== LinkedIn Data Debug ===");
+  console.log("=== LinkedIn Data Debug Analysis ===");
+  console.log("Token available:", !!token);
+  console.log(
+    "Token preview:",
+    token ? `${token.substring(0, 20)}...` : "None"
+  );
 
   // Check Profile domain
   try {
+    console.log("\n--- PROFILE DOMAIN ANALYSIS ---");
     const profileResponse = await fetch(
       "/.netlify/functions/linkedin-snapshot?domain=PROFILE",
       {
         headers: { Authorization: `Bearer ${token}` },
       }
     );
+
+    console.log(
+      "Profile API Status:",
+      profileResponse.status,
+      profileResponse.statusText
+    );
+
+    if (!profileResponse.ok) {
+      console.error(
+        "Profile API Error:",
+        profileResponse.status,
+        profileResponse.statusText
+      );
+      return;
+    }
+
     const profileData = await profileResponse.json();
-    console.log("PROFILE Domain:", profileData);
+    console.log("Profile API Response Structure:", {
+      hasElements: !!profileData.elements,
+      elementsCount: profileData.elements?.length || 0,
+      hasSnapshotData: !!profileData.elements?.[0]?.snapshotData,
+      snapshotDataCount: profileData.elements?.[0]?.snapshotData?.length || 0,
+    });
 
     // List all available keys
     if (profileData.elements?.[0]?.snapshotData) {
@@ -532,7 +563,16 @@ export async function debugLinkedInData(token: string) {
       profileData.elements[0].snapshotData.forEach((item: any) => {
         Object.keys(item).forEach((key) => allKeys.add(key));
       });
-      console.log("All available profile keys:", Array.from(allKeys));
+      console.log("Available Profile Keys:", Array.from(allKeys).sort());
+
+      // Show sample data for first few items
+      const sampleItems = profileData.elements[0].snapshotData.slice(0, 3);
+      console.log("Sample Profile Data:");
+      sampleItems.forEach((item: any, index: number) => {
+        console.log(`  Item ${index + 1}:`, JSON.stringify(item, null, 2));
+      });
+    } else {
+      console.log("No profile snapshot data found");
     }
   } catch (error) {
     console.error("Error debugging profile data:", error);
@@ -546,24 +586,119 @@ export async function debugLinkedInData(token: string) {
     "ALL_COMMENTS",
     "SKILLS",
     "POSITIONS",
+    "EDUCATION",
+    "RECOMMENDATIONS",
+    "ENDORSEMENTS",
   ];
+
   for (const domain of domains) {
     try {
+      console.log(`\n--- ${domain} DOMAIN ANALYSIS ---`);
       const response = await fetch(
         `/.netlify/functions/linkedin-snapshot?domain=${domain}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
+
+      console.log(
+        `${domain} API Status:`,
+        response.status,
+        response.statusText
+      );
+
+      if (!response.ok) {
+        console.error(
+          `${domain} API Error:`,
+          response.status,
+          response.statusText
+        );
+        continue;
+      }
+
       const data = await response.json();
-      console.log(`${domain} Domain:`, data);
+      console.log(`${domain} Response Structure:`, {
+        hasElements: !!data.elements,
+        elementsCount: data.elements?.length || 0,
+        hasSnapshotData: !!data.elements?.[0]?.snapshotData,
+        snapshotDataCount: data.elements?.[0]?.snapshotData?.length || 0,
+      });
 
       if (data.elements?.[0]?.snapshotData) {
-        console.log(`${domain} sample data:`, data.elements[0].snapshotData[0]);
-        console.log(`${domain} count:`, data.elements[0].snapshotData.length);
+        const snapshotData = data.elements[0].snapshotData;
+        console.log(`${domain} Data Count:`, snapshotData.length);
+
+        // Show available keys for this domain
+        const domainKeys = new Set<string>();
+        snapshotData.forEach((item: any) => {
+          Object.keys(item).forEach((key) => domainKeys.add(key));
+        });
+        console.log(`${domain} Available Keys:`, Array.from(domainKeys).sort());
+
+        // Show sample data
+        if (snapshotData.length > 0) {
+          console.log(
+            `${domain} Sample Data:`,
+            JSON.stringify(snapshotData[0], null, 2)
+          );
+        }
+
+        // Show summary for large datasets
+        if (snapshotData.length > 5) {
+          console.log(`${domain} Summary:`, {
+            totalItems: snapshotData.length,
+            sampleKeys: Object.keys(snapshotData[0] || {}),
+            firstItemPreview: snapshotData[0]
+              ? Object.keys(snapshotData[0]).slice(0, 5)
+              : [],
+          });
+        }
+      } else {
+        console.log(`${domain}: No snapshot data available`);
       }
     } catch (error) {
       console.error(`Error debugging ${domain} data:`, error);
     }
   }
+
+  // Test changelog endpoint
+  try {
+    console.log("\n--- CHANGELOG ANALYSIS ---");
+    const changelogResponse = await fetch(
+      "/.netlify/functions/linkedin-changelog?count=50",
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+
+    console.log(
+      "Changelog API Status:",
+      changelogResponse.status,
+      changelogResponse.statusText
+    );
+
+    if (changelogResponse.ok) {
+      const changelogData = await changelogResponse.json();
+      console.log("Changelog Response Structure:", {
+        hasElements: !!changelogData.elements,
+        elementsCount: changelogData.elements?.length || 0,
+      });
+
+      if (changelogData.elements?.length > 0) {
+        console.log("Changelog Event Types:", {
+          resourceNames: [
+            ...new Set(changelogData.elements.map((e: any) => e.resourceName)),
+          ],
+          methods: [
+            ...new Set(changelogData.elements.map((e: any) => e.method)),
+          ],
+          sampleEvent: changelogData.elements[0],
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error debugging changelog data:", error);
+  }
+
+  console.log("\n=== Debug Analysis Complete ===");
 }
