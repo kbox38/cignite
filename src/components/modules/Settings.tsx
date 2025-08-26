@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, Bell, Shield, Palette, Download, Trash2 } from 'lucide-react';
+import { User, Bell, Shield, Palette, Download, Trash2, Database } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { useAuthStore } from '../../stores/authStore';
+import { useNavigate } from 'react-router-dom';
 
 export const Settings = () => {
   const { profile, logout } = useAuthStore();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState({
     email: true,
     push: false,
@@ -188,6 +190,16 @@ export const Settings = () => {
             <Button variant="outline" size="sm" onClick={exportData}>
               <Download size={16} className="mr-1" />
               Export
+            </Button>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">DMA Test Page</p>
+              <p className="text-sm text-gray-600">Test LinkedIn DMA API endpoints</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => navigate('/dma-test')}>
+              <Database size={16} className="mr-1" />
+              Open Test
             </Button>
           </div>
         </div>

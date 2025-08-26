@@ -16,6 +16,7 @@ import { Scheduler } from './components/modules/Scheduler';
 import { CreationEngine } from './components/modules/CreationEngine';
 import { TheAlgo } from './components/modules/TheAlgo';
 import { Settings } from './components/modules/Settings';
+import { DMATestPage } from './components/modules/DMATestPage';
 import clsx from 'clsx';
 
 const queryClient = new QueryClient({
@@ -138,6 +139,7 @@ function App() {
                           <Route path="/creation-engine" element={<CreationEngine />} />
                           <Route path="/algo" element={<TheAlgo />} />
                           <Route path="/settings" element={<Settings />} />
+                          <Route path="/dma-test" element={<DMATestPage />} />
                           <Route path="*" element={<Navigate to="/dashboard" replace />} />
                       </Routes>
                       </main>
