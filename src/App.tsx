@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { useAppStore } from './stores/appStore';
+import { useDmaAuth } from './hooks/useDmaAuth';
 import { AuthFlow } from './components/auth/AuthFlow';
 import { LandingPage } from './components/landing/LandingPage';
 import { Sidebar } from './components/layout/Sidebar';
@@ -29,11 +30,14 @@ const queryClient = new QueryClient({
 });
 
 function App() {
-  const { isBasicAuthenticated, isFullyAuthenticated, accessToken, dmaToken } = useAuthStore();
+  const { isBasicAuthenticated, isFullyAuthenticated, accessToken, dmaToken, setUserId } = useAuthStore();
   const { sidebarCollapsed } = useAppStore();
   const darkMode = false; // Force bright mode always
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
   const [hasProcessedUrlParams, setHasProcessedUrlParams] = useState(false);
+  
+  // Use DMA auth hook to handle userId extraction
+  useDmaAuth();
 
   // Force light mode always
   useEffect(() => {
@@ -47,6 +51,7 @@ function App() {
     const urlParams = new URLSearchParams(window.location.search);
     const accessTokenParam = urlParams.get('access_token');
     const dmaTokenParam = urlParams.get('dma_token');
+    const userIdParam = urlParams.get('user_id');
     const hasAuthParams = accessTokenParam || dmaTokenParam;
     
     // Process tokens immediately if found
@@ -60,10 +65,17 @@ function App() {
       useAuthStore.getState().setTokens(accessToken, dmaTokenParam);
     }
     
+    // Process userId from URL if available
+    if (userIdParam) {
+      console.log('App: Setting userId from URL:', userIdParam);
+      setUserId(userIdParam);
+    }
+    
     // Only log if there are auth params to process or if not authenticated
     if (hasAuthParams || (!isBasicAuthenticated && !isFullyAuthenticated)) {
       console.log('App: Processing authentication state', {
         hasUrlParams: !!hasAuthParams,
+        hasUserIdParam: !!userIdParam,
         isBasicAuthenticated,
         isFullyAuthenticated,
         tokensInStorage: {
@@ -81,7 +93,7 @@ function App() {
     
     setHasProcessedUrlParams(true);
     setAuthCheckComplete(true);
-  }, [hasProcessedUrlParams, isBasicAuthenticated, isFullyAuthenticated, accessToken, dmaToken]);
+  }, [hasProcessedUrlParams, isBasicAuthenticated, isFullyAuthenticated, accessToken, dmaToken, setUserId]);
 
   // Don't render anything until auth check is complete
   if (!authCheckComplete) {

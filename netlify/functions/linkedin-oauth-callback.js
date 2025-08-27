@@ -57,10 +57,14 @@ export async function handler(event, context) {
       throw new Error(tokens.error_description || tokens.error);
     }
 
-    // If this is a DMA token, capture the DMA URN
+    // If this is a DMA token, capture the DMA URN and get userId
+    let userId = null;
     if (state === "dma") {
       console.log("Processing DMA token - capturing DMA URN...");
-      await captureDmaUrnOnFirstSignIn(`Bearer ${tokens.access_token}`);
+      const user = await captureDmaUrnOnFirstSignIn(
+        `Bearer ${tokens.access_token}`
+      );
+      userId = user?.id;
     }
 
     // Store token type based on state
@@ -69,7 +73,11 @@ export async function handler(event, context) {
       process.env.NODE_ENV === "development"
         ? "http://localhost:5173"
         : process.env.URL || "https://localhost:5173";
-    const redirectUrl = `${baseUrl}/?${tokenType}=${tokens.access_token}`;
+
+    // Include userId in redirect if available
+    const redirectUrl = userId
+      ? `${baseUrl}/?${tokenType}=${tokens.access_token}&user_id=${userId}`
+      : `${baseUrl}/?${tokenType}=${tokens.access_token}`;
     console.log("Redirecting to:", redirectUrl);
 
     return {
@@ -103,7 +111,7 @@ async function captureDmaUrnOnFirstSignIn(authorization) {
 
     if (!dmaUrn) {
       console.error("Failed to get DMA URN");
-      return;
+      return null;
     }
 
     // Update or create user with DMA URN
@@ -111,12 +119,15 @@ async function captureDmaUrnOnFirstSignIn(authorization) {
 
     if (user) {
       console.log("Successfully captured DMA URN for user:", user.id);
+      return user; // Return the user object so we can access user.id
     } else {
       console.error("Failed to update user with DMA URN");
+      return null;
     }
   } catch (error) {
     console.error("Error capturing DMA URN:", error);
     // Don't throw error here - we don't want to break the OAuth flow
+    return null;
   }
 }
 
