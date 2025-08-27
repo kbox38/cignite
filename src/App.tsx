@@ -54,15 +54,17 @@ function App() {
     const userIdParam = urlParams.get('user_id');
     const hasAuthParams = accessTokenParam || dmaTokenParam;
     
-    // Process tokens immediately if found
-    if (accessTokenParam && !accessToken) {
-      console.log('App: Setting access token from URL');
-      useAuthStore.getState().setTokens(accessTokenParam, dmaToken);
-    }
-    
-    if (dmaTokenParam && !dmaToken) {
-      console.log('App: Setting DMA token from URL');
-      useAuthStore.getState().setTokens(accessToken, dmaTokenParam);
+    // Process tokens - handle both tokens together to avoid overwriting
+    if (accessTokenParam || dmaTokenParam) {
+      console.log('App: Processing tokens from URL', {
+        accessToken: accessTokenParam ? 'found' : 'missing',
+        dmaToken: dmaTokenParam ? 'found' : 'missing'
+      });
+      
+      const finalAccessToken = accessTokenParam || accessToken;
+      const finalDmaToken = dmaTokenParam || dmaToken;
+      
+      useAuthStore.getState().setTokens(finalAccessToken, finalDmaToken);
     }
     
     // Process userId from URL if available
