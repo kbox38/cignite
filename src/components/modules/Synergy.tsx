@@ -66,7 +66,7 @@ export const Synergy = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
+
   const [suggestingFor, setSuggestingFor] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Record<string, string>>({});
   const queryClient = useQueryClient();
