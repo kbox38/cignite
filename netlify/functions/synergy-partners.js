@@ -11,7 +11,7 @@ export async function handler(event, context) {
   }
 
   const { authorization } = event.headers;
-  
+
   if (!authorization) {
     return {
       statusCode: 401,
@@ -24,14 +24,14 @@ export async function handler(event, context) {
   }
 
   try {
-    // Identity verification: get verified user ID from token
+    // Identity verification: get verified user ID from DMA token
     const userId = await getUserIdFromToken(authorization);
-    
+
     if (!userId) {
       return {
         statusCode: 401,
         headers: {
-          "Content-Type": "application/json", 
+          "Content-Type": "application/json",
           "Access-Control-Allow-Origin": "*",
         },
         body: JSON.stringify({ error: "Invalid token or user not found" }),
@@ -41,8 +41,10 @@ export async function handler(event, context) {
     if (event.httpMethod === "GET") {
       return await getPartnersAndInvitations(userId);
     } else if (event.httpMethod === "POST") {
-      const { action, partnerId, invitationId } = JSON.parse(event.body || "{}");
-      
+      const { action, partnerId, invitationId } = JSON.parse(
+        event.body || "{}"
+      );
+
       if (action === "invite") {
         return await sendPartnerInvitation(userId, partnerId);
       } else if (action === "accept") {
@@ -50,7 +52,7 @@ export async function handler(event, context) {
       } else if (action === "decline") {
         return await declineInvitation(userId, invitationId);
       }
-      
+
       return {
         statusCode: 400,
         headers: {
@@ -80,9 +82,9 @@ export async function handler(event, context) {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
       },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         error: "Internal server error",
-        details: error.message 
+        details: error.message,
       }),
     };
   }
@@ -92,18 +94,25 @@ export async function handler(event, context) {
 async function getUserIdFromToken(authorization) {
   try {
     console.log("Verifying user identity from DMA token...");
-    
+
     // Use LinkedIn DMA Member Authorization API for identity verification
-    const response = await fetch('https://api.linkedin.com/rest/memberAuthorizations?q=memberAndApplication', {
-      headers: {
-        'Authorization': authorization,
-        'LinkedIn-Version': '202312',
-        'X-Restli-Protocol-Version': '2.0.0'
+    const response = await fetch(
+      "https://api.linkedin.com/rest/memberAuthorizations?q=memberAndApplication",
+      {
+        headers: {
+          Authorization: authorization,
+          "LinkedIn-Version": "202312",
+          "X-Restli-Protocol-Version": "2.0.0",
+        },
       }
-    });
+    );
 
     if (!response.ok) {
-      console.error("LinkedIn member auth error:", response.status, response.statusText);
+      console.error(
+        "LinkedIn member auth error:",
+        response.status,
+        response.statusText
+      );
       throw new Error(`Failed to verify user identity: ${response.status}`);
     }
 
@@ -112,42 +121,42 @@ async function getUserIdFromToken(authorization) {
 
     // Extract member URN from the authorizations response
     if (!authData.elements || authData.elements.length === 0) {
-      throw new Error('No member authorization found');
+      throw new Error("No member authorization found");
     }
 
     const memberAuth = authData.elements[0];
     const personUrn = memberAuth.memberComplianceAuthorizationKey.member;
     console.log("Verified person URN:", personUrn);
 
-    // Look up user in database by LinkedIn URN
-    const { createClient } = await import('@supabase/supabase-js');
+    // Look up user in database by LinkedIn DMA URN
+    const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
     const { data: user, error } = await supabase
-      .from('users')
-      .select('id, name, linkedin_member_urn')
-      .eq('linkedin_member_urn', personUrn)
+      .from("users")
+      .select("id, name, linkedin_dma_member_urn")
+      .eq("linkedin_dma_member_urn", personUrn)
       .single();
 
     if (error || !user) {
-      console.error('User not found in database:', error);
+      console.error("User not found in database:", error);
       return null;
     }
 
     console.log("Identity verified for user:", user.name, "ID:", user.id);
     return user.id;
   } catch (error) {
-    console.error('Error verifying user identity:', error);
+    console.error("Error verifying user identity:", error);
     return null;
   }
 }
 
 async function getPartnersAndInvitations(userId) {
   try {
-    const { createClient } = await import('@supabase/supabase-js');
+    const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -157,8 +166,9 @@ async function getPartnersAndInvitations(userId) {
 
     // Get active partnerships
     const { data: partnerships, error: partnershipsError } = await supabase
-      .from('synergy_partners')
-      .select(`
+      .from("synergy_partners")
+      .select(
+        `
         id,
         a_user_id,
         b_user_id,
@@ -167,23 +177,25 @@ async function getPartnersAndInvitations(userId) {
         last_interaction,
         created_at,
         a_user:users!synergy_partners_a_user_id_fkey(
-          id, name, email, avatar_url, headline, industry, location, linkedin_member_urn, dma_active
+          id, name, email, avatar_url, headline, industry, location, linkedin_dma_member_urn, dma_active
         ),
         b_user:users!synergy_partners_b_user_id_fkey(
-          id, name, email, avatar_url, headline, industry, location, linkedin_member_urn, dma_active
+          id, name, email, avatar_url, headline, industry, location, linkedin_dma_member_urn, dma_active
         )
-      `)
+      `
+      )
       .or(`a_user_id.eq.${userId},b_user_id.eq.${userId}`)
-      .eq('partnership_status', 'active');
+      .eq("partnership_status", "active");
 
     if (partnershipsError) {
-      console.error('Error fetching partnerships:', partnershipsError);
+      console.error("Error fetching partnerships:", partnershipsError);
     }
 
     // Get pending invitations
     const { data: invitations, error: invitationsError } = await supabase
-      .from('synergy_invitations')
-      .select(`
+      .from("synergy_invitations")
+      .select(
+        `
         id,
         from_user_id,
         to_user_id,
@@ -196,49 +208,62 @@ async function getPartnersAndInvitations(userId) {
         to_user:users!synergy_invitations_to_user_id_fkey(
           id, name, avatar_url, headline
         )
-      `)
-      .eq('to_user_id', userId)
-      .eq('invitation_status', 'pending');
+      `
+      )
+      .eq("to_user_id", userId)
+      .eq("invitation_status", "pending");
 
     if (invitationsError) {
-      console.error('Error fetching invitations:', invitationsError);
+      console.error("Error fetching invitations:", invitationsError);
     }
 
     // Format partners (return the partner user, not the current user)
-    const partners = partnerships?.map(partnership => {
-      const partner = partnership.a_user_id === userId ? 
-        partnership.b_user : partnership.a_user;
-      
-      return {
-        id: partner.id,
-        name: partner.name,
-        email: partner.email,
-        avatarUrl: partner.avatar_url,
-        headline: partner.headline,
-        industry: partner.industry,
-        location: partner.location,
-        linkedinMemberUrn: partner.linkedin_member_urn,
-        dmaActive: partner.dma_active,
-        partnershipId: partnership.id,
-        engagementScore: partnership.engagement_score,
-        lastInteraction: partnership.last_interaction,
-        createdAt: partnership.created_at
-      };
-    }) || [];
+    const partners =
+      partnerships?.map((partnership) => {
+        const partner =
+          partnership.a_user_id === userId
+            ? partnership.b_user
+            : partnership.a_user;
 
-    // Format pending invitations
-    const pendingInvitations = invitations?.map(invitation => ({
-      id: invitation.id,
-      fromUserId: invitation.from_user_id,
-      toUserId: invitation.to_user_id,
-      fromUserName: invitation.from_user.name,
-      fromUserAvatar: invitation.from_user.avatar_url,
-      fromUserHeadline: invitation.from_user.headline,
-      message: invitation.message,
-      createdAt: invitation.created_at
-    })) || [];
+        return {
+          id: partner.id,
+          name: partner.name || "LinkedIn User",
+          email: partner.email,
+          avatarUrl:
+            partner.avatar_url ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(
+              partner.name || "User"
+            )}&background=0ea5e9&color=fff`,
+          headline: partner.headline || "LinkedIn Professional",
+          industry: partner.industry || "Professional Services",
+          location: partner.location || "Location not specified",
+          linkedinDmaUrn: partner.linkedin_dma_member_urn,
+          dmaActive: partner.dma_active,
+          partnershipId: partnership.id,
+          engagementScore: partnership.engagement_score,
+          lastInteraction: partnership.last_interaction,
+          partnershipDate: partnership.created_at,
+        };
+      }) || [];
 
-    console.log(`Found ${partners.length} partners and ${pendingInvitations.length} pending invitations`);
+    // Format invitations
+    const formattedInvitations =
+      invitations?.map((invitation) => ({
+        id: invitation.id,
+        fromUser: {
+          id: invitation.from_user.id,
+          name: invitation.from_user.name || "LinkedIn User",
+          avatarUrl:
+            invitation.from_user.avatar_url ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(
+              invitation.from_user.name || "User"
+            )}&background=0ea5e9&color=fff`,
+          headline: invitation.from_user.headline || "LinkedIn Professional",
+        },
+        message: invitation.message,
+        createdAt: invitation.created_at,
+        status: invitation.invitation_status,
+      })) || [];
 
     return {
       statusCode: 200,
@@ -248,17 +273,13 @@ async function getPartnersAndInvitations(userId) {
       },
       body: JSON.stringify({
         partners,
-        pendingInvitations,
-        metadata: {
-          userId,
-          totalPartners: partners.length,
-          totalPendingInvitations: pendingInvitations.length,
-          timestamp: new Date().toISOString()
-        }
+        invitations: formattedInvitations,
+        totalPartners: partners.length,
+        pendingInvitations: formattedInvitations.length,
       }),
     };
   } catch (error) {
-    console.error('Error in getPartnersAndInvitations:', error);
+    console.error("Error fetching partners and invitations:", error);
     return {
       statusCode: 500,
       headers: {
@@ -266,60 +287,35 @@ async function getPartnersAndInvitations(userId) {
         "Access-Control-Allow-Origin": "*",
       },
       body: JSON.stringify({
-        error: 'Failed to fetch partners and invitations',
-        details: error.message
+        error: "Failed to fetch partners and invitations",
+        details: error.message,
       }),
     };
   }
 }
 
-async function sendPartnerInvitation(userId, partnerId) {
+async function sendPartnerInvitation(fromUserId, toUserId) {
   try {
-    const { createClient } = await import('@supabase/supabase-js');
+    const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    console.log(`Sending invitation from ${userId} to ${partnerId}`);
-
-    // Validate that both users exist and have DMA active
-    const { data: users, error: usersError } = await supabase
-      .from('users')
-      .select('id, name, dma_active')
-      .in('id', [userId, partnerId]);
-
-    if (usersError || users.length !== 2) {
-      return {
-        statusCode: 400,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-        body: JSON.stringify({ error: 'Invalid user IDs' }),
-      };
-    }
-
-    const targetUser = users.find(u => u.id === partnerId);
-    if (!targetUser.dma_active) {
-      return {
-        statusCode: 400,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-        body: JSON.stringify({ 
-          error: 'Target user does not have active DMA consent' 
-        }),
-      };
-    }
+    console.log(
+      "Sending partner invitation from:",
+      fromUserId,
+      "to:",
+      toUserId
+    );
 
     // Check if invitation already exists
     const { data: existingInvitation } = await supabase
-      .from('synergy_invitations')
-      .select('id')
-      .eq('from_user_id', userId)
-      .eq('to_user_id', partnerId)
+      .from("synergy_invitations")
+      .select("id")
+      .eq("from_user_id", fromUserId)
+      .eq("to_user_id", toUserId)
+      .eq("invitation_status", "pending")
       .single();
 
     if (existingInvitation) {
@@ -329,56 +325,26 @@ async function sendPartnerInvitation(userId, partnerId) {
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": "*",
         },
-        body: JSON.stringify({ error: 'Invitation already sent' }),
+        body: JSON.stringify({ error: "Invitation already sent" }),
       };
     }
 
-    // Check if partnership already exists
-    const { data: existingPartnership } = await supabase
-      .from('synergy_partners')
-      .select('id')
-      .or(`and(a_user_id.eq.${userId},b_user_id.eq.${partnerId}),and(a_user_id.eq.${partnerId},b_user_id.eq.${userId})`)
-      .eq('partnership_status', 'active')
-      .single();
-
-    if (existingPartnership) {
-      return {
-        statusCode: 400,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-        body: JSON.stringify({ error: 'Partnership already exists' }),
-      };
-    }
-
-    // Create invitation
-    const { data: invitation, error: invitationError } = await supabase
-      .from('synergy_invitations')
+    // Create new invitation
+    const { data: invitation, error } = await supabase
+      .from("synergy_invitations")
       .insert({
-        from_user_id: userId,
-        to_user_id: partnerId,
-        invitation_status: 'pending'
+        from_user_id: fromUserId,
+        to_user_id: toUserId,
+        invitation_status: "pending",
+        message: "Would you like to become Synergy partners?",
       })
       .select()
       .single();
 
-    if (invitationError) {
-      console.error('Error creating invitation:', invitationError);
-      return {
-        statusCode: 500,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-        body: JSON.stringify({ 
-          error: 'Failed to send invitation',
-          details: invitationError.message 
-        }),
-      };
+    if (error) {
+      console.error("Error creating invitation:", error);
+      throw error;
     }
-
-    console.log("Invitation sent successfully:", invitation.id);
 
     return {
       statusCode: 200,
@@ -389,11 +355,11 @@ async function sendPartnerInvitation(userId, partnerId) {
       body: JSON.stringify({
         success: true,
         invitationId: invitation.id,
-        message: 'Invitation sent successfully'
+        message: "Invitation sent successfully",
       }),
     };
   } catch (error) {
-    console.error('Error in sendPartnerInvitation:', error);
+    console.error("Error sending invitation:", error);
     return {
       statusCode: 500,
       headers: {
@@ -401,8 +367,8 @@ async function sendPartnerInvitation(userId, partnerId) {
         "Access-Control-Allow-Origin": "*",
       },
       body: JSON.stringify({
-        error: 'Failed to send invitation',
-        details: error.message
+        error: "Failed to send invitation",
+        details: error.message,
       }),
     };
   }
@@ -410,85 +376,70 @@ async function sendPartnerInvitation(userId, partnerId) {
 
 async function acceptInvitation(userId, invitationId) {
   try {
-    const { createClient } = await import('@supabase/supabase-js');
+    const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    console.log(`User ${userId} accepting invitation ${invitationId}`);
+    console.log("Accepting invitation:", invitationId, "by user:", userId);
 
     // Get invitation details
     const { data: invitation, error: invitationError } = await supabase
-      .from('synergy_invitations')
-      .select('*')
-      .eq('id', invitationId)
-      .eq('to_user_id', userId)
-      .eq('invitation_status', 'pending')
+      .from("synergy_invitations")
+      .select("from_user_id, to_user_id")
+      .eq("id", invitationId)
+      .eq("to_user_id", userId)
+      .eq("invitation_status", "pending")
       .single();
 
     if (invitationError || !invitation) {
       return {
-        statusCode: 404,
+        statusCode: 400,
         headers: {
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": "*",
         },
-        body: JSON.stringify({ error: 'Invitation not found or already processed' }),
+        body: JSON.stringify({ error: "Invitation not found or not pending" }),
       };
     }
 
-    // Start transaction: update invitation and create partnership
-    const { error: updateError } = await supabase
-      .from('synergy_invitations')
-      .update({ 
-        invitation_status: 'accepted',
-        responded_at: new Date().toISOString()
-      })
-      .eq('id', invitationId);
+    // Create partnership (ensure consistent ordering)
+    const aUserId =
+      invitation.from_user_id < invitation.to_user_id
+        ? invitation.from_user_id
+        : invitation.to_user_id;
+    const bUserId =
+      invitation.from_user_id < invitation.to_user_id
+        ? invitation.to_user_id
+        : invitation.from_user_id;
 
-    if (updateError) {
-      console.error('Error updating invitation:', updateError);
-      return {
-        statusCode: 500,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-        body: JSON.stringify({ error: 'Failed to accept invitation' }),
-      };
-    }
-
-    // Create partnership (ensure consistent ordering: smaller ID as a_user_id)
-    const aUserId = invitation.from_user_id < invitation.to_user_id ? 
-      invitation.from_user_id : invitation.to_user_id;
-    const bUserId = invitation.from_user_id < invitation.to_user_id ? 
-      invitation.to_user_id : invitation.from_user_id;
-
-    const { data: partnership, error: partnershipError } = await supabase
-      .from('synergy_partners')
+    const { error: partnershipError } = await supabase
+      .from("synergy_partners")
       .insert({
         a_user_id: aUserId,
         b_user_id: bUserId,
-        partnership_status: 'active',
-        engagement_score: 0
-      })
-      .select()
-      .single();
+        partnership_status: "active",
+        engagement_score: 0,
+      });
 
     if (partnershipError) {
-      console.error('Error creating partnership:', partnershipError);
-      return {
-        statusCode: 500,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-        body: JSON.stringify({ error: 'Failed to create partnership' }),
-      };
+      console.error("Error creating partnership:", partnershipError);
+      throw partnershipError;
     }
 
-    console.log("Partnership created successfully:", partnership.id);
+    // Update invitation status
+    const { error: updateError } = await supabase
+      .from("synergy_invitations")
+      .update({
+        invitation_status: "accepted",
+        responded_at: new Date().toISOString(),
+      })
+      .eq("id", invitationId);
+
+    if (updateError) {
+      console.error("Error updating invitation:", updateError);
+    }
 
     return {
       statusCode: 200,
@@ -498,12 +449,11 @@ async function acceptInvitation(userId, invitationId) {
       },
       body: JSON.stringify({
         success: true,
-        partnershipId: partnership.id,
-        message: 'Invitation accepted and partnership created'
+        message: "Partnership created successfully",
       }),
     };
   } catch (error) {
-    console.error('Error in acceptInvitation:', error);
+    console.error("Error accepting invitation:", error);
     return {
       statusCode: 500,
       headers: {
@@ -511,8 +461,8 @@ async function acceptInvitation(userId, invitationId) {
         "Access-Control-Allow-Origin": "*",
       },
       body: JSON.stringify({
-        error: 'Failed to accept invitation',
-        details: error.message
+        error: "Failed to accept invitation",
+        details: error.message,
       }),
     };
   }
@@ -520,34 +470,28 @@ async function acceptInvitation(userId, invitationId) {
 
 async function declineInvitation(userId, invitationId) {
   try {
-    const { createClient } = await import('@supabase/supabase-js');
+    const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    console.log(`User ${userId} declining invitation ${invitationId}`);
+    console.log("Declining invitation:", invitationId, "by user:", userId);
 
+    // Update invitation status
     const { error } = await supabase
-      .from('synergy_invitations')
-      .update({ 
-        invitation_status: 'declined',
-        responded_at: new Date().toISOString()
+      .from("synergy_invitations")
+      .update({
+        invitation_status: "declined",
+        responded_at: new Date().toISOString(),
       })
-      .eq('id', invitationId)
-      .eq('to_user_id', userId)
-      .eq('invitation_status', 'pending');
+      .eq("id", invitationId)
+      .eq("to_user_id", userId)
+      .eq("invitation_status", "pending");
 
     if (error) {
-      console.error('Error declining invitation:', error);
-      return {
-        statusCode: 500,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-        body: JSON.stringify({ error: 'Failed to decline invitation' }),
-      };
+      console.error("Error declining invitation:", error);
+      throw error;
     }
 
     return {
@@ -558,11 +502,11 @@ async function declineInvitation(userId, invitationId) {
       },
       body: JSON.stringify({
         success: true,
-        message: 'Invitation declined'
+        message: "Invitation declined successfully",
       }),
     };
   } catch (error) {
-    console.error('Error in declineInvitation:', error);
+    console.error("Error declining invitation:", error);
     return {
       statusCode: 500,
       headers: {
@@ -570,8 +514,8 @@ async function declineInvitation(userId, invitationId) {
         "Access-Control-Allow-Origin": "*",
       },
       body: JSON.stringify({
-        error: 'Failed to decline invitation',
-        details: error.message
+        error: "Failed to decline invitation",
+        details: error.message,
       }),
     };
   }
@@ -579,30 +523,25 @@ async function declineInvitation(userId, invitationId) {
 
 async function removePartner(userId, partnerId) {
   try {
-    const { createClient } = await import('@supabase/supabase-js');
+    const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    console.log(`User ${userId} removing partner ${partnerId}`);
+    console.log("Removing partner:", partnerId, "for user:", userId);
 
+    // Update partnership status to ended
     const { error } = await supabase
-      .from('synergy_partners')
-      .update({ partnership_status: 'ended' })
-      .or(`and(a_user_id.eq.${userId},b_user_id.eq.${partnerId}),and(a_user_id.eq.${partnerId},b_user_id.eq.${userId})`)
-      .eq('partnership_status', 'active');
+      .from("synergy_partners")
+      .update({ partnership_status: "ended" })
+      .or(`a_user_id.eq.${userId},b_user_id.eq.${userId}`)
+      .or(`a_user_id.eq.${partnerId},b_user_id.eq.${partnerId}`)
+      .eq("partnership_status", "active");
 
     if (error) {
-      console.error('Error removing partner:', error);
-      return {
-        statusCode: 500,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-        body: JSON.stringify({ error: 'Failed to remove partner' }),
-      };
+      console.error("Error removing partner:", error);
+      throw error;
     }
 
     return {
@@ -613,11 +552,11 @@ async function removePartner(userId, partnerId) {
       },
       body: JSON.stringify({
         success: true,
-        message: 'Partnership ended successfully'
+        message: "Partnership ended successfully",
       }),
     };
   } catch (error) {
-    console.error('Error in removePartner:', error);
+    console.error("Error removing partner:", error);
     return {
       statusCode: 500,
       headers: {
@@ -625,8 +564,8 @@ async function removePartner(userId, partnerId) {
         "Access-Control-Allow-Origin": "*",
       },
       body: JSON.stringify({
-        error: 'Failed to remove partner',
-        details: error.message
+        error: "Failed to remove partner",
+        details: error.message,
       }),
     };
   }
