@@ -4,7 +4,7 @@ export async function handler(event, context) {
       statusCode: 200,
       headers: {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Headers": "Content-Type",
         "Access-Control-Allow-Methods": "GET, OPTIONS",
       },
     };
@@ -17,36 +17,26 @@ export async function handler(event, context) {
     };
   }
 
-  const { authorization } = event.headers;
-  const { search = "", limit = "10" } = event.queryStringParameters || {};
+  const { userId, search = "", limit = "10" } = event.queryStringParameters || {};
 
   console.log("=== SYNERGY USER SEARCH (REAL DATABASE) ===");
+  console.log("User ID provided:", userId);
   console.log("Search term:", search);
   console.log("Limit:", limit);
-  console.log("Authorization present:", !!authorization);
 
-  if (!authorization) {
+  if (!userId) {
     return {
-      statusCode: 401,
+      statusCode: 400,
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
       },
-      body: JSON.stringify({ error: "No authorization token" }),
+      body: JSON.stringify({ error: "User ID is required" }),
     };
   }
 
   try {
-    // Get current user ID from LinkedIn token
-    const currentUserId = await getUserIdFromToken(authorization);
-    if (!currentUserId) {
-      console.error("Failed to get user ID from token");
-      return {
-        statusCode: 401,
-        body: JSON.stringify({ error: "Invalid token or user not found in database" }),
-      };
-    }
-
+    const currentUserId = userId;
     console.log("Current user ID:", currentUserId);
 
     // Initialize Supabase client
@@ -88,32 +78,35 @@ export async function handler(event, context) {
       .eq('invitation_status', 'pending');
 
     if (invitationsError) {
-      console.error("Error fetching invitations:", invitationsError);
+      console.error("Error fetching pending invitations:", invitationsError);
     }
 
     const pendingIds = new Set();
     pendingInvitations?.forEach(invitation => {
-      pendingIds.add(invitation.from_user_id);
-      pendingIds.add(invitation.to_user_id);
+      if (invitation.from_user_id === currentUserId) {
+        pendingIds.add(invitation.to_user_id);
+      } else {
+        pendingIds.add(invitation.from_user_id);
+      }
     });
 
     console.log("Pending invitation IDs:", Array.from(pendingIds));
 
-    // Build search query for real users
+    // Build search query for users with DMA active
     let query = supabase
       .from('users')
       .select(`
         id,
         name,
         email,
-        avatar_url,
         headline,
         industry,
         location,
+        avatar_url,
         linkedin_member_urn,
         dma_active,
         created_at,
-        user_profiles!inner(
+        user_profiles (
           total_connections,
           profile_completeness_score
         )
@@ -122,29 +115,24 @@ export async function handler(event, context) {
       .neq('id', currentUserId)
       .limit(parseInt(limit));
 
-    // Add search filters if search term provided
-    if (search && search.trim()) {
-      const searchTerm = search.trim();
-      console.log("Applying search filter for:", searchTerm);
-      
-      query = query.or(`
-        name.ilike.%${searchTerm}%,
-        email.ilike.%${searchTerm}%,
-        headline.ilike.%${searchTerm}%,
-        industry.ilike.%${searchTerm}%,
-        location.ilike.%${searchTerm}%
-      `);
+    // Add search filter if provided
+    if (search.trim()) {
+      query = query.or(`name.ilike.%${search}%,headline.ilike.%${search}%,industry.ilike.%${search}%`);
     }
 
     const { data: users, error: usersError } = await query;
 
     if (usersError) {
-      console.error("Database error:", usersError);
+      console.error("Error fetching users:", usersError);
       return {
         statusCode: 500,
-        body: JSON.stringify({ 
-          error: "Database query failed",
-          details: usersError.message 
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+        body: JSON.stringify({
+          error: "Failed to fetch users from database",
+          details: usersError.message
         }),
       };
     }
@@ -182,7 +170,6 @@ export async function handler(event, context) {
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
       },
       body: JSON.stringify({
         users: formattedUsers,
@@ -212,90 +199,5 @@ export async function handler(event, context) {
         stack: error.stack
       }),
     };
-  }
-}
-
-async function getUserIdFromToken(authorization) {
-  try {
-    console.log("Getting user ID from LinkedIn token...");
-    
-    // Extract user info from LinkedIn token
-    const response = await fetch('https://api.linkedin.com/v2/userinfo', {
-      headers: {
-        'Authorization': authorization,
-        'LinkedIn-Version': '202312'
-      }
-    });
-
-    if (!response.ok) {
-      console.error("LinkedIn userinfo API error:", response.status, response.statusText);
-      throw new Error('Failed to get user info from LinkedIn');
-    }
-
-    const userInfo = await response.json();
-    console.log("LinkedIn user info:", {
-      sub: userInfo.sub,
-      name: userInfo.name,
-      email: userInfo.email
-    });
-    
-    const linkedinUrn = `urn:li:person:${userInfo.sub}`;
-    console.log("LinkedIn URN:", linkedinUrn);
-
-    // Find user in database by LinkedIn URN
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('id, name, dma_active')
-      .eq('linkedin_member_urn', linkedinUrn)
-      .single();
-
-    if (error) {
-      console.error("Database lookup error:", error);
-      
-      // If user doesn't exist, create them
-      if (error.code === 'PGRST116') {
-        console.log("User not found in database, creating new user...");
-        
-        const { data: newUser, error: createError } = await supabase
-          .from('users')
-          .insert({
-            email: userInfo.email,
-            name: userInfo.name,
-            given_name: userInfo.given_name,
-            family_name: userInfo.family_name,
-            avatar_url: userInfo.picture,
-            linkedin_member_urn: linkedinUrn,
-            headline: userInfo.headline || '',
-            industry: userInfo.industry || '',
-            location: userInfo.location || '',
-            dma_active: true,
-            dma_consent_date: new Date().toISOString()
-          })
-          .select('id')
-          .single();
-
-        if (createError) {
-          console.error("Error creating user:", createError);
-          throw new Error('Failed to create user in database');
-        }
-
-        console.log("Created new user:", newUser.id);
-        return newUser.id;
-      }
-      
-      throw new Error('Database lookup failed');
-    }
-
-    console.log("Found user in database:", user.id, user.name, "DMA active:", user.dma_active);
-    return user.id;
-  } catch (error) {
-    console.error('Error getting user ID from token:', error);
-    return null;
   }
 }
