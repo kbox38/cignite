@@ -64,6 +64,13 @@ function App() {
       const finalAccessToken = accessTokenParam || accessToken;
       const finalDmaToken = dmaTokenParam || dmaToken;
       
+      console.log('App: About to call setTokens with:', {
+        finalAccessToken: finalAccessToken ? 'present' : 'null',
+        finalDmaToken: finalDmaToken ? 'present' : 'null',
+        currentAccessToken: accessToken ? 'present' : 'null',
+        currentDmaToken: dmaToken ? 'present' : 'null'
+      });
+
       useAuthStore.getState().setTokens(finalAccessToken, finalDmaToken);
     }
     
