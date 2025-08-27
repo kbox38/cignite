@@ -26,6 +26,7 @@ import { Button } from "../ui/Button";
 import { LoadingSpinner } from "../ui/LoadingSpinner";
 import { useAuthStore } from "../../stores/authStore";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSynergyUserSearch } from "../../hooks/useSynergyData";
 
 interface SynergyPartner {
   id: string;
@@ -59,7 +60,7 @@ interface PartnerPost {
 }
 
 export const Synergy = () => {
-  const { dmaToken } = useAuthStore();
+  const { dmaToken, userId } = useAuthStore();
   const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -109,7 +110,7 @@ export const Synergy = () => {
       if (!selectedPartner) throw new Error("No partner selected");
 
       const response = await fetch(
-        `/.netlify/functions/synergy-posts?partnerId=${encodeURIComponent(
+        `/.netlify/functions/synergy-posts?partnerUserId=${encodeURIComponent(
           selectedPartner
         )}&limit=10`,
         {
@@ -325,42 +326,22 @@ export const Synergy = () => {
     return partners.find((p) => p.id === selectedPartner);
   }, [selectedPartner, partners]);
 
-  const searchUsers = async () => {
-    if (!searchTerm.trim()) {
-      setSearchResults([]);
-      return;
+  // Use the search hook
+  const {
+    data: searchData,
+    isLoading: isSearching,
+    refetch: searchUsers,
+  } = useSynergyUserSearch(searchTerm, 10);
+
+  // Update search results when search data changes
+  useEffect(() => {
+    if (searchData) {
+      setSearchResults(searchData);
     }
+  }, [searchData]);
 
-    setIsSearching(true);
-    try {
-      const response = await fetch(
-        `/.netlify/functions/synergy-user-search?search=${encodeURIComponent(
-          searchTerm
-        )}&limit=10`,
-        {
-          headers: {
-            Authorization: `Bearer ${dmaToken}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to search users");
-      }
-
-      const data = await response.json();
-      setSearchResults(data.users || []);
-    } catch (error) {
-      console.error("Error searching users:", error);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const sendInvitation = (userId: string) => {
-    sendInvitationMutation.mutate(userId);
+  const sendInvitation = (partnerUserId: string) => {
+    sendInvitationMutation.mutate(partnerUserId);
   };
 
   const acceptInvitation = (invitationId: string) => {
@@ -391,6 +372,34 @@ export const Synergy = () => {
             onClick={() => (window.location.href = "/")}
           >
             Enable DMA Access
+          </Button>
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (!userId) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="space-y-6"
+      >
+        <div className="text-center py-12">
+          <AlertCircle size={48} className="mx-auto text-orange-400 mb-4" />
+          <h2 className="text-2xl font-bold mb-4">
+            User Identification Required
+          </h2>
+          <p className="text-gray-600 mb-6">
+            User identification is required for Synergy features. Please
+            re-authenticate to continue.
+          </p>
+          <Button
+            variant="primary"
+            onClick={() => (window.location.href = "/")}
+          >
+            Re-authenticate
           </Button>
         </div>
       </motion.div>
@@ -929,7 +938,7 @@ export const Synergy = () => {
                   </div>
                   <Button
                     variant="primary"
-                    onClick={searchUsers}
+                    onClick={() => searchUsers()}
                     disabled={isSearching || !searchTerm.trim()}
                   >
                     {isSearching ? (

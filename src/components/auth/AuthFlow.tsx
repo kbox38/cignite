@@ -14,7 +14,7 @@ interface AuthFlowProps {
 }
 
 export const AuthFlow = ({ isDark = false }: AuthFlowProps) => {
-  const { accessToken, dmaToken, isBasicAuthenticated, isFullyAuthenticated, setTokens, setProfile } = useAuthStore();
+  const { accessToken, dmaToken, userId, isBasicAuthenticated, isFullyAuthenticated, setTokens, setUserId, setProfile } = useAuthStore();
   const { data: profile, isLoading } = useLinkedInProfile();
   const [isProcessingAuth, setIsProcessingAuth] = useState(false);
 
@@ -80,6 +80,12 @@ export const AuthFlow = ({ isDark = false }: AuthFlowProps) => {
       if (response.ok) {
         const result = await response.json();
         console.log('User registration result:', result);
+        
+        // Extract and store userId from the response
+        if (result.userId && !userId) {
+          console.log('Setting userId from registration:', result.userId);
+          setUserId(result.userId);
+        }
       } else {
         console.error('User registration failed:', response.status);
       }

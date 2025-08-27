@@ -81,12 +81,12 @@ export const synergyService = {
   // Post fetching
   async getPartnerPosts(
     token: string,
-    partnerId: string,
+    partnerUserId: string,
     limit: number = 5,
     direction: "theirs" | "mine" = "theirs"
   ): Promise<PartnerPost[]> {
     const response = await fetch(
-      `${API_BASE}/synergy-posts?partnerId=${partnerId}&limit=${limit}&direction=${direction}`,
+      `${API_BASE}/synergy-posts?partnerUserId=${partnerUserId}&limit=${limit}&direction=${direction}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -104,6 +104,31 @@ export const synergyService = {
   },
 
 
+
+  // User search
+  async searchUsers(
+    token: string,
+    userId: string,
+    searchTerm: string,
+    limit: number = 10
+  ): Promise<any[]> {
+    const response = await fetch(
+      `${API_BASE}/synergy-user-search?userId=${encodeURIComponent(userId)}&search=${encodeURIComponent(searchTerm)}&limit=${limit}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to search users");
+    }
+
+    const data = await response.json();
+    return data.users || [];
+  },
 
   // AI comment suggestions
   async suggestComment(

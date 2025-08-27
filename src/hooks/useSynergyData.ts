@@ -15,6 +15,20 @@ export const useSynergyPartners = () => {
   });
 };
 
+// User search hook
+export const useSynergyUserSearch = (searchTerm: string, limit: number = 10) => {
+  const { dmaToken, userId } = useAuthStore();
+  
+  return useQuery({
+    queryKey: ['synergy-user-search', userId, searchTerm, limit],
+    queryFn: () => synergyService.searchUsers(dmaToken!, userId!, searchTerm, limit),
+    enabled: !!dmaToken && !!userId && !!searchTerm.trim(),
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+    retry: 1,
+  });
+};
+
 export const useAddPartner = () => {
   const { dmaToken } = useAuthStore();
   const queryClient = useQueryClient();
@@ -40,13 +54,13 @@ export const useRemovePartner = () => {
 };
 
 // Posts hooks
-export const usePartnerPosts = (partnerId: string | null, limit: number = 5) => {
+export const usePartnerPosts = (partnerUserId: string | null, limit: number = 5) => {
   const { dmaToken } = useAuthStore();
   
   return useQuery({
-    queryKey: ['synergy-posts', partnerId, limit],
-    queryFn: () => synergyService.getPartnerPosts(dmaToken!, partnerId!, limit),
-    enabled: !!dmaToken && !!partnerId,
+    queryKey: ['synergy-posts', partnerUserId, limit],
+    queryFn: () => synergyService.getPartnerPosts(dmaToken!, partnerUserId!, limit),
+    enabled: !!dmaToken && !!partnerUserId,
     staleTime: 10 * 60 * 1000, // 10 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes
     retry: 2,
@@ -77,24 +91,24 @@ export const useSuggestComment = () => {
 };
 
 // Batch hooks for multiple partners
-export const useMultiplePartnerPosts = (partnerIds: string[], limit: number = 5) => {
+export const useMultiplePartnerPosts = (partnerUserIds: string[], limit: number = 5) => {
   const { dmaToken } = useAuthStore();
   
   return useQuery({
-    queryKey: ['synergy-multiple-posts', partnerIds, limit],
+    queryKey: ['synergy-multiple-posts', partnerUserIds, limit],
     queryFn: async () => {
       const results = await Promise.all(
-        partnerIds.map(partnerId => 
-          synergyService.getPartnerPosts(dmaToken!, partnerId, limit)
+        partnerUserIds.map(partnerUserId => 
+          synergyService.getPartnerPosts(dmaToken!, partnerUserId, limit)
         )
       );
       
-      return partnerIds.reduce((acc, partnerId, index) => {
-        acc[partnerId] = results[index];
+      return partnerUserIds.reduce((acc, partnerUserId, index) => {
+        acc[partnerUserId] = results[index];
         return acc;
       }, {} as Record<string, PartnerPost[]>);
     },
-    enabled: !!dmaToken && partnerIds.length > 0,
+    enabled: !!dmaToken && partnerUserIds.length > 0,
     staleTime: 10 * 60 * 1000,
     retry: 1,
   });
@@ -103,16 +117,16 @@ export const useMultiplePartnerPosts = (partnerIds: string[], limit: number = 5)
 
 
 // Analytics hooks
-export const useSynergyAnalytics = (partnerId: string | null) => {
+export const useSynergyAnalytics = (partnerUserId: string | null) => {
   const { dmaToken } = useAuthStore();
   
   return useQuery({
-    queryKey: ['synergy-analytics', partnerId],
+    queryKey: ['synergy-analytics', partnerUserId],
     queryFn: async () => {
-      if (!partnerId) return null;
+      if (!partnerUserId) return null;
       
       // Fetch posts for analytics
-      const posts = await synergyService.getPartnerPosts(dmaToken!, partnerId, 20);
+      const posts = await synergyService.getPartnerPosts(dmaToken!, partnerUserId, 20);
       
       // Calculate metrics
       const last28Days = Date.now() - (28 * 24 * 60 * 60 * 1000);
@@ -126,7 +140,7 @@ export const useSynergyAnalytics = (partnerId: string | null) => {
         lastPostDate: posts.length > 0 ? Math.max(...posts.map(p => p.createdAtMs)) : null,
       };
     },
-    enabled: !!dmaToken && !!partnerId,
+    enabled: !!dmaToken && !!partnerUserId,
     staleTime: 30 * 60 * 1000, // 30 minutes
   });
 };
