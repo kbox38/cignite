@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { synergyService, SynergyPartner, PartnerPost, CrossComment } from '../services/synergy';
+import { synergyService, SynergyPartner, PartnerPost } from '../services/synergy';
 import { useAuthStore } from '../stores/authStore';
 
 // Partners hooks
@@ -53,19 +53,7 @@ export const usePartnerPosts = (partnerId: string | null, limit: number = 5) => 
   });
 };
 
-// Comments hooks
-export const useCrossComment = (authorUserId: string | null, postUrn: string | null) => {
-  const { dmaToken } = useAuthStore();
-  
-  return useQuery({
-    queryKey: ['synergy-comment', authorUserId, postUrn],
-    queryFn: () => synergyService.getCommentByAuthorOnPost(dmaToken!, authorUserId!, postUrn!),
-    enabled: !!dmaToken && !!authorUserId && !!postUrn,
-    staleTime: 15 * 60 * 1000, // 15 minutes
-    gcTime: 60 * 60 * 1000, // 1 hour
-    retry: 1,
-  });
-};
+
 
 // Comment suggestions hooks
 export const useSuggestComment = () => {
@@ -112,32 +100,7 @@ export const useMultiplePartnerPosts = (partnerIds: string[], limit: number = 5)
   });
 };
 
-// Cross-comments for multiple posts
-export const useMultipleCrossComments = (
-  queries: Array<{ authorUserId: string; postUrn: string }>
-) => {
-  const { dmaToken } = useAuthStore();
-  
-  return useQuery({
-    queryKey: ['synergy-multiple-comments', queries],
-    queryFn: async () => {
-      const results = await Promise.all(
-        queries.map(({ authorUserId, postUrn }) => 
-          synergyService.getCommentByAuthorOnPost(dmaToken!, authorUserId, postUrn)
-        )
-      );
-      
-      return queries.reduce((acc, query, index) => {
-        const key = `${query.authorUserId}:${query.postUrn}`;
-        acc[key] = results[index];
-        return acc;
-      }, {} as Record<string, CrossComment | null>);
-    },
-    enabled: !!dmaToken && queries.length > 0,
-    staleTime: 15 * 60 * 1000,
-    retry: 1,
-  });
-};
+
 
 // Analytics hooks
 export const useSynergyAnalytics = (partnerId: string | null) => {
@@ -148,12 +111,8 @@ export const useSynergyAnalytics = (partnerId: string | null) => {
     queryFn: async () => {
       if (!partnerId) return null;
       
-      // Fetch posts and comments for analytics
-      const [posts, comments] = await Promise.all([
-        synergyService.getPartnerPosts(dmaToken!, partnerId, 20),
-        // In a real implementation, you'd have a separate endpoint for analytics
-        Promise.resolve([])
-      ]);
+      // Fetch posts for analytics
+      const posts = await synergyService.getPartnerPosts(dmaToken!, partnerId, 20);
       
       // Calculate metrics
       const last28Days = Date.now() - (28 * 24 * 60 * 60 * 1000);

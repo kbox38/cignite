@@ -1,12 +1,11 @@
-import { useState, useMemo, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { 
-  Plus, 
-  ExternalLink, 
-  MessageCircle, 
-  Copy, 
-  Users, 
-  Clock, 
+import { useState, useMemo, useEffect } from "react";
+import { motion } from "framer-motion";
+import {
+  Plus,
+  ExternalLink,
+  Copy,
+  Users,
+  Clock,
   Image as ImageIcon,
   Video,
   FileText,
@@ -14,21 +13,19 @@ import {
   Sparkles,
   Send,
   X,
-  CheckCircle,
   AlertCircle,
   RefreshCw,
-  Wand2,
   Search,
   UserPlus,
   Bell,
   Check,
-  XCircle
-} from 'lucide-react';
-import { Card } from '../ui/Card';
-import { Button } from '../ui/Button';
-import { LoadingSpinner } from '../ui/LoadingSpinner';
-import { useAuthStore } from '../../stores/authStore';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+  XCircle,
+} from "lucide-react";
+import { Card } from "../ui/Card";
+import { Button } from "../ui/Button";
+import { LoadingSpinner } from "../ui/LoadingSpinner";
+import { useAuthStore } from "../../stores/authStore";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface SynergyPartner {
   id: string;
@@ -52,23 +49,13 @@ interface PendingInvitation {
 }
 
 interface PartnerPost {
-  urn: string;
-  createdAt: number;
-  text: string;
+  postUrn: string;
+  createdAtMs: number;
+  textPreview: string;
   mediaType: string;
-  thumbnail?: string;
-  myComment?: {
-    text: string;
-    createdAt: number;
-  } | null;
-}
-
-interface PartnerPostsResponse {
-  partner: {
-    personUrn: string;
-    displayName: string;
-  };
-  posts: PartnerPost[];
+  mediaAssetUrn?: string;
+  permalink?: string;
+  raw?: any;
 }
 
 export const Synergy = () => {
@@ -76,7 +63,7 @@ export const Synergy = () => {
   const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [suggestingFor, setSuggestingFor] = useState<string | null>(null);
@@ -84,20 +71,24 @@ export const Synergy = () => {
   const queryClient = useQueryClient();
 
   // Fetch partners from database
-  const { data: partnersData, isLoading: partnersLoading, refetch: refetchPartners } = useQuery({
-    queryKey: ['synergy-partners'],
+  const {
+    data: partnersData,
+    isLoading: partnersLoading,
+    refetch: refetchPartners,
+  } = useQuery({
+    queryKey: ["synergy-partners"],
     queryFn: async () => {
-      const response = await fetch('/.netlify/functions/synergy-partners', {
+      const response = await fetch("/.netlify/functions/synergy-partners", {
         headers: {
-          'Authorization': `Bearer ${dmaToken}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${dmaToken}`,
+          "Content-Type": "application/json",
         },
       });
-      
+
       if (!response.ok) {
-        throw new Error('Failed to fetch partners');
+        throw new Error("Failed to fetch partners");
       }
-      
+
       return response.json();
     },
     enabled: !!dmaToken,
@@ -108,20 +99,23 @@ export const Synergy = () => {
   const pendingInvitations = partnersData?.pendingInvitations || [];
 
   // Fetch partner posts using Snapshot API
-  const { data: partnerPostsData, isLoading: postsLoading, error: postsError } = useQuery({
-    queryKey: ['synergy-partner-posts-snapshot', selectedPartner],
-    queryFn: async (): Promise<PartnerPostsResponse> => {
-      if (!selectedPartner) throw new Error('No partner selected');
-      
-      const partner = partners.find(p => p.id === selectedPartner);
-      if (!partner?.linkedinMemberUrn) throw new Error('Partner URN not found');
+  const {
+    data: partnerPostsData,
+    isLoading: postsLoading,
+    error: postsError,
+  } = useQuery({
+    queryKey: ["synergy-posts", selectedPartner],
+    queryFn: async () => {
+      if (!selectedPartner) throw new Error("No partner selected");
 
       const response = await fetch(
-        `/.netlify/functions/synergy-partner-posts?partnerPersonUrn=${encodeURIComponent(partner.linkedinMemberUrn)}`,
+        `/.netlify/functions/synergy-posts?partnerId=${encodeURIComponent(
+          selectedPartner
+        )}&limit=10`,
         {
           headers: {
-            'Authorization': `Bearer ${dmaToken}`,
-            'Content-Type': 'application/json',
+            Authorization: `Bearer ${dmaToken}`,
+            "Content-Type": "application/json",
           },
         }
       );
@@ -141,29 +135,29 @@ export const Synergy = () => {
   // Send invitation mutation
   const sendInvitationMutation = useMutation({
     mutationFn: async (partnerId: string) => {
-      const response = await fetch('/.netlify/functions/synergy-partners', {
-        method: 'POST',
+      const response = await fetch("/.netlify/functions/synergy-partners", {
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${dmaToken}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${dmaToken}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          action: 'invite',
-          partnerId
+          action: "invite",
+          partnerId,
         }),
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to send invitation');
+        throw new Error(errorData.message || "Failed to send invitation");
       }
-      
+
       return response.json();
     },
     onSuccess: () => {
       refetchPartners();
       setShowAddModal(false);
-      setSearchTerm('');
+      setSearchTerm("");
       setSearchResults([]);
     },
   });
@@ -171,23 +165,23 @@ export const Synergy = () => {
   // Accept invitation mutation
   const acceptInvitationMutation = useMutation({
     mutationFn: async (invitationId: string) => {
-      const response = await fetch('/.netlify/functions/synergy-partners', {
-        method: 'POST',
+      const response = await fetch("/.netlify/functions/synergy-partners", {
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${dmaToken}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${dmaToken}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          action: 'accept',
-          invitationId
+          action: "accept",
+          invitationId,
         }),
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to accept invitation');
+        throw new Error(errorData.message || "Failed to accept invitation");
       }
-      
+
       return response.json();
     },
     onSuccess: () => {
@@ -198,23 +192,23 @@ export const Synergy = () => {
   // Decline invitation mutation
   const declineInvitationMutation = useMutation({
     mutationFn: async (invitationId: string) => {
-      const response = await fetch('/.netlify/functions/synergy-partners', {
-        method: 'POST',
+      const response = await fetch("/.netlify/functions/synergy-partners", {
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${dmaToken}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${dmaToken}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          action: 'decline',
-          invitationId
+          action: "decline",
+          invitationId,
         }),
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to decline invitation');
+        throw new Error(errorData.message || "Failed to decline invitation");
       }
-      
+
       return response.json();
     },
     onSuccess: () => {
@@ -224,49 +218,58 @@ export const Synergy = () => {
 
   // Generate comment suggestion
   const suggestCommentMutation = useMutation({
-    mutationFn: async ({ post, partnerName }: { post: PartnerPost; partnerName: string }) => {
-      const response = await fetch('/.netlify/functions/synergy-suggest-comment', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${dmaToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          post: {
-            urn: post.urn,
-            text: post.text,
-            mediaType: post.mediaType,
-            partnerName: partnerName
+    mutationFn: async ({
+      post,
+      partnerName,
+    }: {
+      post: PartnerPost;
+      partnerName: string;
+    }) => {
+      const response = await fetch(
+        "/.netlify/functions/synergy-suggest-comment",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${dmaToken}`,
+            "Content-Type": "application/json",
           },
-          viewerProfile: {
-            headline: "Professional LinkedIn User",
-            topics: ["LinkedIn Growth", "Professional Development"]
-          }
-        }),
-      });
+          body: JSON.stringify({
+            post: {
+              urn: post.postUrn,
+              text: post.textPreview,
+              mediaType: post.mediaType,
+              partnerName: partnerName,
+            },
+            viewerProfile: {
+              headline: "Professional LinkedIn User",
+              topics: ["LinkedIn Growth", "Professional Development"],
+            },
+          }),
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to generate suggestion');
+        throw new Error(errorData.message || "Failed to generate suggestion");
       }
 
       return response.json();
     },
     onSuccess: (data) => {
-      setSuggestions(prev => ({
+      setSuggestions((prev) => ({
         ...prev,
-        [data.urn]: data.suggestion
+        [data.postUrn]: data.suggestion,
       }));
       setSuggestingFor(null);
     },
     onError: (error) => {
-      console.error('Failed to generate suggestion:', error);
+      console.error("Failed to generate suggestion:", error);
       setSuggestingFor(null);
-    }
+    },
   });
 
   const handleSuggestComment = (post: PartnerPost, partnerName: string) => {
-    setSuggestingFor(post.urn);
+    setSuggestingFor(post.postUrn);
     suggestCommentMutation.mutate({ post, partnerName });
   };
 
@@ -274,11 +277,14 @@ export const Synergy = () => {
     navigator.clipboard.writeText(suggestion);
   };
 
-  const handleRegenerateSuggestion = (post: PartnerPost, partnerName: string) => {
+  const handleRegenerateSuggestion = (
+    post: PartnerPost,
+    partnerName: string
+  ) => {
     // Remove existing suggestion and generate new one
-    setSuggestions(prev => {
+    setSuggestions((prev) => {
       const newSuggestions = { ...prev };
-      delete newSuggestions[post.urn];
+      delete newSuggestions[post.postUrn];
       return newSuggestions;
     });
     handleSuggestComment(post, partnerName);
@@ -286,11 +292,16 @@ export const Synergy = () => {
 
   const getMediaIcon = (mediaType: string) => {
     switch (mediaType) {
-      case 'IMAGE': return <ImageIcon size={16} />;
-      case 'VIDEO': return <Video size={16} />;
-      case 'ARTICLE': return <FileText size={16} />;
-      case 'URN_REFERENCE': return <LinkIcon size={16} />;
-      default: return null;
+      case "IMAGE":
+        return <ImageIcon size={16} />;
+      case "VIDEO":
+        return <Video size={16} />;
+      case "ARTICLE":
+        return <FileText size={16} />;
+      case "URN_REFERENCE":
+        return <LinkIcon size={16} />;
+      default:
+        return null;
     }
   };
 
@@ -302,16 +313,16 @@ export const Synergy = () => {
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
 
     if (diffDays > 0) {
-      return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+      return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
     } else if (diffHours > 0) {
-      return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+      return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
     } else {
-      return 'Just now';
+      return "Just now";
     }
   };
 
   const selectedPartnerData = useMemo(() => {
-    return partners.find(p => p.id === selectedPartner);
+    return partners.find((p) => p.id === selectedPartner);
   }, [selectedPartner, partners]);
 
   const searchUsers = async () => {
@@ -323,23 +334,25 @@ export const Synergy = () => {
     setIsSearching(true);
     try {
       const response = await fetch(
-        `/.netlify/functions/synergy-user-search?search=${encodeURIComponent(searchTerm)}&limit=10`,
+        `/.netlify/functions/synergy-user-search?search=${encodeURIComponent(
+          searchTerm
+        )}&limit=10`,
         {
           headers: {
-            'Authorization': `Bearer ${dmaToken}`,
-            'Content-Type': 'application/json',
+            Authorization: `Bearer ${dmaToken}`,
+            "Content-Type": "application/json",
           },
         }
       );
 
       if (!response.ok) {
-        throw new Error('Failed to search users');
+        throw new Error("Failed to search users");
       }
 
       const data = await response.json();
       setSearchResults(data.users || []);
     } catch (error) {
-      console.error('Error searching users:', error);
+      console.error("Error searching users:", error);
       setSearchResults([]);
     } finally {
       setIsSearching(false);
@@ -370,7 +383,8 @@ export const Synergy = () => {
           <AlertCircle size={48} className="mx-auto text-orange-400 mb-4" />
           <h2 className="text-2xl font-bold mb-4">DMA Access Required</h2>
           <p className="text-gray-600 mb-6">
-            Synergy features require LinkedIn Data Member Agreement (DMA) access to view partner data.
+            Synergy features require LinkedIn Data Member Agreement (DMA) access
+            to view partner data.
           </p>
           <Button
             variant="primary"
@@ -399,8 +413,8 @@ export const Synergy = () => {
         </div>
         <div className="flex space-x-3">
           {/* Notifications Button */}
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => setShowNotifications(true)}
             className="relative"
           >
@@ -412,11 +426,8 @@ export const Synergy = () => {
               </span>
             )}
           </Button>
-          
-          <Button 
-            variant="primary" 
-            onClick={() => setShowAddModal(true)}
-          >
+
+          <Button variant="primary" onClick={() => setShowAddModal(true)}>
             <Plus size={20} className="mr-2" />
             Add Partner
           </Button>
@@ -439,7 +450,10 @@ export const Synergy = () => {
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">Partnership Invitations</h3>
-              <Button variant="ghost" onClick={() => setShowNotifications(false)}>
+              <Button
+                variant="ghost"
+                onClick={() => setShowNotifications(false)}
+              >
                 <X size={20} />
               </Button>
             </div>
@@ -452,18 +466,32 @@ export const Synergy = () => {
             ) : (
               <div className="space-y-4">
                 {pendingInvitations.map((invitation) => (
-                  <div key={invitation.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                  <div
+                    key={invitation.id}
+                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
+                  >
                     <div className="flex items-center space-x-3">
                       <img
-                        src={invitation.fromUserAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(invitation.fromUserName)}&background=0ea5e9&color=fff`}
+                        src={
+                          invitation.fromUserAvatar ||
+                          `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                            invitation.fromUserName
+                          )}&background=0ea5e9&color=fff`
+                        }
                         alt={invitation.fromUserName}
                         className="w-12 h-12 rounded-full"
                       />
                       <div>
-                        <h4 className="font-medium text-gray-900">{invitation.fromUserName}</h4>
-                        <p className="text-sm text-gray-600">{invitation.fromUserHeadline || 'LinkedIn Professional'}</p>
+                        <h4 className="font-medium text-gray-900">
+                          {invitation.fromUserName}
+                        </h4>
+                        <p className="text-sm text-gray-600">
+                          {invitation.fromUserHeadline ||
+                            "LinkedIn Professional"}
+                        </p>
                         <p className="text-xs text-gray-500">
-                          Sent {new Date(invitation.createdAt).toLocaleDateString()}
+                          Sent{" "}
+                          {new Date(invitation.createdAt).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
@@ -503,10 +531,10 @@ export const Synergy = () => {
               <Users size={20} className="mr-2" />
               Partners ({partners.length})
             </h3>
-            
+
             {partnersLoading ? (
               <div className="space-y-2">
-                {[1, 2, 3].map(i => (
+                {[1, 2, 3].map((i) => (
                   <div key={i} className="animate-pulse">
                     <div className="h-16 bg-gray-200 rounded-lg"></div>
                   </div>
@@ -516,7 +544,9 @@ export const Synergy = () => {
               <div className="text-center py-8">
                 <Users size={48} className="mx-auto text-gray-300 mb-4" />
                 <p className="text-gray-500 mb-2">No partners yet</p>
-                <p className="text-sm text-gray-400">Add your first synergy partner to get started</p>
+                <p className="text-sm text-gray-400">
+                  Add your first synergy partner to get started
+                </p>
               </div>
             ) : (
               <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -528,28 +558,35 @@ export const Synergy = () => {
                     transition={{ delay: index * 0.1 }}
                     className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
                       selectedPartner === partner.id
-                        ? 'bg-blue-50 border-2 border-blue-200'
-                        : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
+                        ? "bg-blue-50 border-2 border-blue-200"
+                        : "bg-gray-50 hover:bg-gray-100 border-2 border-transparent"
                     }`}
                     onClick={() => setSelectedPartner(partner.id)}
                   >
                     <div className="flex items-center space-x-3">
                       <div className="relative">
                         <img
-                          src={partner.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(partner.name)}&background=0ea5e9&color=fff`}
+                          src={
+                            partner.avatarUrl ||
+                            `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                              partner.name
+                            )}&background=0ea5e9&color=fff`
+                          }
                           alt={partner.name}
                           className="w-12 h-12 rounded-full"
                         />
-                        <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
-                          partner.dmaActive ? 'bg-green-500' : 'bg-gray-400'
-                        }`}></div>
+                        <div
+                          className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
+                            partner.dmaActive ? "bg-green-500" : "bg-gray-400"
+                          }`}
+                        ></div>
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-gray-900 truncate">
                           {partner.name}
                         </h4>
                         <p className="text-sm text-gray-500 truncate">
-                          {partner.dmaActive ? 'DMA Active' : 'DMA Inactive'}
+                          {partner.dmaActive ? "DMA Active" : "DMA Inactive"}
                         </p>
                       </div>
                     </div>
@@ -574,37 +611,47 @@ export const Synergy = () => {
                       className="w-16 h-16 rounded-full"
                     />
                     <div>
-                      <h3 className="text-xl font-bold">{selectedPartnerData.name}</h3>
-                      <p className="text-gray-600">{selectedPartnerData.email}</p>
+                      <h3 className="text-xl font-bold">
+                        {selectedPartnerData.name}
+                      </h3>
+                      <p className="text-gray-600">
+                        {selectedPartnerData.email}
+                      </p>
                       <div className="flex items-center space-x-2 mt-1">
-                        <div className={`w-2 h-2 rounded-full ${
-                          selectedPartnerData.dmaActive ? 'bg-green-500' : 'bg-gray-400'
-                        }`}></div>
+                        <div
+                          className={`w-2 h-2 rounded-full ${
+                            selectedPartnerData.dmaActive
+                              ? "bg-green-500"
+                              : "bg-gray-400"
+                          }`}
+                        ></div>
                         <span className="text-sm text-gray-500">
-                          {selectedPartnerData.dmaActive ? 'DMA Active' : 'DMA Inactive'}
+                          {selectedPartnerData.dmaActive
+                            ? "DMA Active"
+                            : "DMA Inactive"}
                         </span>
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="text-right">
                     <div className="text-2xl font-bold text-blue-600">
                       {partnerPostsData?.posts?.length || 0}
                     </div>
-                    <div className="text-sm text-gray-500">
-                      Latest Posts
-                    </div>
+                    <div className="text-sm text-gray-500">Latest Posts</div>
                   </div>
                 </div>
               </Card>
 
               {/* Partner Posts */}
               <div className="space-y-4">
-                <h4 className="text-lg font-semibold">Latest Posts (Snapshot Data)</h4>
-                
+                <h4 className="text-lg font-semibold">
+                  Latest Posts (Snapshot Data)
+                </h4>
+
                 {postsLoading ? (
                   <div className="space-y-4">
-                    {[1, 2, 3].map(i => (
+                    {[1, 2, 3].map((i) => (
                       <Card key={i} variant="glass" className="p-6">
                         <div className="animate-pulse">
                           <div className="h-4 bg-gray-300 rounded w-1/4 mb-4"></div>
@@ -619,9 +666,14 @@ export const Synergy = () => {
                   </div>
                 ) : postsError ? (
                   <Card variant="glass" className="p-6 text-center">
-                    <AlertCircle size={48} className="mx-auto text-red-400 mb-4" />
-                    <p className="text-red-600">Error loading posts: {postsError.message}</p>
-                    {postsError.message.includes('partner_not_authorized') && (
+                    <AlertCircle
+                      size={48}
+                      className="mx-auto text-red-400 mb-4"
+                    />
+                    <p className="text-red-600">
+                      Error loading posts: {postsError.message}
+                    </p>
+                    {postsError.message.includes("partner_not_authorized") && (
                       <div className="mt-4">
                         <Button variant="primary">
                           Request Partner Reconnection
@@ -633,18 +685,21 @@ export const Synergy = () => {
                   <div className="space-y-4 max-h-96 overflow-y-auto">
                     {partnerPostsData.posts.map((post, index) => (
                       <motion.div
-                        key={post.urn}
+                        key={post.postUrn}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.1 }}
                       >
-                        <Card variant="glass" className="p-6 hover:shadow-lg transition-all duration-200">
+                        <Card
+                          variant="glass"
+                          className="p-6 hover:shadow-lg transition-all duration-200"
+                        >
                           {/* Post Header */}
                           <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center space-x-2 text-sm text-gray-600">
                               <Clock size={14} />
-                              <span>{formatDate(post.createdAt)}</span>
-                              {post.mediaType !== 'TEXT' && (
+                              <span>{formatDate(post.createdAtMs)}</span>
+                              {post.mediaType !== "TEXT" && (
                                 <>
                                   <span>•</span>
                                   <div className="flex items-center space-x-1">
@@ -654,24 +709,33 @@ export const Synergy = () => {
                                 </>
                               )}
                             </div>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => window.open(`https://linkedin.com/feed/update/${post.urn}`, '_blank')}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                window.open(
+                                  `https://linkedin.com/feed/update/${post.postUrn}`,
+                                  "_blank"
+                                )
+                              }
                             >
                               <ExternalLink size={14} />
                             </Button>
                           </div>
 
                           {/* Media Thumbnail */}
-                          {post.thumbnail && (
+                          {post.mediaAssetUrn && (
                             <div className="w-full h-32 bg-gray-100 rounded-lg mb-4 overflow-hidden">
                               <img
-                                src={post.thumbnail}
+                                src={`/.netlify/functions/linkedin-media-download?assetId=${post.mediaAssetUrn
+                                  .split(":")
+                                  .pop()}&token=${encodeURIComponent(
+                                  dmaToken
+                                )}`}
                                 alt="Post media"
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
+                                  e.currentTarget.style.display = "none";
                                 }}
                               />
                             </div>
@@ -680,44 +744,35 @@ export const Synergy = () => {
                           {/* Post Content */}
                           <div className="mb-4">
                             <p className="text-gray-800 leading-relaxed line-clamp-3">
-                              {post.text}
+                              {post.textPreview}
                             </p>
                           </div>
 
-                          {/* My Comment Section */}
+                          {/* AI Suggestion Section */}
                           <div className="border-t pt-4">
                             <h5 className="font-medium text-gray-900 mb-3 flex items-center">
-                              <MessageCircle size={16} className="mr-2" />
-                              Your Engagement
+                              <Sparkles size={16} className="mr-2" />
+                              AI Engagement Suggestion
                             </h5>
 
-                            {post.myComment ? (
-                              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                                <div className="flex items-start space-x-2">
-                                  <CheckCircle size={16} className="text-green-600 mt-0.5" />
-                                  <div>
-                                    <p className="text-sm font-medium text-green-800">
-                                      Your comment
-                                    </p>
-                                    <p className="text-sm text-green-700 mt-1">
-                                      "{post.myComment.text}"
-                                    </p>
-                                    <p className="text-xs text-green-600 mt-1">
-                                      {formatDate(post.myComment.createdAt)}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            ) : suggestions[post.urn] ? (
+                            {suggestions[post.postUrn] ? (
                               <div className="space-y-3">
                                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                                  <p className="text-sm font-medium text-blue-800 mb-2">AI Suggestion:</p>
-                                  <p className="text-sm text-blue-700 mb-3">"{suggestions[post.urn]}"</p>
+                                  <p className="text-sm font-medium text-blue-800 mb-2">
+                                    AI Suggestion:
+                                  </p>
+                                  <p className="text-sm text-blue-700 mb-3">
+                                    "{suggestions[post.postUrn]}"
+                                  </p>
                                   <div className="flex space-x-2">
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => handleCopySuggestion(suggestions[post.urn])}
+                                      onClick={() =>
+                                        handleCopySuggestion(
+                                          suggestions[post.postUrn]
+                                        )
+                                      }
                                     >
                                       <Copy size={14} className="mr-1" />
                                       Copy
@@ -725,7 +780,12 @@ export const Synergy = () => {
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => window.open(`https://linkedin.com/feed/update/${post.urn}`, '_blank')}
+                                      onClick={() =>
+                                        window.open(
+                                          `https://linkedin.com/feed/update/${post.postUrn}`,
+                                          "_blank"
+                                        )
+                                      }
                                     >
                                       <Send size={14} className="mr-1" />
                                       Use on LinkedIn
@@ -733,8 +793,13 @@ export const Synergy = () => {
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => handleRegenerateSuggestion(post, selectedPartnerData.name)}
-                                      disabled={suggestingFor === post.urn}
+                                      onClick={() =>
+                                        handleRegenerateSuggestion(
+                                          post,
+                                          selectedPartnerData.name
+                                        )
+                                      }
+                                      disabled={suggestingFor === post.postUrn}
                                     >
                                       <RefreshCw size={14} className="mr-1" />
                                       Regenerate
@@ -746,20 +811,29 @@ export const Synergy = () => {
                               <div className="space-y-3">
                                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                                   <p className="text-sm text-gray-600">
-                                    No comment found. Generate an AI suggestion to engage with this post.
+                                    Generate an AI suggestion to engage with
+                                    this post.
                                   </p>
                                 </div>
 
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => handleSuggestComment(post, selectedPartnerData.name)}
-                                  disabled={suggestingFor === post.urn}
+                                  onClick={() =>
+                                    handleSuggestComment(
+                                      post,
+                                      selectedPartnerData.name
+                                    )
+                                  }
+                                  disabled={suggestingFor === post.postUrn}
                                   className="w-full"
                                 >
-                                  {suggestingFor === post.urn ? (
+                                  {suggestingFor === post.postUrn ? (
                                     <>
-                                      <LoadingSpinner size="sm" className="mr-2" />
+                                      <LoadingSpinner
+                                        size="sm"
+                                        className="mr-2"
+                                      />
                                       Generating...
                                     </>
                                   ) : (
@@ -778,24 +852,32 @@ export const Synergy = () => {
                   </div>
                 ) : (
                   <Card variant="glass" className="p-8 text-center">
-                    <FileText size={48} className="mx-auto text-gray-300 mb-4" />
+                    <FileText
+                      size={48}
+                      className="mx-auto text-gray-300 mb-4"
+                    />
                     <p className="text-gray-500 mb-2">No recent posts</p>
                     <p className="text-sm text-gray-400">
-                      This partner hasn't published posts in their MEMBER_SHARE_INFO snapshot.
+                      This partner hasn't published posts in their
+                      MEMBER_SHARE_INFO snapshot.
                     </p>
                   </Card>
                 )}
               </div>
             </div>
           ) : (
-            <Card variant="glass" className="p-12 text-center h-full flex items-center justify-center">
+            <Card
+              variant="glass"
+              className="p-12 text-center h-full flex items-center justify-center"
+            >
               <div>
                 <Users size={64} className="mx-auto text-gray-300 mb-4" />
                 <h3 className="text-xl font-semibold text-gray-700 mb-2">
                   Select a Partner
                 </h3>
                 <p className="text-gray-500">
-                  Choose a synergy partner from the list to view their latest posts from Snapshot data.
+                  Choose a synergy partner from the list to view their latest
+                  posts from Snapshot data.
                 </p>
               </div>
             </Card>
@@ -827,17 +909,22 @@ export const Synergy = () => {
             <div className="space-y-4">
               {/* Search Section */}
               <div>
-                <label className="block text-sm font-medium mb-2">Search Platform Users</label>
+                <label className="block text-sm font-medium mb-2">
+                  Search Platform Users
+                </label>
                 <div className="flex space-x-2">
                   <div className="relative flex-1">
-                    <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <Search
+                      size={20}
+                      className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                    />
                     <input
                       type="text"
                       placeholder="Search by name, email, or industry..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      onKeyPress={(e) => e.key === 'Enter' && searchUsers()}
+                      onKeyPress={(e) => e.key === "Enter" && searchUsers()}
                     />
                   </div>
                   <Button
@@ -845,7 +932,11 @@ export const Synergy = () => {
                     onClick={searchUsers}
                     disabled={isSearching || !searchTerm.trim()}
                   >
-                    {isSearching ? <LoadingSpinner size="sm" /> : <Search size={16} />}
+                    {isSearching ? (
+                      <LoadingSpinner size="sm" />
+                    ) : (
+                      <Search size={16} />
+                    )}
                   </Button>
                 </div>
               </div>
@@ -853,9 +944,14 @@ export const Synergy = () => {
               {/* Search Results */}
               {searchResults.length > 0 && (
                 <div className="space-y-3 max-h-96 overflow-y-auto">
-                  <h4 className="font-medium text-gray-900">Search Results ({searchResults.length} found)</h4>
+                  <h4 className="font-medium text-gray-900">
+                    Search Results ({searchResults.length} found)
+                  </h4>
                   {searchResults.map((user) => (
-                    <div key={user.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                    <div
+                      key={user.id}
+                      className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
                       <div className="flex items-center space-x-3">
                         <img
                           src={user.avatarUrl}
@@ -863,16 +959,26 @@ export const Synergy = () => {
                           className="w-12 h-12 rounded-full"
                         />
                         <div>
-                          <h5 className="font-medium text-gray-900">{user.name}</h5>
-                          <p className="text-sm text-gray-600">{user.headline}</p>
+                          <h5 className="font-medium text-gray-900">
+                            {user.name}
+                          </h5>
+                          <p className="text-sm text-gray-600">
+                            {user.headline}
+                          </p>
                           <div className="flex items-center space-x-2 mt-1">
-                            <span className="text-xs text-gray-500">{user.industry}</span>
+                            <span className="text-xs text-gray-500">
+                              {user.industry}
+                            </span>
                             <span className="text-xs text-gray-500">•</span>
-                            <span className="text-xs text-gray-500">{user.location}</span>
+                            <span className="text-xs text-gray-500">
+                              {user.location}
+                            </span>
                             {user.mutualConnections > 0 && (
                               <>
                                 <span className="text-xs text-gray-500">•</span>
-                                <span className="text-xs text-blue-600">{user.mutualConnections} mutual</span>
+                                <span className="text-xs text-blue-600">
+                                  {user.mutualConnections} mutual
+                                </span>
                               </>
                             )}
                           </div>
@@ -881,7 +987,9 @@ export const Synergy = () => {
                       <div className="flex items-center space-x-2">
                         <div className="flex items-center space-x-1">
                           <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          <span className="text-xs text-green-600">DMA Active</span>
+                          <span className="text-xs text-green-600">
+                            DMA Active
+                          </span>
                         </div>
                         <Button
                           variant="primary"
@@ -908,8 +1016,12 @@ export const Synergy = () => {
               {searchTerm && !isSearching && searchResults.length === 0 && (
                 <div className="text-center py-8">
                   <Users size={48} className="mx-auto text-gray-300 mb-4" />
-                  <p className="text-gray-500">No users found with DMA consent matching "{searchTerm}"</p>
-                  <p className="text-sm text-gray-400 mt-2">Try searching with different keywords</p>
+                  <p className="text-gray-500">
+                    No users found with DMA consent matching "{searchTerm}"
+                  </p>
+                  <p className="text-sm text-gray-400 mt-2">
+                    Try searching with different keywords
+                  </p>
                 </div>
               )}
 
@@ -918,7 +1030,11 @@ export const Synergy = () => {
                   <AlertCircle size={16} className="text-blue-600 mt-0.5" />
                   <div className="text-sm text-blue-800">
                     <p className="font-medium mb-1">DMA Requirement</p>
-                    <p>Only users with active LinkedIn DMA consent can be added as Synergy partners. Invitations will be sent through the platform notification system.</p>
+                    <p>
+                      Only users with active LinkedIn DMA consent can be added
+                      as Synergy partners. Invitations will be sent through the
+                      platform notification system.
+                    </p>
                   </div>
                 </div>
               </div>

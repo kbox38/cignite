@@ -20,14 +20,7 @@ export interface PartnerPost {
   raw?: any;
 }
 
-export interface CrossComment {
-  id: string;
-  message: string;
-  createdAtMs: number;
-  authorUrn: string;
-  objectUrn: string;
-  raw?: any;
-}
+
 
 export interface CommentSuggestion {
   suggestion: string;
@@ -38,7 +31,7 @@ export interface CommentSuggestion {
 export const synergyService = {
   // Partner management
   async getPartners(token: string): Promise<SynergyPartner[]> {
-    const response = await fetch(`${API_BASE}/synergy-partner-posts`, {
+    const response = await fetch(`${API_BASE}/synergy-partners`, {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
@@ -110,32 +103,7 @@ export const synergyService = {
     return data.posts;
   },
 
-  // Comment fetching
-  async getCommentByAuthorOnPost(
-    token: string,
-    authorUserId: string,
-    postUrn: string
-  ): Promise<CrossComment | null> {
-    const response = await fetch(
-      `${API_BASE}/synergy-comments?authorUserId=${authorUserId}&postUrn=${encodeURIComponent(postUrn)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
 
-    if (!response.ok) {
-      if (response.status === 404) {
-        return null; // No comment found
-      }
-      throw new Error("Failed to fetch comment");
-    }
-
-    const data = await response.json();
-    return data.comment;
-  },
 
   // AI comment suggestions
   async suggestComment(
