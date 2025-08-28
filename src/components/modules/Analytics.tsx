@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, TrendingUp, Users, MessageCircle, Eye, BarChart3, Heart, FileText, Info, RefreshCw, AlertCircle, Filter, Download, Share2, ExternalLink, Zap, FileDown } from 'lucide-react';
+import { Calendar, TrendingUp, Users, MessageCircle, Eye, BarChart3, Heart, FileText, Info, RefreshCw, AlertCircle, Filter, Download, Share2, ExternalLink, Zap, FileDown, X, Link, Mail } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
@@ -32,6 +32,7 @@ export const Analytics = () => {
   const [timeRange, setTimeRange] = useState<TimeRange>('30d');
   const [debugMode, setDebugMode] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const { dmaToken } = useAuthStore();
   const { data: analyticsData, isLoading, error, refetch } = useAnalyticsData(timeRange);
 
@@ -294,11 +295,10 @@ export const Analytics = () => {
           <Button 
             variant="outline" 
             size="sm"
-            onClick={handleSharePDF}
-            disabled={isGeneratingPDF}
+            onClick={() => setShowShareModal(true)}
           >
             <Share2 size={16} className="mr-2" />
-            {isGeneratingPDF ? 'Generating...' : 'Share'}
+            Share
           </Button>
           <Button
             variant="ghost"
@@ -765,6 +765,128 @@ export const Analytics = () => {
             </div>
           </div>
         </Card>
+      )}
+
+      {/* Share Modal */}
+      {showShareModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.2 }}
+          >
+            <Card variant="glass" className="p-6 w-96 max-w-[90vw] bg-white border-2 border-gray-200">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-900">Share Analytics Report</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowShareModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X size={20} />
+                </Button>
+              </div>
+              
+              {/* Share Options */}
+              <div className="space-y-3 mb-6">
+                {/* Generate & Download PDF */}
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={async () => {
+                    await generatePDFReport();
+                    setShowShareModal(false);
+                  }}
+                  disabled={isGeneratingPDF}
+                  className="w-full flex items-center p-4 hover:bg-gradient-to-r hover:from-red-50 hover:to-pink-50 rounded-xl transition-all border border-gray-200 hover:border-red-200"
+                >
+                  <div className="w-12 h-12 bg-gradient-to-r from-red-500 to-pink-500 rounded-full flex items-center justify-center mr-4">
+                    <FileDown size={20} className="text-white" />
+                  </div>
+                  <div className="text-left">
+                    <div className="font-semibold text-gray-900">Download PDF Report</div>
+                    <div className="text-sm text-gray-600">Generate and save report locally</div>
+                  </div>
+                </motion.button>
+                
+                {/* Copy Link */}
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(window.location.href);
+                      setShowShareModal(false);
+                      // Success notification - you can enhance this later
+                      alert('Link copied to clipboard!');
+                    } catch (error) {
+                      console.error('Failed to copy link');
+                      alert('Failed to copy link');
+                    }
+                  }}
+                  className="w-full flex items-center p-4 hover:bg-gradient-to-r hover:from-blue-50 hover:to-cyan-50 rounded-xl transition-all border border-gray-200 hover:border-blue-200"
+                >
+                  <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full flex items-center justify-center mr-4">
+                    <Link size={20} className="text-white" />
+                  </div>
+                  <div className="text-left">
+                    <div className="font-semibold text-gray-900">Copy Link</div>
+                    <div className="text-sm text-gray-600">Share URL to this analytics page</div>
+                  </div>
+                </motion.button>
+                
+                {/* Email Share */}
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    const subject = 'LinkedIn Analytics Report';
+                    const body = `Check out my LinkedIn analytics: ${window.location.href}`;
+                    window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+                    setShowShareModal(false);
+                  }}
+                  className="w-full flex items-center p-4 hover:bg-gradient-to-r hover:from-green-50 hover:to-emerald-50 rounded-xl transition-all border border-gray-200 hover:border-green-200"
+                >
+                  <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center mr-4">
+                    <Mail size={20} className="text-white" />
+                  </div>
+                  <div className="text-left">
+                    <div className="font-semibold text-gray-900">Email</div>
+                    <div className="text-sm text-gray-600">Share via email</div>
+                  </div>
+                </motion.button>
+              </div>
+              
+              {/* Copy URL Input */}
+              <Card variant="glass" className="p-3 bg-gray-50 border border-gray-200">
+                <div className="flex items-center space-x-2">
+                  <input 
+                    type="text" 
+                    value={window.location.href}
+                    readOnly
+                    className="flex-1 bg-transparent text-sm text-gray-600 outline-none"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(window.location.href);
+                        alert('Link copied!');
+                      } catch (error) {
+                        alert('Failed to copy');
+                      }
+                    }}
+                  >
+                    Copy
+                  </Button>
+                </div>
+              </Card>
+            </Card>
+          </motion.div>
+        </div>
       )}
     </motion.div>
   );
