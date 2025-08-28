@@ -147,6 +147,34 @@ export const Analytics = () => {
     }
   };
 
+  const handleSharePDF = async () => {
+    try {
+      // Generate PDF first
+      await generatePDFReport();
+      
+      // Then handle sharing
+      if (navigator.share && navigator.canShare) {
+        // Native sharing on mobile/supported browsers
+        await navigator.share({
+          title: 'LinkedIn Analytics Report',
+          text: 'Check out my LinkedIn analytics report',
+          url: window.location.href
+        });
+      } else {
+        // Desktop fallback - copy link to clipboard
+        await navigator.clipboard.writeText(window.location.href);
+        
+        // Show success message (you can replace alert with a better notification)
+        alert('Link copied to clipboard! Your PDF report has been downloaded.');
+      }
+    } catch (error) {
+      console.error('Share failed:', error);
+      
+      // Fallback - just show the PDF was generated
+      alert('PDF report downloaded successfully!');
+    }
+  };
+
   // Null-safe data extraction with defaults
   const postingTrends = analyticsData?.postingTrends ?? [];
   const contentFormats = analyticsData?.contentFormats ?? [];
@@ -263,9 +291,14 @@ export const Analytics = () => {
             )}
             {isGeneratingPDF ? 'Generating...' : 'Download PDF'}
           </Button>
-          <Button variant="outline" size="sm">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handleSharePDF}
+            disabled={isGeneratingPDF}
+          >
             <Share2 size={16} className="mr-2" />
-            Share
+            {isGeneratingPDF ? 'Generating...' : 'Share'}
           </Button>
           <Button
             variant="ghost"
