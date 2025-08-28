@@ -195,6 +195,17 @@ These ideas are designed to showcase your expertise and engage your professional
     );
   }
 
+  const handleCreatePostFromIdeas = () => {
+    const ideaData = {
+      content: contentIdeas,
+      source: 'creation-engine',
+      timestamp: Date.now()
+    };
+    
+    sessionStorage.setItem('ideaContent', JSON.stringify(ideaData));
+    navigate('/postgen');
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
