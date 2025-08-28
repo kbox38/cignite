@@ -1,20 +1,20 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { AlertCircle, Zap, RefreshCw, Database, TrendingUp, Users, FileText, Heart, Info, ExternalLink } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
 import { LoadingSpinner } from "../ui/LoadingSpinner";
 import { useAuthStore } from "../../stores/authStore";
 import { useDashboardData } from "../../hooks/useDashboardData";
-import { useAppStore } from "../../stores/appStore";
 import { QuickStatsCard } from "./QuickStatsCard";
 import { ProfileEvaluationCard } from "./ProfileEvaluationCard";
 import { SummaryKPIsCard } from "./SummaryKPIsCard";
 import { MiniTrendsCard } from "./MiniTrendsCard";
 
 export const Dashboard = () => {
+  const navigate = useNavigate();
   const { dmaToken } = useAuthStore();
-  const { setCurrentModule } = useAppStore();
   const { data: dashboardData, isLoading, error, refetch } = useDashboardData();
   const [debugMode, setDebugMode] = useState(false);
   const [isRefetching, setIsRefetching] = useState(false);
@@ -112,8 +112,7 @@ export const Dashboard = () => {
       <EmptyActivityState 
         dashboardData={dashboardData} 
         onRefetch={handleRefetch} 
-        isRefetching={isRefetching} 
-        setCurrentModule={setCurrentModule}
+        isRefetching={isRefetching}
       />
     );
   }
@@ -368,7 +367,7 @@ export const Dashboard = () => {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             className="w-full p-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl hover:from-indigo-600 hover:to-purple-600 transition-all shadow-lg hover:shadow-xl"
-            onClick={() => setCurrentModule("analytics")}
+            onClick={() => navigate("/analytics")}
           >
             <div className="flex items-center justify-center space-x-2">
               <span className="text-2xl">📊</span>
@@ -379,7 +378,7 @@ export const Dashboard = () => {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             className="w-full p-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg hover:shadow-xl"
-            onClick={() => setCurrentModule("postgen")}
+            onClick={() => navigate("/postgen")}
           >
             <div className="flex items-center justify-center space-x-2">
               <span className="text-2xl">✍️</span>
@@ -390,7 +389,7 @@ export const Dashboard = () => {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             className="w-full p-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all shadow-lg hover:shadow-xl"
-            onClick={() => setCurrentModule("postpulse")}
+            onClick={() => navigate("/postpulse")}
           >
             <div className="flex items-center justify-center space-x-2">
               <span className="text-2xl">📈</span>
@@ -401,7 +400,7 @@ export const Dashboard = () => {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             className="w-full p-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-xl hover:from-cyan-600 hover:to-blue-600 transition-all shadow-lg hover:shadow-xl"
-            onClick={() => setCurrentModule("scheduler")}
+            onClick={() => navigate("/scheduler")}
           >
             <div className="flex items-center justify-center space-x-2">
               <span className="text-2xl">📅</span>
@@ -414,7 +413,8 @@ export const Dashboard = () => {
   );
 };
 
-const ActivityDetectedState = ({ dashboardData, onRefetch, isRefetching, setCurrentModule }) => {
+const ActivityDetectedState = ({ dashboardData, onRefetch, isRefetching }) => {
+  const navigate = useNavigate();
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -492,7 +492,7 @@ const ActivityDetectedState = ({ dashboardData, onRefetch, isRefetching, setCurr
               </Button>
               <Button
                 variant="outline"
-                onClick={() => setCurrentModule('postgen')}
+                onClick={() => navigate('/postgen')}
                 className="flex items-center justify-center space-x-2"
               >
                 <Zap size={16} />
@@ -519,7 +519,7 @@ const ActivityDetectedState = ({ dashboardData, onRefetch, isRefetching, setCurr
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             className="w-full p-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl hover:from-indigo-600 hover:to-purple-600 transition-all shadow-lg hover:shadow-xl"
-            onClick={() => setCurrentModule("analytics")}
+            onClick={() => navigate("/analytics")}
           >
             <div className="flex items-center justify-center space-x-2">
               <span className="text-2xl">📊</span>
@@ -530,7 +530,7 @@ const ActivityDetectedState = ({ dashboardData, onRefetch, isRefetching, setCurr
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             className="w-full p-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all shadow-lg hover:shadow-xl"
-            onClick={() => setCurrentModule("postpulse")}
+            onClick={() => navigate("/postpulse")}
           >
             <div className="flex items-center justify-center space-x-2">
               <span className="text-2xl">📈</span>
@@ -543,7 +543,8 @@ const ActivityDetectedState = ({ dashboardData, onRefetch, isRefetching, setCurr
   );
 };
 
-const EmptyActivityState = ({ dashboardData, onRefetch, isRefetching, setCurrentModule }) => {
+const EmptyActivityState = ({ dashboardData, onRefetch, isRefetching }) => {
+  const navigate = useNavigate();
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -608,7 +609,7 @@ const EmptyActivityState = ({ dashboardData, onRefetch, isRefetching, setCurrent
               </Button>
               <Button
                 variant="outline"
-                onClick={() => setCurrentModule('postgen')}
+                onClick={() => navigate('/postgen')}
                 className="flex items-center justify-center space-x-2"
               >
                 <Zap size={16} />
