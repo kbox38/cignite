@@ -1,6 +1,18 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { AlertCircle, Zap, RefreshCw, Database, TrendingUp, Users, FileText, Heart, Info, ExternalLink } from "lucide-react";
+import {
+  AlertCircle,
+  Zap,
+  RefreshCw,
+  Database,
+  TrendingUp,
+  Users,
+  FileText,
+  Heart,
+  Info,
+  ExternalLink,
+  Calendar,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
@@ -33,7 +45,7 @@ export const Dashboard = () => {
   const handleReconnect = () => {
     // Clear tokens and redirect to auth flow
     localStorage.clear();
-    window.location.href = '/';
+    window.location.href = "/";
   };
 
   // Check for DMA reconnect needed
@@ -45,11 +57,16 @@ export const Dashboard = () => {
         transition={{ duration: 0.5 }}
         className="space-y-6"
       >
-        <Card variant="glass" className="p-8 text-center bg-gradient-to-br from-orange-50 to-red-50 border-2 border-orange-200">
+        <Card
+          variant="glass"
+          className="p-8 text-center bg-gradient-to-br from-orange-50 to-red-50 border-2 border-orange-200"
+        >
           <AlertCircle size={64} className="mx-auto text-orange-500 mb-6" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">LinkedIn Data Access Required</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            LinkedIn Data Access Required
+          </h2>
           <p className="text-gray-700 mb-6 max-w-2xl mx-auto">
-            {dashboardData.error === "DMA not enabled" 
+            {dashboardData.error === "DMA not enabled"
               ? "Your LinkedIn account needs to be reconnected with data access permissions to view analytics."
               : "We need to verify your LinkedIn data access permissions."}
           </p>
@@ -63,7 +80,8 @@ export const Dashboard = () => {
               Reconnect LinkedIn Account
             </Button>
             <p className="text-sm text-gray-600">
-              This will redirect you to LinkedIn to grant data access permissions.
+              This will redirect you to LinkedIn to grant data access
+              permissions.
             </p>
           </div>
         </Card>
@@ -83,7 +101,8 @@ export const Dashboard = () => {
           <AlertCircle size={48} className="mx-auto text-orange-400 mb-4" />
           <h2 className="text-2xl font-bold mb-4">Limited Access Mode</h2>
           <p className="text-gray-600 mb-6">
-            DMA token is missing. You need to complete the DMA authentication flow to access dashboard features.
+            DMA token is missing. You need to complete the DMA authentication
+            flow to access dashboard features.
           </p>
           <Button
             variant="primary"
@@ -101,7 +120,9 @@ export const Dashboard = () => {
       <div className="flex flex-col items-center justify-center h-64">
         <LoadingSpinner size="lg" />
         <p className="mt-4 text-gray-600">Loading LinkedIn analytics...</p>
-        <p className="text-sm text-gray-500">This may take a moment for larger accounts</p>
+        <p className="text-sm text-gray-500">
+          This may take a moment for larger accounts
+        </p>
       </div>
     );
   }
@@ -109,9 +130,9 @@ export const Dashboard = () => {
   // Show empty state for no recent activity
   if (dashboardData?.metadata?.hasRecentActivity === false) {
     return (
-      <EmptyActivityState 
-        dashboardData={dashboardData} 
-        onRefetch={handleRefetch} 
+      <EmptyActivityState
+        dashboardData={dashboardData}
+        onRefetch={handleRefetch}
         isRefetching={isRefetching}
       />
     );
@@ -128,14 +149,15 @@ export const Dashboard = () => {
           {error.message || "Failed to load dashboard data"}
         </p>
         <div className="space-y-3">
-          <Button variant="primary" onClick={handleRefetch} disabled={isRefetching}>
+          <Button
+            variant="primary"
+            onClick={handleRefetch}
+            disabled={isRefetching}
+          >
             <RefreshCw size={16} className="mr-2" />
             {isRefetching ? "Refreshing..." : "Try Again"}
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => setDebugMode(!debugMode)}
-          >
+          <Button variant="outline" onClick={() => setDebugMode(!debugMode)}>
             {debugMode ? "Hide" : "Show"} Debug Info
           </Button>
         </div>
@@ -155,14 +177,14 @@ export const Dashboard = () => {
   const profileEvaluation = {
     overallScore: dashboardData.scores.overall,
     scores: dashboardData.scores,
-    analysis: dashboardData.analysis
+    analysis: dashboardData.analysis,
   };
 
   const summaryKPIs = {
     totalConnections: dashboardData.summary.totalConnections,
     totalPosts: dashboardData.summary.totalPosts,
     avgEngagementPerPost: dashboardData.summary.avgEngagementPerPost,
-    postsPerWeek: dashboardData.summary.postsPerWeek
+    postsPerWeek: dashboardData.summary.postsPerWeek,
   };
 
   return (
@@ -177,7 +199,8 @@ export const Dashboard = () => {
         <div>
           <h2 className="text-2xl font-bold">Dashboard</h2>
           <p className="text-gray-600 mt-1">
-            LinkedIn performance insights from Snapshot data • {dashboardData.metadata.postsCount} posts analyzed
+            LinkedIn performance insights from Snapshot data •{" "}
+            {dashboardData.metadata.postsCount} posts analyzed
           </p>
         </div>
         <div className="flex space-x-2">
@@ -205,7 +228,10 @@ export const Dashboard = () => {
             onClick={handleRefetch}
             disabled={isRefetching}
           >
-            <RefreshCw size={14} className={`mr-1 ${isRefetching ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              size={14}
+              className={`mr-1 ${isRefetching ? "animate-spin" : ""}`}
+            />
             {isRefetching ? "Refreshing..." : "Refresh"}
           </Button>
         </div>
@@ -213,7 +239,10 @@ export const Dashboard = () => {
 
       {/* AI Insights Panel */}
       {showAIInsights && dashboardData?.analysis && (
-        <Card variant="glass" className="p-6 bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200">
+        <Card
+          variant="glass"
+          className="p-6 bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200"
+        >
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold flex items-center text-purple-900">
               <Zap size={16} className="mr-2" />
@@ -229,11 +258,16 @@ export const Dashboard = () => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {Object.entries(dashboardData.analysis).map(([key, analysis]) => (
-              <div key={key} className="bg-white p-4 rounded-lg border border-purple-200">
+              <div
+                key={key}
+                className="bg-white p-4 rounded-lg border border-purple-200"
+              >
                 <h4 className="font-medium text-purple-900 capitalize mb-2">
-                  {key.replace(/([A-Z])/g, ' $1').trim()}
+                  {key.replace(/([A-Z])/g, " $1").trim()}
                 </h4>
-                <p className="text-sm text-purple-800">{analysis.aiInsight || 'Analysis in progress...'}</p>
+                <p className="text-sm text-purple-800">
+                  {analysis.aiInsight || "Analysis in progress..."}
+                </p>
               </div>
             ))}
           </div>
@@ -242,7 +276,10 @@ export const Dashboard = () => {
 
       {/* Debug Panel */}
       {debugMode && dashboardData && (
-        <Card variant="glass" className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200">
+        <Card
+          variant="glass"
+          className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200"
+        >
           <div className="flex items-center justify-between mb-2">
             <h3 className="font-semibold flex items-center text-blue-900">
               <Database size={16} className="mr-2" />
@@ -259,23 +296,39 @@ export const Dashboard = () => {
           <div className="text-sm space-y-3 text-blue-800">
             <div className="flex items-center space-x-2">
               <span className="font-medium">Last Updated:</span>
-              <span className="bg-white px-2 py-1 rounded text-blue-900">{new Date(dashboardData.lastUpdated).toLocaleString()}</span>
+              <span className="bg-white px-2 py-1 rounded text-blue-900">
+                {new Date(dashboardData.lastUpdated).toLocaleString()}
+              </span>
             </div>
             <div className="flex items-center space-x-2">
               <span className="font-medium">Data Source:</span>
-              <span className={`px-2 py-1 rounded ${dashboardData.metadata.hasRecentActivity ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                {dashboardData.metadata.hasRecentActivity ? 'Recent Activity' : 'Snapshot Data'}
+              <span
+                className={`px-2 py-1 rounded ${
+                  dashboardData.metadata.hasRecentActivity
+                    ? "bg-green-100 text-green-800"
+                    : "bg-yellow-100 text-yellow-800"
+                }`}
+              >
+                {dashboardData.metadata.hasRecentActivity
+                  ? "Recent Activity"
+                  : "Snapshot Data"}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="bg-white p-3 rounded-lg">
                   <strong className="text-blue-900">Scores:</strong>
-                  <div className="mt-1 text-sm">Overall: <span className="font-bold">{dashboardData.scores.overall}/10</span></div>
+                  <div className="mt-1 text-sm">
+                    Overall:{" "}
+                    <span className="font-bold">
+                      {dashboardData.scores.overall}/10
+                    </span>
+                  </div>
                   <div className="text-xs text-gray-600 mt-1">
-                    Profile: {dashboardData.scores.profileCompleteness || 'N/A'}, 
-                    Posting: {dashboardData.scores.postingActivity || 'N/A'}, 
-                    Engagement: {dashboardData.scores.engagementQuality || 'N/A'}
+                    Profile: {dashboardData.scores.profileCompleteness || "N/A"}
+                    , Posting: {dashboardData.scores.postingActivity || "N/A"},
+                    Engagement:{" "}
+                    {dashboardData.scores.engagementQuality || "N/A"}
                   </div>
                 </div>
               </div>
@@ -283,11 +336,36 @@ export const Dashboard = () => {
                 <div className="bg-white p-3 rounded-lg">
                   <strong className="text-blue-900">Summary:</strong>
                   <div className="mt-1 text-sm space-y-1">
-                    <div>Connections: <span className="font-bold">{dashboardData.summary.totalConnections}</span></div>
-                    <div>Posts (28d): <span className="font-bold">{dashboardData.summary.posts30d}</span></div>
-                    <div>Total Posts: <span className="font-bold">{dashboardData.summary.totalPosts}</span></div>
-                    <div>Avg Engagement: <span className="font-bold">{dashboardData.summary.avgEngagementPerPost}</span></div>
-                    <div>Posts/Week: <span className="font-bold">{dashboardData.summary.postsPerWeek}</span></div>
+                    <div>
+                      Connections:{" "}
+                      <span className="font-bold">
+                        {dashboardData.summary.totalConnections}
+                      </span>
+                    </div>
+                    <div>
+                      Posts (28d):{" "}
+                      <span className="font-bold">
+                        {dashboardData.summary.posts30d}
+                      </span>
+                    </div>
+                    <div>
+                      Total Posts:{" "}
+                      <span className="font-bold">
+                        {dashboardData.summary.totalPosts}
+                      </span>
+                    </div>
+                    <div>
+                      Avg Engagement:{" "}
+                      <span className="font-bold">
+                        {dashboardData.summary.avgEngagementPerPost}
+                      </span>
+                    </div>
+                    <div>
+                      Posts/Week:{" "}
+                      <span className="font-bold">
+                        {dashboardData.summary.postsPerWeek}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -298,7 +376,7 @@ export const Dashboard = () => {
 
       {/* Profile Evaluation - Main Focus */}
       <div className="mb-8">
-        <ProfileEvaluationCard 
+        <ProfileEvaluationCard
           scores={dashboardData.scores}
           overallScore={profileEvaluation.overallScore}
           analysis={dashboardData.analysis}
@@ -326,7 +404,9 @@ export const Dashboard = () => {
         <QuickStatsCard
           title="Posts (28d)"
           value={dashboardData.summary.posts30d}
-          change={dashboardData.summary.posts30d >= 5 ? "Active" : "Low Activity"}
+          change={
+            dashboardData.summary.posts30d >= 5 ? "Active" : "Low Activity"
+          }
           icon={FileText}
           color="purple"
           trend={dashboardData.summary.posts30d >= 5 ? "up" : "down"}
@@ -334,7 +414,9 @@ export const Dashboard = () => {
         <QuickStatsCard
           title="Engagement Rate"
           value={`${dashboardData.summary.engagementRatePct}%`}
-          change={dashboardData.summary.engagementRatePct >= 3 ? "Strong" : "Growing"}
+          change={
+            dashboardData.summary.engagementRatePct >= 3 ? "Strong" : "Growing"
+          }
           icon={Heart}
           color="orange"
           trend={dashboardData.summary.engagementRatePct >= 3 ? "up" : "stable"}
@@ -343,12 +425,14 @@ export const Dashboard = () => {
 
       {/* Summary KPIs */}
       <div className="mb-8">
-        <SummaryKPIsCard kpis={{
-          totalConnections: dashboardData.summary.totalConnections,
-          totalPosts: dashboardData.summary.totalPosts,
-          avgEngagementPerPost: dashboardData.summary.avgEngagementPerPost,
-          postsPerWeek: dashboardData.summary.postsPerWeek
-        }} />
+        <SummaryKPIsCard
+          kpis={{
+            totalConnections: dashboardData.summary.totalConnections,
+            totalPosts: dashboardData.summary.totalPosts,
+            avgEngagementPerPost: dashboardData.summary.avgEngagementPerPost,
+            postsPerWeek: dashboardData.summary.postsPerWeek,
+          }}
+        />
       </div>
 
       {/* Quick Actions */}
@@ -426,22 +510,22 @@ const ActivityDetectedState = ({ dashboardData, onRefetch, isRefetching }) => {
         <div>
           <h2 className="text-2xl font-bold">Dashboard</h2>
           <p className="text-gray-600 mt-1">
-            Showing your LinkedIn profile data • {dashboardData.summary.totalConnections} connections
+            Showing your LinkedIn profile data •{" "}
+            {dashboardData.summary.totalConnections} connections
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={onRefetch}
-          disabled={isRefetching}
-        >
-          <RefreshCw size={14} className={`mr-1 ${isRefetching ? 'animate-spin' : ''}`} />
+        <Button variant="outline" onClick={onRefetch} disabled={isRefetching}>
+          <RefreshCw
+            size={14}
+            className={`mr-1 ${isRefetching ? "animate-spin" : ""}`}
+          />
           {isRefetching ? "Refreshing..." : "Refresh"}
         </Button>
       </div>
 
       {/* Profile Evaluation - Main Focus */}
       <div className="mb-8">
-        <ProfileEvaluationCard 
+        <ProfileEvaluationCard
           scores={{
             profileCompleteness: dashboardData.scores.profileCompleteness,
             postingActivity: dashboardData.scores.postingActivity,
@@ -461,38 +545,46 @@ const ActivityDetectedState = ({ dashboardData, onRefetch, isRefetching }) => {
 
       {/* Summary KPIs */}
       <div className="mb-8">
-        <SummaryKPIsCard kpis={{
-          totalConnections: dashboardData.summary.totalConnections,
-          postsLast30Days: dashboardData.summary.posts30d,
-          engagementRate: `${dashboardData.summary.engagementRatePct}%`,
-          connectionsLast30Days: dashboardData.summary.newConnections28d
-        }} />
+        <SummaryKPIsCard
+          kpis={{
+            totalConnections: dashboardData.summary.totalConnections,
+            postsLast30Days: dashboardData.summary.posts30d,
+            engagementRate: `${dashboardData.summary.engagementRatePct}%`,
+            connectionsLast30Days: dashboardData.summary.newConnections28d,
+          }}
+        />
       </div>
 
       {/* Activity Notice */}
-      <Card variant="glass" className="p-8 text-center bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200">
+      <Card
+        variant="glass"
+        className="p-8 text-center bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200"
+      >
         <div className="max-w-2xl mx-auto">
           <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-6">
             <TrendingUp size={24} className="text-white" />
           </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-4">Ready to Boost Your LinkedIn Presence?</h3>
+          <h3 className="text-xl font-bold text-gray-900 mb-4">
+            Ready to Boost Your LinkedIn Presence?
+          </h3>
           <p className="text-gray-700 mb-6 leading-relaxed">
-            Your profile looks great! Start posting and engaging to unlock detailed analytics and growth insights.
+            Your profile looks great! Start posting and engaging to unlock
+            detailed analytics and growth insights.
           </p>
-          
+
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Button
                 variant="primary"
-                onClick={() => window.open('https://linkedin.com', '_blank')}
+                onClick={() => navigate("/scheduler")}
                 className="flex items-center justify-center space-x-2"
               >
-                <ExternalLink size={16} />
+                <Calendar size={16} />
                 <span>Post on LinkedIn</span>
               </Button>
               <Button
                 variant="outline"
-                onClick={() => navigate('/postgen')}
+                onClick={() => navigate("/postgen")}
                 className="flex items-center justify-center space-x-2"
               >
                 <Zap size={16} />
@@ -555,61 +647,78 @@ const EmptyActivityState = ({ dashboardData, onRefetch, isRefetching }) => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Dashboard</h2>
-          <p className="text-gray-600 mt-1">No recent activity (28 days). Showing snapshot totals.</p>
+          <p className="text-gray-600 mt-1">
+            No recent activity (28 days). Showing snapshot totals.
+          </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={onRefetch}
-          disabled={isRefetching}
-        >
-          <RefreshCw size={14} className={`mr-1 ${isRefetching ? 'animate-spin' : ''}`} />
+        <Button variant="outline" onClick={onRefetch} disabled={isRefetching}>
+          <RefreshCw
+            size={14}
+            className={`mr-1 ${isRefetching ? "animate-spin" : ""}`}
+          />
           {isRefetching ? "Refreshing..." : "Refresh"}
         </Button>
       </div>
 
-      <Card variant="glass" className="p-12 text-center bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200">
+      <Card
+        variant="glass"
+        className="p-12 text-center bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200"
+      >
         <div className="max-w-2xl mx-auto">
           <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-6">
             <FileText size={32} className="text-white" />
           </div>
-          <h3 className="text-2xl font-bold text-gray-900 mb-4">No Recent LinkedIn Activity</h3>
+          <h3 className="text-2xl font-bold text-gray-900 mb-4">
+            No Recent LinkedIn Activity
+          </h3>
           <p className="text-gray-700 mb-8 leading-relaxed">
-            We haven't detected any posts, comments, or network activity in the last 28 days. 
-            Your dashboard will show meaningful insights once you start engaging on LinkedIn.
+            We haven't detected any posts, comments, or network activity in the
+            last 28 days. Your dashboard will show meaningful insights once you
+            start engaging on LinkedIn.
           </p>
-          
+
           {/* Show baseline metrics if available */}
           {dashboardData && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
               <div className="bg-white p-4 rounded-xl border border-blue-200">
-                <div className="text-2xl font-bold text-blue-600">{dashboardData.summary?.totalConnections || 0}</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {dashboardData.summary?.totalConnections || 0}
+                </div>
                 <div className="text-sm text-gray-600">Total Connections</div>
               </div>
               <div className="bg-white p-4 rounded-xl border border-blue-200">
-                <div className="text-2xl font-bold text-blue-600">{dashboardData.scores?.profileCompleteness || 0}/10</div>
-                <div className="text-sm text-gray-600">Profile Completeness</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {dashboardData.scores?.profileCompleteness || 0}/10
+                </div>
+                <div className="text-sm text-gray-600">
+                  Profile Completeness
+                </div>
               </div>
               <div className="bg-white p-4 rounded-xl border border-blue-200">
-                <div className="text-2xl font-bold text-blue-600">{dashboardData.scores?.professionalBrand || 0}/10</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {dashboardData.scores?.professionalBrand || 0}/10
+                </div>
                 <div className="text-sm text-gray-600">Professional Brand</div>
               </div>
             </div>
           )}
 
           <div className="space-y-4">
-            <h4 className="text-lg font-semibold text-gray-900">Get Started with LinkedIn Growth</h4>
+            <h4 className="text-lg font-semibold text-gray-900">
+              Get Started with LinkedIn Growth
+            </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Button
                 variant="primary"
-                onClick={() => window.open('https://linkedin.com', '_blank')}
+                onClick={() => navigate("/scheduler")}
                 className="flex items-center justify-center space-x-2"
               >
-                <ExternalLink size={16} />
+                <Calendar size={16} />
                 <span>Post on LinkedIn</span>
               </Button>
               <Button
                 variant="outline"
-                onClick={() => navigate('/postgen')}
+                onClick={() => navigate("/postgen")}
                 className="flex items-center justify-center space-x-2"
               >
                 <Zap size={16} />
