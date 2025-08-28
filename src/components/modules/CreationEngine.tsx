@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
+import { useNavigate } from 'react-router-dom';
 import { Lightbulb, TrendingUp, Target, Zap, RefreshCw, Sparkles, Clock, BarChart3, Calendar } from "lucide-react";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
@@ -18,6 +19,7 @@ export const CreationEngine = () => {
   const [isGeneratingStrategy, setIsGeneratingStrategy] = useState(false);
   const [isGeneratingOptimization, setIsGeneratingOptimization] = useState(false);
 
+  const navigate = useNavigate();
   const { setCurrentModule } = useAppStore();
   const { data: profileSnapshot, isLoading: profileLoading } = useLinkedInSnapshot("PROFILE");
   const { data: postsSnapshot, isLoading: postsLoading } = useLinkedInSnapshot("MEMBER_SHARE_INFO");
@@ -50,15 +52,25 @@ export const CreationEngine = () => {
     };
   }, [profileSnapshot, postsSnapshot]);
 
+  const handleCreatePostFromIdeas = () => {
+    const ideaData = {
+      content: contentIdeas,
+      source: 'creation-engine',
+      timestamp: Date.now()
+    };
+    
+    sessionStorage.setItem('ideaContent', JSON.stringify(ideaData));
+    navigate('/postgen');
+  };
+
   const generateContentIdeas = async () => {
     if (!userProfile) return;
-    
+
     setIsGeneratingIdeas(true);
     try {
-      const response = await fetch('/.netlify/functions/creation-engine-data', {
+      const response = await fetch('/.netlify/functions/creation-engine-ai', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${dmaToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -69,18 +81,17 @@ export const CreationEngine = () => {
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to generate content ideas: ${response.status} ${errorText}`);
+        throw new Error(`API Error: ${response.status}`);
       }
 
       const data = await response.json();
       setContentIdeas(data.content);
     } catch (error) {
       console.error("Failed to generate content ideas:", error);
-      setContentIdeas(`Here are some content ideas for ${userProfile?.industry || 'your industry'}:
+      setContentIdeas(`Content Ideas for ${userProfile?.industry || 'Your Industry'}:
 
 1. Share a recent industry insight or trend you've observed
-2. Post about a professional challenge you overcame and lessons learned
+2. Post about a professional challenge you overcame and lessons learned  
 3. Create a "Top 5 Tips" post related to your expertise
 4. Share a behind-the-scenes look at your work process
 5. Comment on a recent industry news or development
@@ -259,7 +270,7 @@ These ideas are designed to showcase your expertise and engage your professional
           <div className="mt-4 flex space-x-3">
             <Button
               variant="primary"
-              onClick={() => setCurrentModule("postgen")}
+              onClick={handleCreatePostFromIdeas}
             >
               <Zap size={16} className="mr-2" />
               Create Post from Ideas

@@ -115,13 +115,22 @@ export const PostGen = () => {
     const ideaData = sessionStorage.getItem(SESSION_STORAGE_KEYS.IDEA_CONTENT);
     if (ideaData) {
       try {
-        const { title, description, category } = JSON.parse(ideaData);
+        const { content, source, title, description, category } = JSON.parse(ideaData);
         setActiveTab("create");
-        const topicText = `${title}\n\n${description}\n\nCategory: ${category}`;
-        setPostTopic(topicText);
-        // Clear the data after using it
-        sessionStorage.removeItem(SESSION_STORAGE_KEYS.IDEA_CONTENT);
-        console.log("Loaded idea content:", { title, description, category });
+        
+        // Handle new format from Creation Engine
+        if (source === 'creation-engine' && content) {
+          setPostTopic(content);
+          sessionStorage.removeItem(SESSION_STORAGE_KEYS.IDEA_CONTENT);
+          console.log("Loaded content ideas from Creation Engine");
+        } 
+        // Handle legacy format
+        else if (title && description) {
+          const topicText = `${title}\n\n${description}\n\nCategory: ${category}`;
+          setPostTopic(topicText);
+          sessionStorage.removeItem(SESSION_STORAGE_KEYS.IDEA_CONTENT);
+          console.log("Loaded idea content:", { title, description, category });
+        }
       } catch (error) {
         console.error("Error parsing idea data:", error);
       }
