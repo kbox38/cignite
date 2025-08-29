@@ -93,18 +93,74 @@ export const getPostPulseData = async (forceRefresh = false) => {
   }
 
   console.log('Fetching fresh Post Pulse data');
-  const response = await fetch(`/.netlify/functions/postpulse-data?forceRefresh=${forceRefresh}`, {
+  
+  // FIX: Use existing linkedin-snapshot function instead of postpulse-data
+  const response = await fetch(`/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO`, {
     headers: {
       'Authorization': `Bearer ${dmaToken}`,
     },
   });
 
   if (!response.ok) {
-    const errorData = await response.json();
+    const errorData = await response.json().catch(() => ({}));
     throw new Error(errorData.error || `Failed to fetch Post Pulse data. Status: ${response.status}`);
   }
 
   const data = await response.json();
-  setCachedPostPulseData(user_id, data.posts);
-  return { posts: data.posts, isCached: false, timestamp: new Date().toISOString() };
+  
+  // Process the snapshot data to match our PostData format
+  const processedPosts = processSnapshotData(data);
+  
+  setCachedPostPulseData(user_id, processedPosts);
+  return { posts: processedPosts, isCached: false, timestamp: new Date().toISOString() };
 };
+
+// FIX: Add function to process snapshot data into PostData format
+function processSnapshotData(snapshotData: any): PostData[] {
+  const posts: PostData[] = [];
+  
+  if (snapshotData.elements && snapshotData.elements.length > 0) {
+    for (const element of snapshotData.elements) {
+      if (element.snapshotDomain === 'MEMBER_SHARE_INFO' && element.snapshotData) {
+        for (const post of element.snapshotData) {
+          try {
+            const content = post.ShareCommentary || post.Commentary || post.Text || '';
+            const dateStr = post.Date || post.CreatedDate || post.Timestamp;
+            const createdAt = dateStr ? new Date(dateStr).getTime() : Date.now();
+            
+            // Skip posts older than 90 days
+            const ninetyDaysAgo = Date.now() - (90 * 24 * 60 * 60 * 1000);
+            if (createdAt < ninetyDaysAgo) {
+              continue;
+            }
+
+            const processedPost: PostData = {
+              id: post.ShareId || post.Id || `post_${Math.random().toString(36).substr(2, 9)}`,
+              text: content,
+              content: content,
+              timestamp: createdAt,
+              createdAt: createdAt,
+              likes: parseInt(post.LikesCount || post.Likes || '0', 10),
+              comments: parseInt(post.CommentsCount || post.Comments || '0', 10),
+              shares: parseInt(post.SharesCount || post.Shares || '0', 10),
+              impressions: parseInt(post.Impressions || post.Views || '0', 10),
+              views: parseInt(post.Views || post.Impressions || '0', 10),
+              media_url: post.MediaUrl || post.Media || null,
+              document_url: post.DocumentUrl || post.Document || null,
+              linkedin_url: post.ShareLink || post.PostUrl || null,
+              resourceName: 'shares',
+              source: 'historical'
+            };
+
+            posts.push(processedPost);
+          } catch (error) {
+            console.error('Error processing post:', error);
+          }
+        }
+      }
+    }
+  }
+
+  console.log(`Processed ${posts.length} posts from snapshot data`);
+  return posts.sort((a, b) => a.createdAt - b.createdAt); // Sort oldest first
+}
