@@ -53,14 +53,24 @@ export interface SnapshotData {
 export interface PostData {
   id: string;
   text: string;
+  content?: string; // FIX: Add content field for compatibility
   media?: any[];
+  media_url?: string; // FIX: Add media_url for PostPulse
+  document_url?: string; // FIX: Add document_url for PostPulse
   timestamp: number;
+  createdAt?: number; // FIX: Add createdAt for compatibility
   likes: number;
   comments: number;
   shares: number;
   impressions?: number;
+  views?: number; // FIX: Add views alias
   resourceName?: string;
+  linkedin_url?: string; // FIX: Add LinkedIn URL
+  source?: 'historical' | 'recent'; // FIX: Add source tracking
 }
+
+// FIX: Create alias for backward compatibility
+export type PostPulseData = PostData;
 
 export interface EngagementMetrics {
   totalPosts: number;
@@ -71,4 +81,10 @@ export interface EngagementMetrics {
   averageEngagement: number;
   bestPerformingPost?: PostData;
   engagementRate: number;
+}
+
+// FIX: Add cache status interface
+export interface CacheStatus {
+  isCached: boolean;
+  timestamp: string | null;
 }

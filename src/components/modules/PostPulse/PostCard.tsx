@@ -1,19 +1,109 @@
 import React from 'react';
-import { Post } from '../../../types/linkedin';
-import { Card } from '../../ui/Card';
+import { motion } from 'framer-motion';
+import { Heart, MessageCircle, Share2, Calendar, RefreshCw } from 'lucide-react';
+import { getRepurposeStatus, repurposePost } from '../../../services/postpulse-processor';
+import { PostData } from '../../../types/linkedin';
 
 interface PostCardProps {
-  post: Post;
+  post: PostData;
 }
 
 export const PostCard: React.FC<PostCardProps> = ({ post }) => {
-  // Placeholder for a single post card
+  const repurposeStatus = getRepurposeStatus(post.createdAt);
+  const postDate = new Date(post.createdAt).toLocaleDateString();
+  const daysAgo = Math.floor((Date.now() - post.createdAt) / (1000 * 60 * 60 * 24));
+
+  const handleRepurpose = () => {
+    repurposePost(post);
+  };
+
+  const truncateText = (text: string, maxLength: number = 150) => {
+    if (!text) return '';
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+  };
+
   return (
-    <Card>
-      <div className="p-4">
-        <h3 className="font-bold mb-2">Post Placeholder</h3>
-        <p className="text-sm text-gray-600 truncate">{post.text}</p>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="bg-white/70 backdrop-blur-sm border border-white/20 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-6"
+    >
+      {/* Header with Status Badge */}
+      <div className="flex justify-between items-start mb-4">
+        <div className="flex items-center space-x-2">
+          <Calendar size={16} className="text-gray-500" />
+          <span className="text-sm text-gray-600">{postDate}</span>
+          <span className="text-xs text-gray-400">({daysAgo} days ago)</span>
+        </div>
+        <span className={`px-2 py-1 text-xs font-medium rounded-full ${repurposeStatus.color}`}>
+          {repurposeStatus.label}
+        </span>
       </div>
-    </Card>
+
+      {/* Post Content */}
+      <div className="mb-4">
+        <p className="text-gray-800 leading-relaxed">
+          {truncateText(post.content || post.text || 'No content available')}
+        </p>
+      </div>
+
+      {/* Media Indicator */}
+      {(post.media_url || post.document_url) && (
+        <div className="mb-4 p-2 bg-blue-50 rounded-lg border border-blue-100">
+          <p className="text-xs text-blue-600 font-medium">
+            📎 {post.media_url ? 'Media attached' : 'Document attached'}
+          </p>
+        </div>
+      )}
+
+      {/* Engagement Metrics */}
+      <div className="flex items-center justify-between mb-4 py-2 border-t border-gray-100">
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-1 text-gray-600">
+            <Heart size={16} />
+            <span className="text-sm">{post.likes || 0}</span>
+          </div>
+          <div className="flex items-center space-x-1 text-gray-600">
+            <MessageCircle size={16} />
+            <span className="text-sm">{post.comments || 0}</span>
+          </div>
+          <div className="flex items-center space-x-1 text-gray-600">
+            <Share2 size={16} />
+            <span className="text-sm">{post.shares || 0}</span>
+          </div>
+        </div>
+        
+        {/* Total Engagement */}
+        <div className="text-xs text-gray-500 font-medium">
+          {((post.likes || 0) + (post.comments || 0) + (post.shares || 0))} total
+        </div>
+      </div>
+
+      {/* Repurpose Button */}
+      {repurposeStatus.status === 'ready' && (
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={handleRepurpose}
+          className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2 hover:from-blue-600 hover:to-cyan-600 transition-all duration-300"
+        >
+          <RefreshCw size={16} />
+          <span>Repurpose Post</span>
+        </motion.button>
+      )}
+      
+      {repurposeStatus.status === 'close' && (
+        <div className="w-full bg-yellow-50 text-yellow-700 px-4 py-2 rounded-lg font-medium text-center text-sm border border-yellow-200">
+          Almost ready to repurpose (in {45 - daysAgo} days)
+        </div>
+      )}
+      
+      {repurposeStatus.status === 'too-soon' && (
+        <div className="w-full bg-red-50 text-red-700 px-4 py-2 rounded-lg font-medium text-center text-sm border border-red-200">
+          Too recent to repurpose ({42 - daysAgo} days left)
+        </div>
+      )}
+    </motion.div>
   );
 };

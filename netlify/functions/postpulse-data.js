@@ -1,388 +1,236 @@
-export async function handler(event, context) {
-  if (event.httpMethod === "OPTIONS") {
-    return {
-      statusCode: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        "Access-Control-Allow-Methods": "GET, OPTIONS",
-      },
-    };
+// netlify/functions/postpulse-data.js
+exports.handler = async (event, context) => {
+  // Enable CORS
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+  };
+
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 200, headers, body: '' };
   }
 
-  const { authorization } = event.headers;
-  const { timeFilter = "7d", page = "1", pageSize = "12", searchTerm = "" } = event.queryStringParameters || {};
-
-  console.log("=== POSTPULSE DATA FUNCTION START ===");
-  console.log("Time filter:", timeFilter);
-  console.log("Page:", page, "Page size:", pageSize);
-  console.log("Search term:", searchTerm);
-  console.log("Authorization present:", !!authorization);
-
-  if (!authorization) {
+  if (event.httpMethod !== 'GET') {
     return {
-      statusCode: 401,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
-      body: JSON.stringify({ error: "No authorization token" }),
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
     };
   }
 
   try {
-    const startTime = Date.now();
+    const authorization = event.headers.authorization;
+    if (!authorization) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Authorization header missing' })
+      };
+    }
 
-    // Calculate time range
-    const days = timeFilter === "7d" ? 7 : timeFilter === "30d" ? 30 : 90;
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - days);
-    const cutoffTimestamp = cutoffDate.getTime();
+    console.log('Fetching PostPulse data...');
 
-    console.log(`📅 Fetching posts from last ${days} days (since ${cutoffDate.toISOString()})`);
+    // Fetch historical posts from Member Snapshot API
+    const historicalPosts = await fetchHistoricalPosts(authorization);
+    console.log(`Found ${historicalPosts.length} historical posts`);
 
-    // Fetch MEMBER_SHARE_INFO directly - this contains ALL posts
-    console.log("🔗 Fetching MEMBER_SHARE_INFO snapshot data...");
-    const memberShareResponse = await fetch(
-      "https://api.linkedin.com/rest/memberSnapshotData?q=criteria&domain=MEMBER_SHARE_INFO",
+    // Fetch recent posts from Changelog API
+    const recentPosts = await fetchRecentPosts(authorization);
+    console.log(`Found ${recentPosts.length} recent posts`);
+
+    // Merge and deduplicate posts
+    const allPosts = mergeAndDeduplicatePosts(historicalPosts, recentPosts);
+    console.log(`Total unique posts: ${allPosts.length}`);
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        posts: allPosts,
+        totalCount: allPosts.length,
+        historical: historicalPosts.length,
+        recent: recentPosts.length,
+        timestamp: new Date().toISOString()
+      })
+    };
+
+  } catch (error) {
+    console.error('Error fetching PostPulse data:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ 
+        error: 'Failed to fetch post data',
+        details: error.message 
+      })
+    };
+  }
+};
+
+async function fetchHistoricalPosts(authorization) {
+  try {
+    console.log('Fetching historical posts from Member Snapshot API...');
+    
+    const response = await fetch(
+      'https://api.linkedin.com/rest/memberSnapshotData?q=criteria&domain=MEMBER_SHARE_INFO',
       {
         headers: {
-          Authorization: authorization,
-          "LinkedIn-Version": "202312"
+          'Authorization': authorization,
+          'LinkedIn-Version': '202312',
+          'X-Restli-Protocol-Version': '2.0.0'
         }
       }
     );
 
-    if (!memberShareResponse.ok) {
-      console.error("❌ MEMBER_SHARE_INFO API error:", memberShareResponse.status, memberShareResponse.statusText);
-      
-      // Return empty data instead of error
-      return {
-        statusCode: 200,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-        body: JSON.stringify({
-          posts: [],
-          pagination: {
-            currentPage: parseInt(page),
-            totalPages: 0,
-            totalPosts: 0,
-            hasNextPage: false,
-            hasPrevPage: false,
-          },
-          metadata: {
-            fetchTimeMs: Date.now() - startTime,
-            timeFilter,
-            dataSource: "member_share_info_error",
-            error: `API Error: ${memberShareResponse.status}`
-          },
-          lastUpdated: new Date().toISOString(),
-        }),
-      };
-    }
-
-    const memberShareData = await memberShareResponse.json();
-    console.log("📊 MEMBER_SHARE_INFO response:", {
-      hasElements: !!memberShareData.elements,
-      elementsLength: memberShareData.elements?.length,
-      firstElementKeys: memberShareData.elements?.[0] ? Object.keys(memberShareData.elements[0]) : [],
-      snapshotDataLength: memberShareData.elements?.[0]?.snapshotData?.length
-    });
-
-    // Extract posts from MEMBER_SHARE_INFO
-    const shareInfoData = memberShareData.elements?.[0]?.snapshotData || [];
-    console.log(`📝 Found ${shareInfoData.length} total shares in MEMBER_SHARE_INFO`);
-
-    if (shareInfoData.length === 0) {
-      console.log("⚠️ No shares found in MEMBER_SHARE_INFO");
-      return {
-        statusCode: 200,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-        body: JSON.stringify({
-          posts: [],
-          pagination: {
-            currentPage: parseInt(page),
-            totalPages: 0,
-            totalPosts: 0,
-            hasNextPage: false,
-            hasPrevPage: false,
-          },
-          metadata: {
-            fetchTimeMs: Date.now() - startTime,
-            timeFilter,
-            dataSource: "member_share_info",
-          },
-          lastUpdated: new Date().toISOString(),
-        }),
-      };
-    }
-
-    // Process and filter posts
-    const processedPosts = [];
-    
-    shareInfoData.forEach((share, index) => {
-      try {
-        console.log(`=== PROCESSING SHARE ${index + 1}/${shareInfoData.length} ===`);
-        console.log("Share data:", {
-          Date: share.Date,
-          Visibility: share.Visibility,
-          ShareCommentary: share.ShareCommentary?.substring(0, 50) + "...",
-          ShareLink: share.ShareLink,
-          MediaType: share.MediaType,
-          MediaUrl: share.MediaUrl,
-          LikesCount: share.LikesCount,
-          CommentsCount: share.CommentsCount,
-          SharesCount: share.SharesCount
-        });
-
-        // Skip if no date
-        if (!share.Date) {
-          console.log("❌ EXCLUDED: No date");
-          return;
-        }
-
-        // Parse date and check if within time range
-        const shareDate = new Date(share.Date);
-        const shareTimestamp = shareDate.getTime();
-        
-        if (shareTimestamp < cutoffTimestamp) {
-          console.log("❌ EXCLUDED: Outside time range");
-          return;
-        }
-
-        // Skip company posts (but be lenient with other visibility types)
-        if (share.Visibility === "COMPANY") {
-          console.log("❌ EXCLUDED: Company post");
-          return;
-        }
-
-        // Apply search filter if provided
-        if (searchTerm) {
-          const searchLower = searchTerm.toLowerCase();
-          const content = (share.ShareCommentary || "").toLowerCase();
-          if (!content.includes(searchLower)) {
-            console.log("❌ EXCLUDED: Doesn't match search term");
-            return;
-          }
-        }
-
-        // Extract post ID from ShareLink
-        let postId = `share_${shareTimestamp}_${index}`;
-        if (share.ShareLink) {
-          const activityMatch = share.ShareLink.match(/activity-(\d+)/);
-          const shareMatch = share.ShareLink.match(/share-(\d+)/);
-          if (activityMatch) {
-            postId = `urn:li:activity:${activityMatch[1]}`;
-          } else if (shareMatch) {
-            postId = `urn:li:share:${shareMatch[1]}`;
-          }
-        }
-
-        // Extract media information
-        const mediaInfo = extractMediaFromShare(share, authorization);
-        console.log("🖼️ Media info:", mediaInfo);
-
-        // Calculate days since posted
-        const daysSincePosted = Math.floor((Date.now() - shareTimestamp) / (24 * 60 * 60 * 1000));
-
-        // Calculate repurpose status
-        const repurposeStatus = getRepurposeStatus(daysSincePosted);
-
-        const processedPost = {
-          id: postId,
-          urn: postId,
-          title: share.ShareCommentary || "LinkedIn post",
-          text: share.ShareCommentary || "LinkedIn post",
-          url: share.ShareLink || `https://linkedin.com/feed/update/${postId}`,
-          timestamp: shareTimestamp,
-          thumbnail: mediaInfo.thumbnail,
-          mediaType: mediaInfo.mediaType,
-          mediaAssetId: mediaInfo.assetId,
-          source: "member_share_info",
-          daysSincePosted: daysSincePosted,
-          canRepost: repurposeStatus.canRepost,
-          repurposeStatus: repurposeStatus,
-          likes: parseInt(share.LikesCount || "0"),
-          comments: parseInt(share.CommentsCount || "0"),
-          shares: parseInt(share.SharesCount || "0"),
-        };
-
-        processedPosts.push(processedPost);
-        console.log("✅ INCLUDED: Post added");
-
-      } catch (error) {
-        console.error("❌ Error processing share:", error, share);
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.log('No historical data available (404)');
+        return [];
       }
-    });
+      throw new Error(`Historical posts API failed: ${response.status}`);
+    }
 
-    console.log(`🎯 PROCESSING COMPLETE: ${processedPosts.length} posts processed from ${shareInfoData.length} shares`);
+    const data = await response.json();
+    console.log('Raw historical data:', JSON.stringify(data, null, 2));
 
-    // Sort by timestamp (newest first)
-    processedPosts.sort((a, b) => b.timestamp - a.timestamp);
-
-    // Apply pagination
-    const pageNum = parseInt(page);
-    const pageSizeNum = parseInt(pageSize);
-    const startIndex = (pageNum - 1) * pageSizeNum;
-    const endIndex = startIndex + pageSizeNum;
-    const paginatedPosts = processedPosts.slice(startIndex, endIndex);
-
-    console.log(`📄 PAGINATION: Showing ${paginatedPosts.length} posts (${startIndex + 1}-${Math.min(endIndex, processedPosts.length)} of ${processedPosts.length})`);
-
-    const totalPages = Math.ceil(processedPosts.length / pageSizeNum);
-
-    const result = {
-      posts: paginatedPosts,
-      pagination: {
-        currentPage: pageNum,
-        totalPages,
-        totalPosts: processedPosts.length,
-        hasNextPage: pageNum < totalPages,
-        hasPrevPage: pageNum > 1,
-      },
-      metadata: {
-        fetchTimeMs: Date.now() - startTime,
-        timeFilter,
-        dataSource: "member_share_info",
-        totalSharesFound: shareInfoData.length,
-        postsInTimeRange: processedPosts.length,
-      },
-      lastUpdated: new Date().toISOString(),
-    };
-
-    console.log("🚀 FINAL RESULT:", {
-      totalPosts: result.pagination.totalPosts,
-      currentPagePosts: result.posts.length,
-      dataSource: result.metadata.dataSource,
-      fetchTime: result.metadata.fetchTimeMs + "ms"
-    });
-
-    return {
-      statusCode: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      },
-      body: JSON.stringify(result),
-    };
-
-  } catch (error) {
-    console.error("❌ PostPulse Data Error:", error);
-    return {
-      statusCode: 200, // Return 200 instead of 500 to prevent crashes
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
-      body: JSON.stringify({
-        error: "Failed to fetch PostPulse data",
-        details: error.message,
-        posts: [],
-        pagination: {
-          currentPage: parseInt(page),
-          totalPages: 0,
-          totalPosts: 0,
-          hasNextPage: false,
-          hasPrevPage: false,
-        },
-        metadata: {
-          fetchTimeMs: 0,
-          timeFilter,
-          dataSource: "error",
-        },
-        lastUpdated: new Date().toISOString(),
-      }),
-    };
-  }
-}
-
-function getRepurposeStatus(daysSincePosted) {
-  if (daysSincePosted < 30) {
-    return {
-      status: "too_soon",
-      label: "Too Soon",
-      color: "bg-red-100 text-red-800 border-red-200",
-      canRepost: false,
-      daysUntilReady: 30 - daysSincePosted
-    };
-  } else if (daysSincePosted < 35) {
-    return {
-      status: "close",
-      label: "Close to Repurpose",
-      color: "bg-amber-100 text-amber-800 border-amber-200",
-      canRepost: false,
-      daysUntilReady: 35 - daysSincePosted
-    };
-  } else {
-    return {
-      status: "ready",
-      label: "Ready to Repurpose",
-      color: "bg-green-100 text-green-800 border-green-200",
-      canRepost: true,
-      daysUntilReady: 0
-    };
-  }
-}
-
-function extractMediaFromShare(share, authorization) {
-  console.log("🔍 Extracting media from share:", {
-    MediaUrl: share.MediaUrl,
-    MediaType: share.MediaType,
-    SharedUrl: share.SharedUrl,
-    hasMediaUrl: !!share.MediaUrl
-  });
-
-  // Check for direct media URL (images/videos)
-  if (share.MediaUrl && share.MediaUrl.trim()) {
-    console.log("✅ Found direct MediaUrl:", share.MediaUrl);
+    const posts = [];
     
-    // Check if it's a LinkedIn asset URN
-    const assetMatch = share.MediaUrl.match(/urn:li:digitalmediaAsset:(.+)/);
-    if (assetMatch) {
-      const assetId = assetMatch[1];
-      console.log("🎯 Extracted asset ID:", assetId);
-      
-      // Extract token from authorization header
-      const token = authorization.replace('Bearer ', '');
-      const thumbnailUrl = `/.netlify/functions/linkedin-media-download?assetId=${assetId}&token=${encodeURIComponent(token)}`;
-      
-      return {
-        thumbnail: thumbnailUrl,
-        mediaType: share.MediaType || "IMAGE",
-        assetId: assetId
-      };
-    } else {
-      // Direct URL (not an asset URN)
-      console.log("🔗 Using direct media URL");
-      return {
-        thumbnail: share.MediaUrl,
-        mediaType: share.MediaType || "IMAGE",
-        assetId: null
-      };
+    if (data.elements && data.elements.length > 0) {
+      for (const element of data.elements) {
+        if (element.snapshotDomain === 'MEMBER_SHARE_INFO' && element.snapshotData) {
+          for (const post of element.snapshotData) {
+            const processedPost = processHistoricalPost(post);
+            if (processedPost) {
+              posts.push(processedPost);
+            }
+          }
+        }
+      }
+    }
+
+    return posts;
+  } catch (error) {
+    console.error('Error fetching historical posts:', error);
+    return [];
+  }
+}
+
+async function fetchRecentPosts(authorization) {
+  try {
+    console.log('Fetching recent posts from Changelog API...');
+    
+    const response = await fetch(
+      'https://api.linkedin.com/rest/memberChangeLogs?q=memberAndApplication',
+      {
+        headers: {
+          'Authorization': authorization,
+          'LinkedIn-Version': '202312',
+          'X-Restli-Protocol-Version': '2.0.0'
+        }
+      }
+    );
+
+    if (!response.ok) {
+      console.log(`Changelog API failed: ${response.status}`);
+      return [];
+    }
+
+    const data = await response.json();
+    const posts = [];
+
+    if (data.elements && data.elements.length > 0) {
+      for (const element of data.elements) {
+        if (element.resourceName === 'shares' && element.method === 'CREATE') {
+          const processedPost = processChangelogPost(element);
+          if (processedPost) {
+            posts.push(processedPost);
+          }
+        }
+      }
+    }
+
+    return posts;
+  } catch (error) {
+    console.error('Error fetching recent posts:', error);
+    return [];
+  }
+}
+
+function processHistoricalPost(post) {
+  try {
+    // Extract post data from historical format
+    const content = post.ShareCommentary || post.Commentary || '';
+    const dateStr = post.Date || post.CreatedDate || post.Timestamp;
+    const createdAt = dateStr ? new Date(dateStr).getTime() : Date.now();
+    
+    // Skip posts older than 90 days
+    const ninetyDaysAgo = Date.now() - (90 * 24 * 60 * 60 * 1000);
+    if (createdAt < ninetyDaysAgo) {
+      return null;
+    }
+
+    return {
+      id: post.ShareId || post.Id || `hist_${Math.random().toString(36).substr(2, 9)}`,
+      content: content,
+      text: content,
+      createdAt: createdAt,
+      likes: parseInt(post.LikesCount || post.Likes || '0', 10),
+      comments: parseInt(post.CommentsCount || post.Comments || '0', 10),
+      shares: parseInt(post.SharesCount || post.Shares || '0', 10),
+      impressions: parseInt(post.Impressions || post.Views || '0', 10),
+      media_url: post.MediaUrl || post.Media || null,
+      document_url: post.DocumentUrl || post.Document || null,
+      linkedin_url: post.ShareLink || post.PostUrl || null,
+      source: 'historical'
+    };
+  } catch (error) {
+    console.error('Error processing historical post:', error);
+    return null;
+  }
+}
+
+function processChangelogPost(element) {
+  try {
+    const activity = element.activity || element.processedActivity || {};
+    const content = activity.commentary?.text || activity.text || '';
+    const createdAt = element.capturedAt || element.processedAt || Date.now();
+
+    return {
+      id: element.resourceId || element.activityId || `recent_${Math.random().toString(36).substr(2, 9)}`,
+      content: content,
+      text: content,
+      createdAt: createdAt,
+      likes: 0, // Engagement data might not be available in changelog
+      comments: 0,
+      shares: 0,
+      impressions: 0,
+      media_url: activity.content?.media?.[0]?.url || null,
+      document_url: activity.content?.document?.url || null,
+      linkedin_url: activity.shareUrl || null,
+      source: 'recent'
+    };
+  } catch (error) {
+    console.error('Error processing changelog post:', error);
+    return null;
+  }
+}
+
+function mergeAndDeduplicatePosts(historicalPosts, recentPosts) {
+  const allPosts = [...historicalPosts, ...recentPosts];
+  const seenIds = new Set();
+  const uniquePosts = [];
+
+  // Sort by creation date (oldest first for repurpose functionality)
+  allPosts.sort((a, b) => a.createdAt - b.createdAt);
+
+  for (const post of allPosts) {
+    if (!seenIds.has(post.id)) {
+      seenIds.add(post.id);
+      uniquePosts.push(post);
     }
   }
 
-  // Check for article with shared URL
-  if (share.SharedUrl && share.MediaType === "ARTICLE") {
-    console.log("📄 Found article with SharedUrl:", share.SharedUrl);
-    return {
-      thumbnail: null, // Articles might not have thumbnails in historical data
-      mediaType: "ARTICLE",
-      assetId: null
-    };
-  }
-
-  // No media found
-  console.log("❌ No media found");
-  return {
-    thumbnail: null,
-    mediaType: share.MediaType || "TEXT",
-    assetId: null
-  };
+  console.log(`Deduplicated ${allPosts.length} posts to ${uniquePosts.length} unique posts`);
+  return uniquePosts;
 }

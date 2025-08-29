@@ -1,16 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getPostPulseData, processPostPulseData } from '../services/postpulse-processor';
-import { PostPulseData, CacheStatus } from '../types/linkedin';
+import { PostData, CacheStatus } from '../types/linkedin';
 
 export const usePostPulseData = () => {
-  const [allPosts, setAllPosts] = useState<PostPulseData[]>([]);
-  const [processedPosts, setProcessedPosts] = useState<PostPulseData[]>([]);
+  const [allPosts, setAllPosts] = useState<PostData[]>([]);
+  const [processedPosts, setProcessedPosts] = useState<PostData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState({
-    timeFilter: '7d',
+    timeFilter: '90d', // FIX: Default to 90 days to show all posts
     postType: 'all',
-    sortBy: 'engagement',
+    sortBy: 'oldest', // FIX: Default to oldest first
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [cacheStatus, setCacheStatus] = useState<CacheStatus>({

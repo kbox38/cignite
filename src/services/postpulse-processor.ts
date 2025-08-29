@@ -1,8 +1,8 @@
 import { getCachedPostPulseData, setCachedPostPulseData } from './postpulse-cache';
-import { PostPulseData } from '../types/linkedin';
+import { PostData } from '../types/linkedin';
 import { useAuthStore } from '../stores/authStore';
 
-export const processPostPulseData = (posts: PostPulseData[], filters: { timeFilter: string; postType: string; sortBy: string; }) => {
+export const processPostPulseData = (posts: PostData[], filters: { timeFilter: string; postType: string; sortBy: string; }) => {
   const { timeFilter, postType, sortBy } = filters;
 
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
@@ -25,16 +25,49 @@ export const processPostPulseData = (posts: PostPulseData[], filters: { timeFilt
 
   filteredPosts.sort((a, b) => {
     if (sortBy === 'recent') return b.createdAt - a.createdAt;
+    if (sortBy === 'oldest') return a.createdAt - b.createdAt; // FIX: Add oldest first option
     if (sortBy === 'likes') return (b.likes || 0) - (a.likes || 0);
     if (sortBy === 'comments') return (b.comments || 0) - (a.comments || 0);
     if (sortBy === 'views') return (b.views || 0) - (a.views || 0);
-    // Default to engagement
-    const engagementA = (a.likes || 0) + (a.comments || 0);
-    const engagementB = (b.likes || 0) + (b.comments || 0);
-    return engagementB - engagementA;
+    // Default to oldest first for repurpose functionality
+    return a.createdAt - b.createdAt;
   });
 
   return filteredPosts;
+};
+
+// FIX: Add repurpose status calculation
+export const getRepurposeStatus = (postDate: number) => {
+  const daysDiff = Math.floor((Date.now() - postDate) / (1000 * 60 * 60 * 24));
+  
+  if (daysDiff < 42) {
+    return { status: 'too-soon', label: 'Too Soon', color: 'bg-red-100 text-red-800' };
+  } else if (daysDiff >= 42 && daysDiff <= 45) {
+    return { status: 'close', label: 'Close', color: 'bg-yellow-100 text-yellow-800' };
+  } else {
+    return { status: 'ready', label: 'Ready to Repurpose', color: 'bg-green-100 text-green-800' };
+  }
+};
+
+// FIX: Add repurpose functionality
+export const repurposePost = (post: PostData) => {
+  const repurposeData = {
+    text: post.content || post.text || '',
+    originalDate: new Date(post.createdAt).toISOString(),
+    engagement: {
+      likes: post.likes || 0,
+      comments: post.comments || 0,
+      shares: post.shares || 0
+    },
+    media_url: post.media_url,
+    document_url: post.document_url
+  };
+  
+  // Store in session storage for PostGen to pick up
+  sessionStorage.setItem('REPURPOSE_POST', JSON.stringify(repurposeData));
+  
+  // Navigate to PostGen rewrite section
+  window.location.href = '/postgen?tab=rewrite';
 };
 
 export const getPostPulseData = async (forceRefresh = false) => {
@@ -45,11 +78,11 @@ export const getPostPulseData = async (forceRefresh = false) => {
     throw new Error("LinkedIn DMA token not found. Please reconnect your account.");
   }
   
-  if (!profile?.id) {
+  if (!profile?.sub) { // FIX: Use profile.sub instead of profile.id
     throw new Error("User profile not found. Please reconnect your account.");
   }
   
-  const user_id = profile.id;
+  const user_id = profile.sub; // FIX: Use profile.sub
 
   if (!forceRefresh) {
     const cachedData = getCachedPostPulseData(user_id);
