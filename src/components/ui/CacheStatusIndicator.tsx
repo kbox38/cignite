@@ -1,115 +1,93 @@
-import { Clock, Database, RefreshCw, AlertCircle } from "lucide-react";
+import React from 'react';
+import { Clock, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 
-interface CacheStatusIndicatorProps {
-  cacheStatus: {
-    exists: boolean;
-    isExpired: boolean;
-    lastFetch?: string;
-    postCount?: number;
-    age?: number;
-  };
-  dataSources: {
-    historical: boolean;
-    realtime: boolean;
-    cache: boolean;
-  };
-  isRefetching: boolean;
-  onRefresh?: () => void;
+interface CacheStatus {
+  isCached: boolean;
+  timestamp: string | null;
 }
 
-export const CacheStatusIndicator = ({
-  cacheStatus,
-  dataSources,
-  isRefetching,
-  onRefresh,
-}: CacheStatusIndicatorProps) => {
-  const getStatusColor = () => {
-    if (!cacheStatus.exists) return "text-gray-500";
-    if (cacheStatus.isExpired) return "text-yellow-600";
-    if (cacheStatus.age && cacheStatus.age < 60 * 60 * 1000)
-      return "text-green-600"; // Less than 1 hour
-    if (cacheStatus.age && cacheStatus.age < 6 * 60 * 60 * 1000)
-      return "text-blue-600"; // Less than 6 hours
-    return "text-orange-600";
-  };
+interface CacheStatusIndicatorProps {
+  status: CacheStatus;
+}
 
-  const getStatusText = () => {
-    if (!cacheStatus.exists) return "No cached data";
-    if (cacheStatus.isExpired) return "Cache expired";
-    if (cacheStatus.age && cacheStatus.age < 60 * 60 * 1000)
-      return "Fresh data";
-    if (cacheStatus.age && cacheStatus.age < 6 * 60 * 60 * 1000)
-      return "Recent data";
-    return "Stale data";
-  };
+export const CacheStatusIndicator: React.FC<CacheStatusIndicatorProps> = ({ status }) => {
+  if (!status) {
+    return null;
+  }
 
-  const getAgeText = () => {
-    if (!cacheStatus.age) return "";
+  const { isCached, timestamp } = status;
 
-    const hours = Math.floor(cacheStatus.age / (60 * 60 * 1000));
-    const minutes = Math.floor(
-      (cacheStatus.age % (60 * 60 * 1000)) / (60 * 1000)
-    );
-
-    if (hours > 0) {
-      return `${hours}h ${minutes}m ago`;
+  // Calculate cache age if we have a timestamp
+  const getCacheAge = () => {
+    if (!timestamp) return null;
+    
+    try {
+      const cacheTime = new Date(timestamp).getTime();
+      const now = Date.now();
+      const ageInMinutes = Math.floor((now - cacheTime) / (1000 * 60));
+      const ageInHours = Math.floor(ageInMinutes / 60);
+      
+      if (ageInMinutes < 60) {
+        return `${ageInMinutes}m ago`;
+      } else if (ageInHours < 24) {
+        return `${ageInHours}h ago`;
+      } else {
+        const ageInDays = Math.floor(ageInHours / 24);
+        return `${ageInDays}d ago`;
+      }
+    } catch (error) {
+      return 'Unknown';
     }
-    return `${minutes}m ago`;
   };
 
-  const getDataSourceText = () => {
-    const sources = [];
-    if (dataSources.cache) sources.push("Cache");
-    if (dataSources.historical) sources.push("Historical");
-    if (dataSources.realtime) sources.push("Real-time");
+  const cacheAge = getCacheAge();
+  const ageInMinutes = timestamp ? Math.floor((Date.now() - new Date(timestamp).getTime()) / (1000 * 60)) : 0;
 
-    if (sources.length === 0) return "Loading...";
-    return sources.join(" + ");
+  // Determine status color and icon
+  const getStatusConfig = () => {
+    if (!isCached) {
+      return {
+        color: 'text-blue-600 bg-blue-50 border-blue-200',
+        icon: RefreshCw,
+        label: 'Live Data',
+        description: 'Freshly fetched'
+      };
+    }
+
+    if (ageInMinutes < 60) {
+      return {
+        color: 'text-green-600 bg-green-50 border-green-200',
+        icon: CheckCircle,
+        label: 'Fresh Cache',
+        description: cacheAge || 'Recently cached'
+      };
+    } else if (ageInMinutes < 360) { // 6 hours
+      return {
+        color: 'text-yellow-600 bg-yellow-50 border-yellow-200',
+        icon: Clock,
+        label: 'Cached Data',
+        description: cacheAge || 'Cached data'
+      };
+    } else {
+      return {
+        color: 'text-orange-600 bg-orange-50 border-orange-200',
+        icon: AlertCircle,
+        label: 'Stale Cache',
+        description: cacheAge || 'Old cached data'
+      };
+    }
   };
+
+  const config = getStatusConfig();
+  const IconComponent = config.icon;
 
   return (
-    <div className="flex items-center space-x-3 text-sm">
-      {/* Cache Status */}
-      <div className={`flex items-center space-x-1 ${getStatusColor()}`}>
-        <Database size={14} />
-        <span>{getStatusText()}</span>
-        {cacheStatus.lastFetch && (
-          <span className="text-gray-500">({getAgeText()})</span>
-        )}
+    <div className={`flex items-center space-x-2 px-3 py-1 rounded-full border text-sm ${config.color}`}>
+      <IconComponent size={14} />
+      <div className="flex flex-col">
+        <span className="font-medium text-xs">{config.label}</span>
+        <span className="text-xs opacity-75">{config.description}</span>
       </div>
-
-      {/* Data Sources */}
-      <div className="flex items-center space-x-1 text-gray-600">
-        <Clock size={14} />
-        <span>{getDataSourceText()}</span>
-      </div>
-
-      {/* Post Count */}
-      {cacheStatus.postCount !== undefined && (
-        <div className="text-gray-600">{cacheStatus.postCount} posts</div>
-      )}
-
-      {/* Refresh Button */}
-      {onRefresh && (
-        <button
-          onClick={onRefresh}
-          disabled={isRefetching}
-          className={`flex items-center space-x-1 text-blue-600 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed ${
-            isRefetching ? "animate-spin" : ""
-          }`}
-        >
-          <RefreshCw size={14} />
-          <span>{isRefetching ? "Refreshing..." : "Refresh"}</span>
-        </button>
-      )}
-
-      {/* Warning for expired cache */}
-      {cacheStatus.isExpired && cacheStatus.exists && (
-        <div className="flex items-center space-x-1 text-yellow-600">
-          <AlertCircle size={14} />
-          <span>Cache expired</span>
-        </div>
-      )}
     </div>
   );
 };

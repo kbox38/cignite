@@ -3,36 +3,74 @@ import { PostData } from '../types/linkedin';
 import { useAuthStore } from '../stores/authStore';
 
 export const processPostPulseData = (posts: PostData[], filters: { timeFilter: string; postType: string; sortBy: string; }) => {
-  const { timeFilter, postType, sortBy } = filters;
+  // FIX: Handle invalid input
+  if (!Array.isArray(posts) || posts.length === 0) {
+    console.log('processPostPulseData: No posts to process');
+    return [];
+  }
+
+  const { timeFilter, postType, sortBy } = filters || {};
 
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
 
   let filteredPosts = posts.filter(post => {
-    if (!post || typeof post.createdAt !== 'number') return false;
+    // FIX: Handle invalid post objects
+    if (!post || typeof post !== 'object') {
+      console.warn('processPostPulseData: Skipping invalid post:', post);
+      return false;
+    }
+
+    // FIX: Safe createdAt access with fallbacks
+    const createdAt = post.createdAt || post.timestamp;
+    if (typeof createdAt !== 'number' || isNaN(createdAt) || createdAt <= 0) {
+      console.warn('processPostPulseData: Post has invalid createdAt:', post);
+      return false;
+    }
     
-    if (timeFilter === '7d' && post.createdAt < sevenDaysAgo) return false;
-    if (timeFilter === '30d' && post.createdAt < thirtyDaysAgo) return false;
+    // Time filtering
+    if (timeFilter === '7d' && createdAt < sevenDaysAgo) return false;
+    if (timeFilter === '30d' && createdAt < thirtyDaysAgo) return false;
+    if (timeFilter === '90d' && createdAt < ninetyDaysAgo) return false;
     
-    if (postType !== 'all') {
+    // Post type filtering
+    if (postType && postType !== 'all') {
       if (postType === 'text' && (post.media_url || post.document_url)) return false;
       if (postType === 'image' && !post.media_url) return false;
       if (postType === 'video' && !post.media_url) return false; 
       if (postType === 'document' && !post.document_url) return false;
     }
+    
     return true;
   });
 
-  filteredPosts.sort((a, b) => {
-    if (sortBy === 'recent') return b.createdAt - a.createdAt;
-    if (sortBy === 'oldest') return a.createdAt - b.createdAt; // FIX: Add oldest first option
-    if (sortBy === 'likes') return (b.likes || 0) - (a.likes || 0);
-    if (sortBy === 'comments') return (b.comments || 0) - (a.comments || 0);
-    if (sortBy === 'views') return (b.views || 0) - (a.views || 0);
-    // Default to oldest first for repurpose functionality
-    return a.createdAt - b.createdAt;
-  });
+  // FIX: Safe sorting with fallbacks
+  try {
+    filteredPosts.sort((a, b) => {
+      const aCreatedAt = a.createdAt || a.timestamp || 0;
+      const bCreatedAt = b.createdAt || b.timestamp || 0;
+      const aLikes = parseInt(String(a.likes || 0), 10) || 0;
+      const bLikes = parseInt(String(b.likes || 0), 10) || 0;
+      const aComments = parseInt(String(a.comments || 0), 10) || 0;
+      const bComments = parseInt(String(b.comments || 0), 10) || 0;
+      const aViews = parseInt(String(a.views || a.impressions || 0), 10) || 0;
+      const bViews = parseInt(String(b.views || b.impressions || 0), 10) || 0;
 
+      if (sortBy === 'recent') return bCreatedAt - aCreatedAt;
+      if (sortBy === 'oldest') return aCreatedAt - bCreatedAt;
+      if (sortBy === 'likes') return bLikes - aLikes;
+      if (sortBy === 'comments') return bComments - aComments;
+      if (sortBy === 'views') return bViews - aViews;
+      
+      // Default to oldest first for repurpose functionality
+      return aCreatedAt - bCreatedAt;
+    });
+  } catch (sortError) {
+    console.error('processPostPulseData: Error sorting posts:', sortError);
+  }
+
+  console.log(`processPostPulseData: Processed ${filteredPosts.length} posts from ${posts.length} total`);
   return filteredPosts;
 };
 
