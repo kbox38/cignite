@@ -112,6 +112,12 @@ export const getPostPulseData = async (forceRefresh = false) => {
   // Get auth data from the auth store
   const { dmaToken, profile } = useAuthStore.getState();
   
+  console.log('getPostPulseData: Starting with auth check:', {
+    hasDmaToken: !!dmaToken,
+    hasProfile: !!profile,
+    profileSub: profile?.sub
+  });
+  
   if (!dmaToken) {
     throw new Error("LinkedIn DMA token not found. Please reconnect your account.");
   }
@@ -125,29 +131,37 @@ export const getPostPulseData = async (forceRefresh = false) => {
   if (!forceRefresh) {
     const cachedData = getCachedPostPulseData(user_id);
     if (cachedData) {
-      console.log('Serving Post Pulse data from cache');
+      console.log('getPostPulseData: Serving from cache:', cachedData.posts.length, 'posts');
       return { posts: cachedData.posts, isCached: true, timestamp: cachedData.timestamp };
     }
   }
 
-  console.log('Fetching fresh Post Pulse data');
+  console.log('getPostPulseData: Fetching fresh data from API');
   
-  // FIX: Use existing linkedin-snapshot function instead of postpulse-data
-  const response = await fetch(`/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO`, {
+  // FIX: Use existing linkedin-snapshot function and add comprehensive logging
+  const apiUrl = `/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO`;
+  console.log('getPostPulseData: Calling API:', apiUrl);
+  
+  const response = await fetch(apiUrl, {
     headers: {
       'Authorization': `Bearer ${dmaToken}`,
     },
   });
 
+  console.log('getPostPulseData: API response status:', response.status, response.statusText);
+
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `Failed to fetch Post Pulse data. Status: ${response.status}`);
+    const errorText = await response.text();
+    console.error('getPostPulseData: API error response:', errorText);
+    throw new Error(`Failed to fetch Post Pulse data. Status: ${response.status} - ${errorText}`);
   }
 
   const data = await response.json();
+  console.log('getPostPulseData: Raw API response:', JSON.stringify(data, null, 2));
   
   // Process the snapshot data to match our PostData format
   const processedPosts = processSnapshotData(data);
+  console.log('getPostPulseData: Final processed posts:', processedPosts.length);
   
   setCachedPostPulseData(user_id, processedPosts);
   return { posts: processedPosts, isCached: false, timestamp: new Date().toISOString() };
@@ -157,48 +171,104 @@ export const getPostPulseData = async (forceRefresh = false) => {
 function processSnapshotData(snapshotData: any): PostData[] {
   const posts: PostData[] = [];
   
+  console.log('processSnapshotData: Raw data received:', snapshotData);
+  
   if (snapshotData.elements && snapshotData.elements.length > 0) {
     for (const element of snapshotData.elements) {
       if (element.snapshotDomain === 'MEMBER_SHARE_INFO' && element.snapshotData) {
+        console.log(`processSnapshotData: Found ${element.snapshotData.length} posts in MEMBER_SHARE_INFO`);
+        
         for (const post of element.snapshotData) {
           try {
-            const content = post.ShareCommentary || post.Commentary || post.Text || '';
-            const dateStr = post.Date || post.CreatedDate || post.Timestamp;
-            const createdAt = dateStr ? new Date(dateStr).getTime() : Date.now();
+            // FIX: Use correct field names from DMA documentation
+            const content = post.ShareCommentary || post.shareCommentary || post.Commentary || post.Text || '';
+            const dateStr = post.Date || post.shareDate || post.CreatedDate || post.Timestamp;
+            
+            // Skip empty posts
+            if (!content && !dateStr) {
+              console.log('Skipping post with no content or date');
+              continue;
+            }
+            
+            let createdAt = Date.now();
+            if (dateStr) {
+              try {
+                createdAt = new Date(dateStr).getTime();
+                if (isNaN(createdAt)) {
+                  console.warn('Invalid date format:', dateStr);
+                  createdAt = Date.now();
+                }
+              } catch (dateError) {
+                console.warn('Error parsing date:', dateStr, dateError);
+                createdAt = Date.now();
+              }
+            }
             
             // Skip posts older than 90 days
             const ninetyDaysAgo = Date.now() - (90 * 24 * 60 * 60 * 1000);
             if (createdAt < ninetyDaysAgo) {
+              console.log('Skipping post older than 90 days');
               continue;
             }
 
+            // FIX: Parse engagement metrics with multiple field name variations
+            const parseLikesCount = () => {
+              const likes = post.LikesCount || post.likesCount || post['Likes Count'] || post.Likes || '0';
+              return parseInt(String(likes), 10) || 0;
+            };
+
+            const parseCommentsCount = () => {
+              const comments = post.CommentsCount || post.commentsCount || post['Comments Count'] || post.Comments || '0';
+              return parseInt(String(comments), 10) || 0;
+            };
+
+            const parseSharesCount = () => {
+              const shares = post.SharesCount || post.sharesCount || post['Shares Count'] || post.Shares || '0';
+              return parseInt(String(shares), 10) || 0;
+            };
+
             const processedPost: PostData = {
-              id: post.ShareId || post.Id || `post_${Math.random().toString(36).substr(2, 9)}`,
+              id: post.ShareId || post.shareId || post.Id || post.ShareLink || `post_${Math.random().toString(36).substr(2, 9)}`,
               text: content,
               content: content,
               timestamp: createdAt,
               createdAt: createdAt,
-              likes: parseInt(post.LikesCount || post.Likes || '0', 10),
-              comments: parseInt(post.CommentsCount || post.Comments || '0', 10),
-              shares: parseInt(post.SharesCount || post.Shares || '0', 10),
-              impressions: parseInt(post.Impressions || post.Views || '0', 10),
-              views: parseInt(post.Views || post.Impressions || '0', 10),
-              media_url: post.MediaUrl || post.Media || null,
-              document_url: post.DocumentUrl || post.Document || null,
-              linkedin_url: post.ShareLink || post.PostUrl || null,
+              likes: parseLikesCount(),
+              comments: parseCommentsCount(),
+              shares: parseSharesCount(),
+              impressions: parseInt(String(post.Impressions || post.Views || post.impressions || post.views || '0'), 10) || 0,
+              views: parseInt(String(post.Views || post.Impressions || post.views || post.impressions || '0'), 10) || 0,
+              media_url: post.MediaUrl || post.mediaUrl || post.Media || post['Media URL'] || null,
+              document_url: post.DocumentUrl || post.documentUrl || post.Document || post['Document URL'] || null,
+              linkedin_url: post.ShareLink || post.shareLink || post.PostUrl || post['Share URL'] || null,
               resourceName: 'shares',
               source: 'historical'
             };
 
+            console.log('Processed post:', {
+              id: processedPost.id,
+              hasContent: !!processedPost.content,
+              date: new Date(processedPost.createdAt).toLocaleDateString(),
+              engagement: {
+                likes: processedPost.likes,
+                comments: processedPost.comments,
+                shares: processedPost.shares
+              }
+            });
+
             posts.push(processedPost);
           } catch (error) {
-            console.error('Error processing post:', error);
+            console.error('Error processing individual post:', error, post);
           }
         }
       }
     }
+  } else {
+    console.warn('processSnapshotData: No elements found in snapshot data');
   }
 
-  console.log(`Processed ${posts.length} posts from snapshot data`);
-  return posts.sort((a, b) => a.createdAt - b.createdAt); // Sort oldest first
+  console.log(`processSnapshotData: Successfully processed ${posts.length} posts from snapshot data`);
+  
+  // Sort oldest first for repurpose functionality
+  return posts.sort((a, b) => a.createdAt - b.createdAt);
 }
