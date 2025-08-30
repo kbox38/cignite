@@ -246,7 +246,7 @@ export const getPostPulseData = async (forceRefresh = false) => {
     // 1. Fetch recent posts from Changelog API (past 28 days)
     console.log('getPostPulseData: Fetching from Changelog API...');
     try {
-      const changelogResponse = await fetch(`/.netlify/functions/linkedin-changelog?count=50`, {
+      const changelogResponse = await fetch(`/.netlify/functions/linkedin-changelog?count=90`, {
         headers: {
           'Authorization': `Bearer ${dmaToken}`,
           'LinkedIn-Version': '202312',
@@ -275,7 +275,7 @@ export const getPostPulseData = async (forceRefresh = false) => {
     // 2. Fetch historical posts from Snapshot API
     console.log('getPostPulseData: Fetching from Snapshot API...');
     try {
-      const snapshotResponse = await fetch(`/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO&count=500`, {
+      const snapshotResponse = await fetch(`/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO&count=5000`, {
         headers: {
           'Authorization': `Bearer ${dmaToken}`,
           'LinkedIn-Version': '202312',
