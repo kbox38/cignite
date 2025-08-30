@@ -1,4 +1,4 @@
-// src/services/postpulse-processor.ts - COMPLETE FIX
+// src/services/postpulse-processor.ts - DEBUG VERSION
 import { useAuthStore } from '../stores/authStore';
 import { PostData } from '../types/linkedin';
 
@@ -51,17 +51,51 @@ const setCachedPostPulseData = (userId: string, posts: PostData[]): void => {
   }
 };
 
-// Extract posts from Changelog API (recent 28 days)
+// Extract posts from Changelog API (recent 28 days) - WITH DEBUG LOGGING
 const extractChangelogPosts = (changelogData: any[]): PostData[] => {
   console.log('extractChangelogPosts: Processing changelog data');
+  console.log('extractChangelogPosts: Raw changelog data sample:', JSON.stringify(changelogData.slice(0, 2), null, 2));
   
-  return changelogData
-    .filter(item => item.resourceName === 'ugcPosts' && item.method === 'CREATE')
-    .map(item => {
+  // Check what resourceNames we have
+  const resourceNames = [...new Set(changelogData.map(item => item.resourceName))];
+  console.log('extractChangelogPosts: Available resource names:', resourceNames);
+  
+  const ugcPosts = changelogData.filter(item => item.resourceName === 'ugcPosts');
+  console.log('extractChangelogPosts: Found ugcPosts entries:', ugcPosts.length);
+  
+  if (ugcPosts.length > 0) {
+    console.log('extractChangelogPosts: Sample ugcPost structure:', JSON.stringify(ugcPosts[0], null, 2));
+  }
+  
+  const createPosts = ugcPosts.filter(item => item.method === 'CREATE');
+  console.log('extractChangelogPosts: CREATE method posts:', createPosts.length);
+  
+  if (createPosts.length > 0) {
+    console.log('extractChangelogPosts: Sample CREATE post structure:', JSON.stringify(createPosts[0], null, 2));
+  }
+  
+  return createPosts
+    .map((item, index) => {
+      console.log(`extractChangelogPosts: Processing item ${index}:`, {
+        resourceId: item.resourceId,
+        method: item.method,
+        hasActivity: !!item.activity,
+        activityKeys: item.activity ? Object.keys(item.activity) : []
+      });
+      
       const activity = item.activity || {};
       const shareContent = activity.specificContent?.['com.linkedin.ugc.ShareContent'] || {};
       const shareCommentary = shareContent.shareCommentary || {};
       const created = activity.created || {};
+      
+      console.log(`extractChangelogPosts: Item ${index} content extraction:`, {
+        hasShareContent: !!shareContent,
+        hasShareCommentary: !!shareCommentary,
+        shareCommentaryKeys: Object.keys(shareCommentary),
+        shareCommentaryText: shareCommentary.text,
+        createdTime: created.time,
+        capturedAt: item.capturedAt
+      });
       
       // Extract content text
       const content = shareCommentary.text || shareCommentary.inferredText || '';
@@ -73,7 +107,7 @@ const extractChangelogPosts = (changelogData: any[]): PostData[] => {
       // Extract hashtags
       const hashtags = shareContent.shareFeatures?.hashtags || [];
       
-      return {
+      const post = {
         id: item.resourceId || activity.id || `changelog_${item.id}`,
         content: content,
         createdAt: created.time || item.capturedAt || Date.now(),
@@ -81,41 +115,107 @@ const extractChangelogPosts = (changelogData: any[]): PostData[] => {
         comments: 0,
         shares: 0,
         views: 0,
-        media_url: null, // Media URL would need separate resolution
+        media_url: null,
         media_type: mediaCategory === 'NONE' ? null : mediaCategory,
         visibility: activity.visibility?.['com.linkedin.ugc.MemberNetworkVisibility'] || 'PUBLIC',
-        hashtags: hashtags.map((ht: any) => ht.replace('urn:li:hashtag:', '')),
+        hashtags: hashtags.map((ht: any) => ht.replace?.('urn:li:hashtag:', '') || ht),
         mentions: [],
         post_url: null,
         timestamp: created.time || item.capturedAt || Date.now(),
       };
+      
+      console.log(`extractChangelogPosts: Item ${index} final post:`, {
+        id: post.id,
+        hasContent: !!post.content,
+        contentLength: post.content.length,
+        contentPreview: post.content.substring(0, 100)
+      });
+      
+      return post;
     })
-    .filter(post => post.content && post.content.trim().length > 0);
+    .filter((post, index) => {
+      const isValid = post.content && post.content.trim().length > 0;
+      console.log(`extractChangelogPosts: Post ${index} validation:`, {
+        isValid,
+        hasContent: !!post.content,
+        contentTrimmed: post.content?.trim().length
+      });
+      return isValid;
+    });
 };
 
-// Extract posts from Snapshot API (historical data)
+// Extract posts from Snapshot API (historical data) - WITH DEBUG LOGGING
 const extractSnapshotPosts = (snapshotData: any[]): PostData[] => {
   console.log('extractSnapshotPosts: Processing snapshot data');
+  console.log('extractSnapshotPosts: Snapshot data length:', snapshotData.length);
   
-  // The exact structure depends on what's actually in MEMBER_SHARE_INFO
-  // We need to handle various possible field names based on the actual data
+  if (snapshotData.length > 0) {
+    console.log('extractSnapshotPosts: Sample snapshot items (first 3):');
+    snapshotData.slice(0, 3).forEach((item, index) => {
+      console.log(`Snapshot item ${index}:`, Object.keys(item));
+      console.log(`Snapshot item ${index} sample:`, JSON.stringify(item, null, 2));
+    });
+    
+    // Check all unique keys across all items
+    const allKeys = new Set();
+    snapshotData.forEach(item => {
+      Object.keys(item).forEach(key => allKeys.add(key));
+    });
+    console.log('extractSnapshotPosts: All unique keys in snapshot data:', Array.from(allKeys).sort());
+  }
+  
   return snapshotData
-    .map((item: any) => {
+    .map((item: any, index) => {
       // Try different possible field names for content
-      const content = item.content || item.text || item.commentary || 
-                     item.shareCommentary || item.post_content || 
-                     item.message || item.description || '';
+      const possibleContentFields = ['content', 'text', 'commentary', 'shareCommentary', 'post_content', 'message', 'description', 'Content', 'Text', 'Commentary'];
+      let content = '';
+      let contentField = '';
+      
+      for (const field of possibleContentFields) {
+        if (item[field]) {
+          content = item[field];
+          contentField = field;
+          break;
+        }
+      }
       
       // Try different possible field names for dates
-      const createdAt = item.created_at || item.published_at || 
-                       item.createdAt || item.created || 
-                       item.timestamp || item.date || Date.now();
+      const possibleDateFields = ['created_at', 'published_at', 'createdAt', 'created', 'timestamp', 'date', 'Created At', 'Published At'];
+      let createdAt = Date.now();
+      let dateField = '';
+      
+      for (const field of possibleDateFields) {
+        if (item[field]) {
+          createdAt = item[field];
+          dateField = field;
+          break;
+        }
+      }
       
       // Try different field names for ID
-      const id = item.id || item.post_id || item.urn || item.post_urn || 
-                `snapshot_${Date.now()}_${Math.random()}`;
+      const possibleIdFields = ['id', 'post_id', 'urn', 'post_urn', 'Id', 'Post ID'];
+      let id = `snapshot_${Date.now()}_${Math.random()}`;
+      let idField = '';
       
-      return {
+      for (const field of possibleIdFields) {
+        if (item[field]) {
+          id = item[field];
+          idField = field;
+          break;
+        }
+      }
+      
+      console.log(`extractSnapshotPosts: Item ${index} field mapping:`, {
+        contentField,
+        contentValue: content,
+        contentLength: String(content).length,
+        dateField,
+        dateValue: createdAt,
+        idField,
+        idValue: id
+      });
+      
+      const post = {
         id: id,
         content: String(content).trim(),
         createdAt: typeof createdAt === 'number' ? createdAt : new Date(createdAt).getTime(),
@@ -131,18 +231,28 @@ const extractSnapshotPosts = (snapshotData: any[]): PostData[] => {
         post_url: item.post_url || item.postUrl || null,
         timestamp: typeof createdAt === 'number' ? createdAt : new Date(createdAt).getTime(),
       };
+      
+      return post;
     })
-    .filter((post: PostData) => {
+    .filter((post: PostData, index) => {
       // Validate the post has essential data
       const hasValidId = !!post.id;
       const hasValidDate = !isNaN(new Date(post.createdAt).getTime()) && post.createdAt > 0;
       const hasContent = post.content && post.content.length > 0;
       
+      console.log(`extractSnapshotPosts: Post ${index} validation:`, {
+        hasValidId,
+        hasValidDate,
+        hasContent,
+        dateValue: new Date(post.createdAt).toLocaleDateString(),
+        contentPreview: post.content.substring(0, 50)
+      });
+      
       return hasValidId && hasValidDate && hasContent;
     });
 };
 
-// Main data fetching function - FIXED
+// Main data fetching function with enhanced debugging
 export const getPostPulseData = async (forceRefresh = false) => {
   const { dmaToken, profile } = useAuthStore.getState();
   
@@ -207,7 +317,6 @@ export const getPostPulseData = async (forceRefresh = false) => {
       }
     } catch (changelogError) {
       console.error('getPostPulseData: Changelog API error:', changelogError);
-      // Continue to snapshot API even if changelog fails
     }
 
     // 2. Fetch historical posts from Snapshot API
@@ -277,14 +386,6 @@ export const getPostPulseData = async (forceRefresh = false) => {
         newestDaysAgo: Math.floor((Date.now() - recentPosts[0].createdAt) / (1000 * 60 * 60 * 24)),
         oldestDaysAgo: Math.floor((Date.now() - recentPosts[recentPosts.length - 1].createdAt) / (1000 * 60 * 60 * 24))
       });
-      
-      // Debug: Show sample of posts
-      console.log('getPostPulseData: Sample posts:', recentPosts.slice(0, 3).map(post => ({
-        id: post.id.substring(0, 30),
-        date: new Date(post.createdAt).toLocaleDateString(),
-        content: post.content.substring(0, 100) + '...',
-        source: post.id.startsWith('changelog_') ? 'changelog' : 'snapshot'
-      })));
     }
 
     // Cache the results
@@ -302,7 +403,7 @@ export const getPostPulseData = async (forceRefresh = false) => {
   }
 };
 
-// Processing function (same as before but simplified)
+// Processing function (unchanged)
 export const processPostPulseData = (posts: PostData[], filters: PostPulseFilters): PostData[] => {
   console.log('processPostPulseData: Starting with', posts.length, 'posts');
   
@@ -337,26 +438,14 @@ export const processPostPulseData = (posts: PostData[], filters: PostPulseFilter
     filteredPosts.sort((a, b) => {
       const aCreatedAt = new Date(a.createdAt || 0).getTime();
       const bCreatedAt = new Date(b.createdAt || 0).getTime();
-      const aLikes = parseInt(String(a.likes || 0), 10) || 0;
-      const bLikes = parseInt(String(b.likes || 0), 10) || 0;
-      const aComments = parseInt(String(a.comments || 0), 10) || 0;
-      const bComments = parseInt(String(b.comments || 0), 10) || 0;
-      const aViews = parseInt(String(a.views || 0), 10) || 0;
-      const bViews = parseInt(String(b.views || 0), 10) || 0;
 
       switch (filters.sortBy) {
         case 'recent':
-          return bCreatedAt - aCreatedAt; // Newest first
+          return bCreatedAt - aCreatedAt;
         case 'oldest':
-          return aCreatedAt - bCreatedAt; // Oldest first (DEFAULT)
-        case 'likes':
-          return bLikes - aLikes; // Most likes first
-        case 'comments':
-          return bComments - aComments; // Most comments first
-        case 'views':
-          return bViews - aViews; // Most views first
+          return aCreatedAt - bCreatedAt;
         default:
-          return aCreatedAt - bCreatedAt; // Default to oldest first
+          return aCreatedAt - bCreatedAt;
       }
     });
   } catch (sortError) {
@@ -368,7 +457,7 @@ export const processPostPulseData = (posts: PostData[], filters: PostPulseFilter
   return filteredPosts;
 };
 
-// Helper functions for repurposing
+// Helper functions
 export const getRepurposeStatus = (postDate: number) => {
   const daysDiff = Math.floor((Date.now() - postDate) / (1000 * 60 * 60 * 24));
   
@@ -393,9 +482,6 @@ export const repurposePost = (post: PostData) => {
     media_url: post.media_url,
   };
   
-  // Store in session storage for PostGen to pick up
   sessionStorage.setItem('REPURPOSE_POST', JSON.stringify(repurposeData));
-  
-  // Navigate to PostGen rewrite section
   window.location.href = '/postgen?tab=rewrite';
 };
