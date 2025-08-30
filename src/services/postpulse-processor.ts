@@ -138,8 +138,31 @@ export const getPostPulseData = async (forceRefresh = false) => {
 
   console.log('getPostPulseData: Fetching fresh data from API');
   
-  // FIX: Use existing linkedin-snapshot function and add comprehensive logging
-  const apiUrl = `/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO`;
+  // FIX: First, get the total count to calculate where recent posts are
+  const initialResponse = await fetch(`/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO&count=1`, {
+    headers: {
+      'Authorization': `Bearer ${dmaToken}`,
+    },
+  });
+
+  if (!initialResponse.ok) {
+    const errorText = await initialResponse.text();
+    console.error('getPostPulseData: Initial API error response:', errorText);
+    throw new Error(`Failed to fetch Post Pulse data. Status: ${initialResponse.status} - ${errorText}`);
+  }
+
+  const initialData = await initialResponse.json();
+  const totalPosts = initialData.paging?.total || 0;
+  console.log('getPostPulseData: Total posts available:', totalPosts);
+
+  // FIX: Calculate starting point for recent posts (get last 100 posts)
+  const postsToFetch = Math.min(100, totalPosts);
+  const startIndex = Math.max(0, totalPosts - postsToFetch);
+  
+  console.log('getPostPulseData: Fetching recent posts starting from index:', startIndex);
+  
+  // FIX: Fetch recent posts from the end of the dataset
+  const apiUrl = `/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO&start=${startIndex}&count=${postsToFetch}`;
   console.log('getPostPulseData: Calling API:', apiUrl);
   
   const response = await fetch(apiUrl, {
@@ -157,7 +180,12 @@ export const getPostPulseData = async (forceRefresh = false) => {
   }
 
   const data = await response.json();
-  console.log('getPostPulseData: Raw API response:', JSON.stringify(data, null, 2));
+  console.log('getPostPulseData: Raw API response structure:', {
+    hasElements: !!data.elements,
+    elementsLength: data.elements?.length || 0,
+    totalInResponse: data.elements?.[0]?.snapshotData?.length || 0,
+    paging: data.paging
+  });
   
   // Process the snapshot data to match our PostData format
   const processedPosts = processSnapshotData(data);
@@ -171,12 +199,24 @@ export const getPostPulseData = async (forceRefresh = false) => {
 function processSnapshotData(snapshotData: any): PostData[] {
   const posts: PostData[] = [];
   
-  console.log('processSnapshotData: Raw data received:', snapshotData);
+  console.log('processSnapshotData: Raw data received:', {
+    hasElements: !!snapshotData.elements,
+    elementsLength: snapshotData.elements?.length || 0
+  });
   
   if (snapshotData.elements && snapshotData.elements.length > 0) {
     for (const element of snapshotData.elements) {
       if (element.snapshotDomain === 'MEMBER_SHARE_INFO' && element.snapshotData) {
         console.log(`processSnapshotData: Found ${element.snapshotData.length} posts in MEMBER_SHARE_INFO`);
+        
+        // Show sample of first few posts to understand data structure
+        if (element.snapshotData.length > 0) {
+          console.log('processSnapshotData: Sample posts:', element.snapshotData.slice(0, 3).map(post => ({
+            date: post.Date,
+            hasContent: !!post.ShareCommentary,
+            contentPreview: post.ShareCommentary ? post.ShareCommentary.substring(0, 50) + '...' : 'No content'
+          })));
+        }
         
         for (const post of element.snapshotData) {
           try {
@@ -184,7 +224,7 @@ function processSnapshotData(snapshotData: any): PostData[] {
             const content = post.ShareCommentary || post.shareCommentary || post.Commentary || post.Text || '';
             const dateStr = post.Date || post.shareDate || post.CreatedDate || post.Timestamp;
             
-            // Skip empty posts
+            // Skip completely empty posts
             if (!content && !dateStr) {
               console.log('Skipping post with no content or date');
               continue;
@@ -204,13 +244,10 @@ function processSnapshotData(snapshotData: any): PostData[] {
               }
             }
             
-            // Skip posts older than 90 days
-            const ninetyDaysAgo = Date.now() - (90 * 24 * 60 * 60 * 1000);
-            if (createdAt < ninetyDaysAgo) {
-              console.log('Skipping post older than 90 days');
-              continue;
-            }
-
+            // FIX: For now, let's take the 90 most recent posts regardless of age
+            // We'll show ALL posts and let the user filter by time in the UI
+            const daysSincePost = Math.floor((Date.now() - createdAt) / (1000 * 60 * 60 * 24));
+            
             // FIX: Parse engagement metrics with multiple field name variations
             const parseLikesCount = () => {
               const likes = post.LikesCount || post.likesCount || post['Likes Count'] || post.Likes || '0';
@@ -245,20 +282,16 @@ function processSnapshotData(snapshotData: any): PostData[] {
               source: 'historical'
             };
 
-            console.log('Processed post:', {
-              id: processedPost.id,
+            console.log(`Processing post from ${daysSincePost} days ago:`, {
+              id: processedPost.id.substring(0, 20) + '...',
               hasContent: !!processedPost.content,
               date: new Date(processedPost.createdAt).toLocaleDateString(),
-              engagement: {
-                likes: processedPost.likes,
-                comments: processedPost.comments,
-                shares: processedPost.shares
-              }
+              daysOld: daysSincePost
             });
 
             posts.push(processedPost);
           } catch (error) {
-            console.error('Error processing individual post:', error, post);
+            console.error('Error processing individual post:', error);
           }
         }
       }
@@ -269,6 +302,16 @@ function processSnapshotData(snapshotData: any): PostData[] {
 
   console.log(`processSnapshotData: Successfully processed ${posts.length} posts from snapshot data`);
   
-  // Sort oldest first for repurpose functionality
-  return posts.sort((a, b) => a.createdAt - b.createdAt);
+  // FIX: Sort newest first (reverse chronological) so recent posts appear first
+  const sortedPosts = posts.sort((a, b) => b.createdAt - a.createdAt);
+  
+  // FIX: Take only the 90 most recent posts for PostPulse
+  const recentPosts = sortedPosts.slice(0, 90);
+  
+  console.log(`processSnapshotData: Returning ${recentPosts.length} most recent posts`, {
+    oldestPostDate: recentPosts.length > 0 ? new Date(recentPosts[recentPosts.length - 1].createdAt).toLocaleDateString() : 'N/A',
+    newestPostDate: recentPosts.length > 0 ? new Date(recentPosts[0].createdAt).toLocaleDateString() : 'N/A'
+  });
+  
+  return recentPosts;
 }
