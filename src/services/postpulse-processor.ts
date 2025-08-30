@@ -1,4 +1,4 @@
-// src/services/postpulse-processor.ts - DEBUG VERSION
+// src/services/postpulse-processor.ts - FINAL WORKING VERSION
 import { useAuthStore } from '../stores/authStore';
 import { PostData } from '../types/linkedin';
 
@@ -51,67 +51,145 @@ const setCachedPostPulseData = (userId: string, posts: PostData[]): void => {
   }
 };
 
-// Extract posts from Changelog API (recent 28 days) - WITH DEBUG LOGGING
-const extractChangelogPosts = (changelogData: any[]): PostData[] => {
-  console.log('extractChangelogPosts: Processing changelog data');
-  console.log('extractChangelogPosts: Raw changelog data sample:', JSON.stringify(changelogData.slice(0, 2), null, 2));
+// FIXED: Extract posts from Snapshot API with correct field names
+const extractSnapshotPosts = (snapshotData: any[]): PostData[] => {
+  console.log('extractSnapshotPosts: Processing snapshot data with correct field mapping');
   
-  // Check what resourceNames we have
-  const resourceNames = [...new Set(changelogData.map(item => item.resourceName))];
-  console.log('extractChangelogPosts: Available resource names:', resourceNames);
-  
-  const ugcPosts = changelogData.filter(item => item.resourceName === 'ugcPosts');
-  console.log('extractChangelogPosts: Found ugcPosts entries:', ugcPosts.length);
-  
-  if (ugcPosts.length > 0) {
-    console.log('extractChangelogPosts: Sample ugcPost structure:', JSON.stringify(ugcPosts[0], null, 2));
-  }
-  
-  const createPosts = ugcPosts.filter(item => item.method === 'CREATE');
-  console.log('extractChangelogPosts: CREATE method posts:', createPosts.length);
-  
-  if (createPosts.length > 0) {
-    console.log('extractChangelogPosts: Sample CREATE post structure:', JSON.stringify(createPosts[0], null, 2));
-  }
-  
-  return createPosts
-    .map((item, index) => {
-      console.log(`extractChangelogPosts: Processing item ${index}:`, {
-        resourceId: item.resourceId,
-        method: item.method,
-        hasActivity: !!item.activity,
-        activityKeys: item.activity ? Object.keys(item.activity) : []
+  return snapshotData
+    .map((item: any, index) => {
+      // FIX: Use the EXACT field names from the API response
+      const content = item.ShareCommentary || item.shareCommentary || item.content || item.text || '';
+      const dateString = item.Date || item.date || item.created_at || item.createdAt;
+      const shareLink = item.ShareLink || item.shareLink || item.post_url;
+      const mediaUrl = item.MediaUrl || item.mediaUrl || item.media_url;
+      const sharedUrl = item.SharedUrl || item.sharedUrl;
+      const visibility = item.Visibility || item.visibility || 'PUBLIC';
+      
+      // Parse the date string "2020-04-28 04:18:44" to timestamp
+      let createdAt = Date.now();
+      if (dateString) {
+        try {
+          createdAt = new Date(dateString).getTime();
+        } catch (dateError) {
+          console.warn(`Invalid date format: ${dateString}`);
+        }
+      }
+      
+      // Extract ID from ShareLink if available
+      let id = `snapshot_${index}_${Date.now()}`;
+      if (shareLink && shareLink.includes('urn%3Ali%3A')) {
+        const matches = shareLink.match(/urn%3Ali%3A[^%]+%3A(\d+)/);
+        if (matches) {
+          id = matches[1];
+        }
+      }
+      
+      console.log(`extractSnapshotPosts: Item ${index}:`, {
+        id: id,
+        content: content ? content.substring(0, 50) + '...' : 'NO CONTENT',
+        hasContent: !!content,
+        contentLength: content ? content.length : 0,
+        date: dateString,
+        createdAt: createdAt,
+        mediaUrl: mediaUrl,
+        shareLink: shareLink
       });
       
+      const post = {
+        id: id,
+        content: String(content).trim(),
+        createdAt: createdAt,
+        likes: 0, // Historical data doesn't include engagement metrics
+        comments: 0,
+        shares: 0,
+        views: 0,
+        media_url: mediaUrl || null,
+        media_type: mediaUrl ? 'IMAGE' : null,
+        visibility: visibility,
+        hashtags: [],
+        mentions: [],
+        post_url: shareLink || null,
+        timestamp: createdAt,
+      };
+      
+      return post;
+    })
+    .filter((post: PostData, index) => {
+      const hasValidId = !!post.id;
+      const hasValidDate = !isNaN(new Date(post.createdAt).getTime()) && post.createdAt > 0;
+      const hasContent = post.content && post.content.trim().length > 0;
+      
+      console.log(`extractSnapshotPosts: Post ${index} validation:`, {
+        hasValidId,
+        hasValidDate,
+        hasContent,
+        contentPreview: post.content.substring(0, 50),
+        isValid: hasValidId && hasValidDate && hasContent
+      });
+      
+      return hasValidId && hasValidDate && hasContent;
+    });
+};
+
+// FIXED: Extract posts from Changelog API - look for actual ugcPosts
+const extractChangelogPosts = (changelogData: any[]): PostData[] => {
+  console.log('extractChangelogPosts: Processing changelog data');
+  
+  // Filter for actual post creation events
+  const ugcPosts = changelogData.filter(item => 
+    item.resourceName === 'ugcPosts' && item.method === 'CREATE'
+  );
+  
+  console.log(`extractChangelogPosts: Found ${ugcPosts.length} ugcPost CREATE events out of ${changelogData.length} total events`);
+  
+  if (ugcPosts.length === 0) {
+    // Check what resourceNames we actually have
+    const resourceNames = [...new Set(changelogData.map(item => item.resourceName))];
+    console.log('extractChangelogPosts: Available resource names:', resourceNames);
+    
+    // Check if we have any share-related activities
+    const shareActivities = changelogData.filter(item => 
+      item.resourceName && (
+        item.resourceName.includes('share') ||
+        item.resourceName.includes('Share') ||
+        item.resourceName.includes('ugc') ||
+        item.resourceName.includes('post') ||
+        item.resourceName.includes('Post')
+      )
+    );
+    
+    console.log(`extractChangelogPosts: Found ${shareActivities.length} potential share activities`);
+    if (shareActivities.length > 0) {
+      console.log('extractChangelogPosts: Sample share activity:', shareActivities[0]);
+    }
+  }
+  
+  return ugcPosts
+    .map((item, index) => {
       const activity = item.activity || {};
       const shareContent = activity.specificContent?.['com.linkedin.ugc.ShareContent'] || {};
       const shareCommentary = shareContent.shareCommentary || {};
       const created = activity.created || {};
       
-      console.log(`extractChangelogPosts: Item ${index} content extraction:`, {
-        hasShareContent: !!shareContent,
-        hasShareCommentary: !!shareCommentary,
-        shareCommentaryKeys: Object.keys(shareCommentary),
-        shareCommentaryText: shareCommentary.text,
-        createdTime: created.time,
-        capturedAt: item.capturedAt
-      });
-      
-      // Extract content text
       const content = shareCommentary.text || shareCommentary.inferredText || '';
-      
-      // Extract media information
       const media = shareContent.media?.[0];
       const mediaCategory = shareContent.shareMediaCategory || 'NONE';
-      
-      // Extract hashtags
       const hashtags = shareContent.shareFeatures?.hashtags || [];
       
-      const post = {
+      console.log(`extractChangelogPosts: Processing ugcPost ${index}:`, {
+        resourceId: item.resourceId,
+        hasActivity: !!activity,
+        hasShareContent: !!shareContent,
+        hasCommentary: !!shareCommentary,
+        content: content ? content.substring(0, 50) + '...' : 'NO CONTENT',
+        createdTime: created.time
+      });
+      
+      return {
         id: item.resourceId || activity.id || `changelog_${item.id}`,
         content: content,
         createdAt: created.time || item.capturedAt || Date.now(),
-        likes: 0, // Engagement data comes from separate API calls
+        likes: 0, // Engagement comes from separate API calls
         comments: 0,
         shares: 0,
         views: 0,
@@ -123,136 +201,11 @@ const extractChangelogPosts = (changelogData: any[]): PostData[] => {
         post_url: null,
         timestamp: created.time || item.capturedAt || Date.now(),
       };
-      
-      console.log(`extractChangelogPosts: Item ${index} final post:`, {
-        id: post.id,
-        hasContent: !!post.content,
-        contentLength: post.content.length,
-        contentPreview: post.content.substring(0, 100)
-      });
-      
-      return post;
     })
-    .filter((post, index) => {
-      const isValid = post.content && post.content.trim().length > 0;
-      console.log(`extractChangelogPosts: Post ${index} validation:`, {
-        isValid,
-        hasContent: !!post.content,
-        contentTrimmed: post.content?.trim().length
-      });
-      return isValid;
-    });
+    .filter(post => post.content && post.content.trim().length > 0);
 };
 
-// Extract posts from Snapshot API (historical data) - WITH DEBUG LOGGING
-const extractSnapshotPosts = (snapshotData: any[]): PostData[] => {
-  console.log('extractSnapshotPosts: Processing snapshot data');
-  console.log('extractSnapshotPosts: Snapshot data length:', snapshotData.length);
-  
-  if (snapshotData.length > 0) {
-    console.log('extractSnapshotPosts: Sample snapshot items (first 3):');
-    snapshotData.slice(0, 3).forEach((item, index) => {
-      console.log(`Snapshot item ${index}:`, Object.keys(item));
-      console.log(`Snapshot item ${index} sample:`, JSON.stringify(item, null, 2));
-    });
-    
-    // Check all unique keys across all items
-    const allKeys = new Set();
-    snapshotData.forEach(item => {
-      Object.keys(item).forEach(key => allKeys.add(key));
-    });
-    console.log('extractSnapshotPosts: All unique keys in snapshot data:', Array.from(allKeys).sort());
-  }
-  
-  return snapshotData
-    .map((item: any, index) => {
-      // Try different possible field names for content
-      const possibleContentFields = ['content', 'text', 'commentary', 'shareCommentary', 'post_content', 'message', 'description', 'Content', 'Text', 'Commentary'];
-      let content = '';
-      let contentField = '';
-      
-      for (const field of possibleContentFields) {
-        if (item[field]) {
-          content = item[field];
-          contentField = field;
-          break;
-        }
-      }
-      
-      // Try different possible field names for dates
-      const possibleDateFields = ['created_at', 'published_at', 'createdAt', 'created', 'timestamp', 'date', 'Created At', 'Published At'];
-      let createdAt = Date.now();
-      let dateField = '';
-      
-      for (const field of possibleDateFields) {
-        if (item[field]) {
-          createdAt = item[field];
-          dateField = field;
-          break;
-        }
-      }
-      
-      // Try different field names for ID
-      const possibleIdFields = ['id', 'post_id', 'urn', 'post_urn', 'Id', 'Post ID'];
-      let id = `snapshot_${Date.now()}_${Math.random()}`;
-      let idField = '';
-      
-      for (const field of possibleIdFields) {
-        if (item[field]) {
-          id = item[field];
-          idField = field;
-          break;
-        }
-      }
-      
-      console.log(`extractSnapshotPosts: Item ${index} field mapping:`, {
-        contentField,
-        contentValue: content,
-        contentLength: String(content).length,
-        dateField,
-        dateValue: createdAt,
-        idField,
-        idValue: id
-      });
-      
-      const post = {
-        id: id,
-        content: String(content).trim(),
-        createdAt: typeof createdAt === 'number' ? createdAt : new Date(createdAt).getTime(),
-        likes: parseInt(String(item.likes_count || item.likes || 0), 10),
-        comments: parseInt(String(item.comments_count || item.comments || 0), 10),
-        shares: parseInt(String(item.shares_count || item.shares || 0), 10),
-        views: parseInt(String(item.impressions || item.views || 0), 10),
-        media_url: item.media_url || item.mediaUrl || null,
-        media_type: item.media_type || item.mediaType || null,
-        visibility: item.visibility || 'PUBLIC',
-        hashtags: item.hashtags || [],
-        mentions: item.mentions || [],
-        post_url: item.post_url || item.postUrl || null,
-        timestamp: typeof createdAt === 'number' ? createdAt : new Date(createdAt).getTime(),
-      };
-      
-      return post;
-    })
-    .filter((post: PostData, index) => {
-      // Validate the post has essential data
-      const hasValidId = !!post.id;
-      const hasValidDate = !isNaN(new Date(post.createdAt).getTime()) && post.createdAt > 0;
-      const hasContent = post.content && post.content.length > 0;
-      
-      console.log(`extractSnapshotPosts: Post ${index} validation:`, {
-        hasValidId,
-        hasValidDate,
-        hasContent,
-        dateValue: new Date(post.createdAt).toLocaleDateString(),
-        contentPreview: post.content.substring(0, 50)
-      });
-      
-      return hasValidId && hasValidDate && hasContent;
-    });
-};
-
-// Main data fetching function with enhanced debugging
+// Main data fetching function
 export const getPostPulseData = async (forceRefresh = false) => {
   const { dmaToken, profile } = useAuthStore.getState();
   
@@ -358,7 +311,7 @@ export const getPostPulseData = async (forceRefresh = false) => {
       return { posts: [], isCached: false, timestamp: new Date().toISOString() };
     }
 
-    // 3. Deduplicate posts (same post might appear in both APIs)
+    // 3. Deduplicate posts
     const seenIds = new Set<string>();
     const deduplicatedPosts = allPosts.filter(post => {
       if (seenIds.has(post.id)) {
@@ -386,6 +339,14 @@ export const getPostPulseData = async (forceRefresh = false) => {
         newestDaysAgo: Math.floor((Date.now() - recentPosts[0].createdAt) / (1000 * 60 * 60 * 24)),
         oldestDaysAgo: Math.floor((Date.now() - recentPosts[recentPosts.length - 1].createdAt) / (1000 * 60 * 60 * 24))
       });
+      
+      // Show sample of actual posts found
+      console.log('getPostPulseData: Sample posts found:', recentPosts.slice(0, 3).map(post => ({
+        id: post.id.toString().substring(0, 20),
+        date: new Date(post.createdAt).toLocaleDateString(),
+        content: post.content.substring(0, 100) + '...',
+        daysAgo: Math.floor((Date.now() - post.createdAt) / (1000 * 60 * 60 * 24))
+      })));
     }
 
     // Cache the results
@@ -403,7 +364,7 @@ export const getPostPulseData = async (forceRefresh = false) => {
   }
 };
 
-// Processing function (unchanged)
+// Processing function
 export const processPostPulseData = (posts: PostData[], filters: PostPulseFilters): PostData[] => {
   console.log('processPostPulseData: Starting with', posts.length, 'posts');
   
@@ -438,14 +399,26 @@ export const processPostPulseData = (posts: PostData[], filters: PostPulseFilter
     filteredPosts.sort((a, b) => {
       const aCreatedAt = new Date(a.createdAt || 0).getTime();
       const bCreatedAt = new Date(b.createdAt || 0).getTime();
+      const aLikes = parseInt(String(a.likes || 0), 10) || 0;
+      const bLikes = parseInt(String(b.likes || 0), 10) || 0;
+      const aComments = parseInt(String(a.comments || 0), 10) || 0;
+      const bComments = parseInt(String(b.comments || 0), 10) || 0;
+      const aViews = parseInt(String(a.views || 0), 10) || 0;
+      const bViews = parseInt(String(b.views || 0), 10) || 0;
 
       switch (filters.sortBy) {
         case 'recent':
-          return bCreatedAt - aCreatedAt;
+          return bCreatedAt - aCreatedAt; // Newest first
         case 'oldest':
-          return aCreatedAt - bCreatedAt;
+          return aCreatedAt - bCreatedAt; // Oldest first (DEFAULT)
+        case 'likes':
+          return bLikes - aLikes; // Most likes first
+        case 'comments':
+          return bComments - aComments; // Most comments first
+        case 'views':
+          return bViews - aViews; // Most views first
         default:
-          return aCreatedAt - bCreatedAt;
+          return aCreatedAt - bCreatedAt; // Default to oldest first
       }
     });
   } catch (sortError) {
