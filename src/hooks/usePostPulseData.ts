@@ -1,4 +1,6 @@
+// src/hooks/usePostPulseData.ts
 import { useState, useEffect, useCallback } from 'react';
+import { useAuthStore } from '../stores/authStore';
 import { getPostPulseData, processPostPulseData } from '../services/postpulse-processor';
 import { PostData, CacheStatus } from '../types/linkedin';
 
@@ -7,25 +9,26 @@ export const usePostPulseData = () => {
   const [processedPosts, setProcessedPosts] = useState<PostData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // FIX: Remove timeFilter since we only want the 90 most recent posts
   const [filters, setFilters] = useState({
-    timeFilter: '90d', // FIX: Default to 90 days to show all posts
     postType: 'all',
-    sortBy: 'oldest', // FIX: Default to oldest first
+    sortBy: 'oldest', // FIX: Default to oldest first as requested
   });
+  
   const [currentPage, setCurrentPage] = useState(1);
   const [cacheStatus, setCacheStatus] = useState<CacheStatus>({
     isCached: false,
     timestamp: null,
   });
 
-  const POSTS_PER_PAGE = 9;
+  const POSTS_PER_PAGE = 12; // Show 12 posts per page
 
-  // FIX: Enhanced fetchData with better error handling and cache clearing for debugging
+  // FIX: Enhanced fetchData with proper error handling
   const fetchData = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     setError(null);
     
-    // FIX: Clear cache if we're debugging to ensure fresh data
     if (forceRefresh) {
       console.log('usePostPulseData: Force refresh - clearing cache');
       const { profile } = useAuthStore.getState();
@@ -38,11 +41,9 @@ export const usePostPulseData = () => {
       console.log('usePostPulseData: Starting data fetch...');
       const data = await getPostPulseData(forceRefresh);
       
-      // FIX: Validate data structure
       if (data && Array.isArray(data.posts)) {
         console.log(`usePostPulseData: Received ${data.posts.length} posts`);
         
-        // FIX: Log sample of posts to debug the filtering issue
         if (data.posts.length > 0) {
           console.log('usePostPulseData: Sample posts received:', data.posts.slice(0, 3).map(post => ({
             id: post.id?.substring(0, 20),
@@ -71,7 +72,7 @@ export const usePostPulseData = () => {
       console.error('usePostPulseData: Error fetching data:', errorMessage);
       setError(errorMessage);
       
-      // FIX: Don't clear existing posts on error, just show error message
+      // Don't clear existing posts on error
       if (allPosts.length === 0) {
         setAllPosts([]);
       }
@@ -80,12 +81,12 @@ export const usePostPulseData = () => {
     }
   }, [allPosts.length]);
 
-  // FIX: Initialize data fetch
+  // Initialize data fetch
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // FIX: Process posts with error handling
+  // Process posts when data or filters change
   useEffect(() => {
     try {
       if (Array.isArray(allPosts) && allPosts.length > 0) {
@@ -103,7 +104,7 @@ export const usePostPulseData = () => {
     }
   }, [allPosts, filters]);
 
-  // FIX: Safe pagination calculations
+  // Safe pagination calculations
   const totalPages = Math.max(1, Math.ceil((processedPosts?.length || 0) / POSTS_PER_PAGE));
   const safePage = Math.min(currentPage, totalPages);
   const startIndex = (safePage - 1) * POSTS_PER_PAGE;
@@ -112,13 +113,13 @@ export const usePostPulseData = () => {
     ? processedPosts.slice(startIndex, endIndex)
     : [];
 
-  // FIX: Safe refresh function
+  // Safe refresh function
   const refreshData = useCallback(() => {
     console.log('usePostPulseData: Manual refresh triggered');
     fetchData(true);
   }, [fetchData]);
 
-  // FIX: Safe setFilters wrapper
+  // Safe setFilters wrapper
   const safeSetFilters = useCallback((newFilters: typeof filters) => {
     console.log('usePostPulseData: Updating filters:', newFilters);
     setFilters(newFilters);
