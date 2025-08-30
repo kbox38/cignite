@@ -1,9 +1,8 @@
-// src/services/postpulse-processor.ts
+// src/services/postpulse-processor.ts - COMPLETE FIX
 import { useAuthStore } from '../stores/authStore';
 import { PostData } from '../types/linkedin';
 
 interface PostPulseFilters {
-  timeFilter: string;
   postType: string;
   sortBy: string;
 }
@@ -52,9 +51,99 @@ const setCachedPostPulseData = (userId: string, posts: PostData[]): void => {
   }
 };
 
-// Main data fetching function
+// Extract posts from Changelog API (recent 28 days)
+const extractChangelogPosts = (changelogData: any[]): PostData[] => {
+  console.log('extractChangelogPosts: Processing changelog data');
+  
+  return changelogData
+    .filter(item => item.resourceName === 'ugcPosts' && item.method === 'CREATE')
+    .map(item => {
+      const activity = item.activity || {};
+      const shareContent = activity.specificContent?.['com.linkedin.ugc.ShareContent'] || {};
+      const shareCommentary = shareContent.shareCommentary || {};
+      const created = activity.created || {};
+      
+      // Extract content text
+      const content = shareCommentary.text || shareCommentary.inferredText || '';
+      
+      // Extract media information
+      const media = shareContent.media?.[0];
+      const mediaCategory = shareContent.shareMediaCategory || 'NONE';
+      
+      // Extract hashtags
+      const hashtags = shareContent.shareFeatures?.hashtags || [];
+      
+      return {
+        id: item.resourceId || activity.id || `changelog_${item.id}`,
+        content: content,
+        createdAt: created.time || item.capturedAt || Date.now(),
+        likes: 0, // Engagement data comes from separate API calls
+        comments: 0,
+        shares: 0,
+        views: 0,
+        media_url: null, // Media URL would need separate resolution
+        media_type: mediaCategory === 'NONE' ? null : mediaCategory,
+        visibility: activity.visibility?.['com.linkedin.ugc.MemberNetworkVisibility'] || 'PUBLIC',
+        hashtags: hashtags.map((ht: any) => ht.replace('urn:li:hashtag:', '')),
+        mentions: [],
+        post_url: null,
+        timestamp: created.time || item.capturedAt || Date.now(),
+      };
+    })
+    .filter(post => post.content && post.content.trim().length > 0);
+};
+
+// Extract posts from Snapshot API (historical data)
+const extractSnapshotPosts = (snapshotData: any[]): PostData[] => {
+  console.log('extractSnapshotPosts: Processing snapshot data');
+  
+  // The exact structure depends on what's actually in MEMBER_SHARE_INFO
+  // We need to handle various possible field names based on the actual data
+  return snapshotData
+    .map((item: any) => {
+      // Try different possible field names for content
+      const content = item.content || item.text || item.commentary || 
+                     item.shareCommentary || item.post_content || 
+                     item.message || item.description || '';
+      
+      // Try different possible field names for dates
+      const createdAt = item.created_at || item.published_at || 
+                       item.createdAt || item.created || 
+                       item.timestamp || item.date || Date.now();
+      
+      // Try different field names for ID
+      const id = item.id || item.post_id || item.urn || item.post_urn || 
+                `snapshot_${Date.now()}_${Math.random()}`;
+      
+      return {
+        id: id,
+        content: String(content).trim(),
+        createdAt: typeof createdAt === 'number' ? createdAt : new Date(createdAt).getTime(),
+        likes: parseInt(String(item.likes_count || item.likes || 0), 10),
+        comments: parseInt(String(item.comments_count || item.comments || 0), 10),
+        shares: parseInt(String(item.shares_count || item.shares || 0), 10),
+        views: parseInt(String(item.impressions || item.views || 0), 10),
+        media_url: item.media_url || item.mediaUrl || null,
+        media_type: item.media_type || item.mediaType || null,
+        visibility: item.visibility || 'PUBLIC',
+        hashtags: item.hashtags || [],
+        mentions: item.mentions || [],
+        post_url: item.post_url || item.postUrl || null,
+        timestamp: typeof createdAt === 'number' ? createdAt : new Date(createdAt).getTime(),
+      };
+    })
+    .filter((post: PostData) => {
+      // Validate the post has essential data
+      const hasValidId = !!post.id;
+      const hasValidDate = !isNaN(new Date(post.createdAt).getTime()) && post.createdAt > 0;
+      const hasContent = post.content && post.content.length > 0;
+      
+      return hasValidId && hasValidDate && hasContent;
+    });
+};
+
+// Main data fetching function - FIXED
 export const getPostPulseData = async (forceRefresh = false) => {
-  // FIX: Properly import and use auth store
   const { dmaToken, profile } = useAuthStore.getState();
   
   console.log('getPostPulseData: Starting with auth check:', {
@@ -86,75 +175,97 @@ export const getPostPulseData = async (forceRefresh = false) => {
     }
   }
 
-  console.log('getPostPulseData: Fetching fresh data from LinkedIn API');
+  console.log('getPostPulseData: Fetching fresh data from LinkedIn APIs');
   
   try {
-    // Fetch ALL posts from LinkedIn Snapshot API
-    const response = await fetch(`/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO&count=1000`, {
-      headers: {
-        'Authorization': `Bearer ${dmaToken}`,
-        'LinkedIn-Version': '202312',
-      },
-    });
+    const allPosts: PostData[] = [];
+    
+    // 1. Fetch recent posts from Changelog API (past 28 days)
+    console.log('getPostPulseData: Fetching from Changelog API...');
+    try {
+      const changelogResponse = await fetch(`/.netlify/functions/linkedin-changelog?count=50`, {
+        headers: {
+          'Authorization': `Bearer ${dmaToken}`,
+          'LinkedIn-Version': '202312',
+        },
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('getPostPulseData: API error response:', errorText);
-      throw new Error(`Failed to fetch LinkedIn posts: ${response.status} ${response.statusText}`);
+      if (changelogResponse.ok) {
+        const changelogData = await changelogResponse.json();
+        console.log('getPostPulseData: Changelog API response:', {
+          hasElements: !!changelogData.elements,
+          elementsLength: changelogData.elements?.length,
+        });
+
+        if (changelogData.elements?.length > 0) {
+          const changelogPosts = extractChangelogPosts(changelogData.elements);
+          console.log(`getPostPulseData: Extracted ${changelogPosts.length} posts from Changelog API`);
+          allPosts.push(...changelogPosts);
+        }
+      } else {
+        console.warn('getPostPulseData: Changelog API failed:', changelogResponse.status);
+      }
+    } catch (changelogError) {
+      console.error('getPostPulseData: Changelog API error:', changelogError);
+      // Continue to snapshot API even if changelog fails
     }
 
-    const data = await response.json();
-    console.log('getPostPulseData: Raw API response:', {
-      hasElements: !!data.elements,
-      elementsLength: data.elements?.length,
-      hasSnapshotData: !!data.elements?.[0]?.snapshotData,
-      snapshotDataLength: data.elements?.[0]?.snapshotData?.length,
-    });
+    // 2. Fetch historical posts from Snapshot API
+    console.log('getPostPulseData: Fetching from Snapshot API...');
+    try {
+      const snapshotResponse = await fetch(`/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO&count=500`, {
+        headers: {
+          'Authorization': `Bearer ${dmaToken}`,
+          'LinkedIn-Version': '202312',
+        },
+      });
 
-    // Extract posts from the API response
-    const rawPosts = data.elements?.[0]?.snapshotData || [];
-    console.log(`getPostPulseData: Extracted ${rawPosts.length} raw posts from API`);
+      if (snapshotResponse.ok) {
+        const snapshotData = await snapshotResponse.json();
+        console.log('getPostPulseData: Snapshot API response:', {
+          hasElements: !!snapshotData.elements,
+          elementsLength: snapshotData.elements?.length,
+          hasSnapshotData: !!snapshotData.elements?.[0]?.snapshotData,
+          snapshotDataLength: snapshotData.elements?.[0]?.snapshotData?.length,
+        });
 
-    if (rawPosts.length === 0) {
-      console.warn('getPostPulseData: No posts found in API response');
+        const rawPosts = snapshotData.elements?.[0]?.snapshotData || [];
+        if (rawPosts.length > 0) {
+          const snapshotPosts = extractSnapshotPosts(rawPosts);
+          console.log(`getPostPulseData: Extracted ${snapshotPosts.length} posts from Snapshot API`);
+          allPosts.push(...snapshotPosts);
+        }
+      } else {
+        console.warn('getPostPulseData: Snapshot API failed:', snapshotResponse.status);
+      }
+    } catch (snapshotError) {
+      console.error('getPostPulseData: Snapshot API error:', snapshotError);
+    }
+
+    console.log(`getPostPulseData: Total posts collected: ${allPosts.length}`);
+
+    if (allPosts.length === 0) {
+      console.warn('getPostPulseData: No posts found from either API');
       return { posts: [], isCached: false, timestamp: new Date().toISOString() };
     }
 
-    // Process and normalize the posts data
-    const processedPosts = rawPosts
-      .map((post: any) => ({
-        id: post.id || post.post_urn || `post_${Date.now()}_${Math.random()}`,
-        content: post.content || post.text || post.commentary || '',
-        createdAt: post.created_at || post.published_at || post.createdAt || Date.now(),
-        likes: parseInt(post.likes_count || post.likes || '0', 10),
-        comments: parseInt(post.comments_count || post.comments || '0', 10),
-        shares: parseInt(post.shares_count || post.shares || '0', 10),
-        views: parseInt(post.impressions || post.views || '0', 10),
-        media_url: post.media_url || post.mediaUrl || null,
-        media_type: post.media_type || post.mediaType || null,
-        visibility: post.visibility || 'PUBLIC',
-        hashtags: post.hashtags || [],
-        mentions: post.mentions || [],
-        post_url: post.post_url || post.postUrl || null,
-        timestamp: post.created_at || post.published_at || post.createdAt || Date.now(),
-      }))
-      .filter((post: PostData) => {
-        // Filter out invalid posts
-        const hasValidId = !!post.id;
-        const hasValidDate = !isNaN(new Date(post.createdAt).getTime());
-        const hasContent = !!(post.content && post.content.trim().length > 0);
-        
-        return hasValidId && hasValidDate && hasContent;
-      });
+    // 3. Deduplicate posts (same post might appear in both APIs)
+    const seenIds = new Set<string>();
+    const deduplicatedPosts = allPosts.filter(post => {
+      if (seenIds.has(post.id)) {
+        return false;
+      }
+      seenIds.add(post.id);
+      return true;
+    });
 
-    console.log(`getPostPulseData: Processed ${processedPosts.length} valid posts`);
+    console.log(`getPostPulseData: After deduplication: ${deduplicatedPosts.length} posts`);
 
-    // FIX: Sort all posts by date (newest first) and take the 90 most recent
-    const sortedPosts = processedPosts.sort((a, b) => 
+    // 4. Sort by date (newest first) and take the 90 most recent
+    const sortedPosts = deduplicatedPosts.sort((a, b) => 
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
     
-    // Take only the 90 most recent posts
     const recentPosts = sortedPosts.slice(0, 90);
     
     console.log(`getPostPulseData: Selected ${recentPosts.length} most recent posts`);
@@ -166,6 +277,14 @@ export const getPostPulseData = async (forceRefresh = false) => {
         newestDaysAgo: Math.floor((Date.now() - recentPosts[0].createdAt) / (1000 * 60 * 60 * 24)),
         oldestDaysAgo: Math.floor((Date.now() - recentPosts[recentPosts.length - 1].createdAt) / (1000 * 60 * 60 * 24))
       });
+      
+      // Debug: Show sample of posts
+      console.log('getPostPulseData: Sample posts:', recentPosts.slice(0, 3).map(post => ({
+        id: post.id.substring(0, 30),
+        date: new Date(post.createdAt).toLocaleDateString(),
+        content: post.content.substring(0, 100) + '...',
+        source: post.id.startsWith('changelog_') ? 'changelog' : 'snapshot'
+      })));
     }
 
     // Cache the results
@@ -183,7 +302,7 @@ export const getPostPulseData = async (forceRefresh = false) => {
   }
 };
 
-// FIX: Updated processing function to handle the 90 most recent posts
+// Processing function (same as before but simplified)
 export const processPostPulseData = (posts: PostData[], filters: PostPulseFilters): PostData[] => {
   console.log('processPostPulseData: Starting with', posts.length, 'posts');
   
@@ -192,7 +311,6 @@ export const processPostPulseData = (posts: PostData[], filters: PostPulseFilter
     return [];
   }
 
-  // FIX: Since we already have the 90 most recent posts, just apply additional filters
   let filteredPosts = [...posts];
 
   // Apply post type filter
@@ -214,7 +332,7 @@ export const processPostPulseData = (posts: PostData[], filters: PostPulseFilter
     console.log(`processPostPulseData: Post type filter (${filters.postType}): ${initialCount} → ${filteredPosts.length} posts`);
   }
 
-  // FIX: Sort the final results - default to oldest first as requested
+  // Sort the final results
   try {
     filteredPosts.sort((a, b) => {
       const aCreatedAt = new Date(a.createdAt || 0).getTime();
@@ -246,16 +364,6 @@ export const processPostPulseData = (posts: PostData[], filters: PostPulseFilter
   }
 
   console.log(`processPostPulseData: Final result - ${filteredPosts.length} posts`);
-  
-  if (filteredPosts.length > 0) {
-    console.log('processPostPulseData: Sample of final posts:', filteredPosts.slice(0, 3).map(post => ({
-      date: new Date(post.createdAt).toLocaleDateString(),
-      daysOld: Math.floor((Date.now() - post.createdAt) / (1000 * 60 * 60 * 24)),
-      hasContent: !!post.content,
-      likes: post.likes || 0,
-      comments: post.comments || 0
-    })));
-  }
   
   return filteredPosts;
 };
