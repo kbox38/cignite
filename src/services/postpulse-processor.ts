@@ -9,41 +9,91 @@ export const processPostPulseData = (posts: PostData[], filters: { timeFilter: s
     return [];
   }
 
+  console.log('processPostPulseData: Starting with', posts.length, 'posts');
+  console.log('processPostPulseData: First post sample:', {
+    id: posts[0]?.id?.substring(0, 20),
+    hasContent: !!posts[0]?.content,
+    createdAt: posts[0]?.createdAt,
+    timestamp: posts[0]?.timestamp,
+    date: posts[0]?.createdAt ? new Date(posts[0].createdAt).toLocaleDateString() : 'Invalid date'
+  });
+
   const { timeFilter, postType, sortBy } = filters || {};
 
-  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-  const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+  const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+  const ninetyDaysAgo = now - 90 * 24 * 60 * 60 * 1000;
 
-  let filteredPosts = posts.filter(post => {
+  console.log('processPostPulseData: Date thresholds:', {
+    now: new Date(now).toLocaleDateString(),
+    sevenDaysAgo: new Date(sevenDaysAgo).toLocaleDateString(),
+    thirtyDaysAgo: new Date(thirtyDaysAgo).toLocaleDateString(),
+    ninetyDaysAgo: new Date(ninetyDaysAgo).toLocaleDateString()
+  });
+
+  let filteredPosts = posts.filter((post, index) => {
     // FIX: Handle invalid post objects
     if (!post || typeof post !== 'object') {
-      console.warn('processPostPulseData: Skipping invalid post:', post);
+      console.warn(`processPostPulseData: Skipping invalid post at index ${index}:`, post);
       return false;
     }
 
     // FIX: Safe createdAt access with fallbacks
     const createdAt = post.createdAt || post.timestamp;
     if (typeof createdAt !== 'number' || isNaN(createdAt) || createdAt <= 0) {
-      console.warn('processPostPulseData: Post has invalid createdAt:', post);
+      console.warn(`processPostPulseData: Post ${index} has invalid createdAt:`, {
+        createdAt,
+        timestamp: post.timestamp,
+        post: post
+      });
+      return false;
+    }
+
+    const daysOld = Math.floor((now - createdAt) / (1000 * 60 * 60 * 24));
+    
+    // FIX: Debug time filtering
+    console.log(`processPostPulseData: Post ${index} is ${daysOld} days old, timeFilter: ${timeFilter}`);
+    
+    // Time filtering - FIX: Use correct logic
+    if (timeFilter === '7d' && createdAt < sevenDaysAgo) {
+      console.log(`processPostPulseData: Filtering out post ${index} - older than 7 days`);
+      return false;
+    }
+    if (timeFilter === '30d' && createdAt < thirtyDaysAgo) {
+      console.log(`processPostPulseData: Filtering out post ${index} - older than 30 days`);
+      return false;
+    }
+    if (timeFilter === '90d' && createdAt < ninetyDaysAgo) {
+      console.log(`processPostPulseData: Filtering out post ${index} - older than 90 days`);
       return false;
     }
     
-    // Time filtering
-    if (timeFilter === '7d' && createdAt < sevenDaysAgo) return false;
-    if (timeFilter === '30d' && createdAt < thirtyDaysAgo) return false;
-    if (timeFilter === '90d' && createdAt < ninetyDaysAgo) return false;
-    
     // Post type filtering
     if (postType && postType !== 'all') {
-      if (postType === 'text' && (post.media_url || post.document_url)) return false;
-      if (postType === 'image' && !post.media_url) return false;
-      if (postType === 'video' && !post.media_url) return false; 
-      if (postType === 'document' && !post.document_url) return false;
+      if (postType === 'text' && (post.media_url || post.document_url)) {
+        console.log(`processPostPulseData: Filtering out post ${index} - has media but filtering for text only`);
+        return false;
+      }
+      if (postType === 'image' && !post.media_url) {
+        console.log(`processPostPulseData: Filtering out post ${index} - no media but filtering for images`);
+        return false;
+      }
+      if (postType === 'video' && !post.media_url) {
+        console.log(`processPostPulseData: Filtering out post ${index} - no media but filtering for videos`);
+        return false;
+      }
+      if (postType === 'document' && !post.document_url) {
+        console.log(`processPostPulseData: Filtering out post ${index} - no document but filtering for documents`);
+        return false;
+      }
     }
     
+    console.log(`processPostPulseData: Post ${index} passed all filters`);
     return true;
   });
+
+  console.log(`processPostPulseData: After filtering: ${filteredPosts.length} posts remaining`);
 
   // FIX: Safe sorting with fallbacks
   try {
@@ -71,6 +121,15 @@ export const processPostPulseData = (posts: PostData[], filters: { timeFilter: s
   }
 
   console.log(`processPostPulseData: Processed ${filteredPosts.length} posts from ${posts.length} total`);
+  
+  if (filteredPosts.length > 0) {
+    console.log('processPostPulseData: Sample of filtered posts:', filteredPosts.slice(0, 3).map(post => ({
+      date: new Date(post.createdAt).toLocaleDateString(),
+      daysOld: Math.floor((Date.now() - post.createdAt) / (1000 * 60 * 60 * 24)),
+      hasContent: !!post.content
+    })));
+  }
+  
   return filteredPosts;
 };
 

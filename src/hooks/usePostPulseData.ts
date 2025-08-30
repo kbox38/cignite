@@ -20,10 +20,19 @@ export const usePostPulseData = () => {
 
   const POSTS_PER_PAGE = 9;
 
-  // FIX: Enhanced fetchData with better error handling
+  // FIX: Enhanced fetchData with better error handling and cache clearing for debugging
   const fetchData = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     setError(null);
+    
+    // FIX: Clear cache if we're debugging to ensure fresh data
+    if (forceRefresh) {
+      console.log('usePostPulseData: Force refresh - clearing cache');
+      const { profile } = useAuthStore.getState();
+      if (profile?.sub) {
+        localStorage.removeItem(`postPulseData_${profile.sub}`);
+      }
+    }
     
     try {
       console.log('usePostPulseData: Starting data fetch...');
@@ -32,6 +41,18 @@ export const usePostPulseData = () => {
       // FIX: Validate data structure
       if (data && Array.isArray(data.posts)) {
         console.log(`usePostPulseData: Received ${data.posts.length} posts`);
+        
+        // FIX: Log sample of posts to debug the filtering issue
+        if (data.posts.length > 0) {
+          console.log('usePostPulseData: Sample posts received:', data.posts.slice(0, 3).map(post => ({
+            id: post.id?.substring(0, 20),
+            createdAt: post.createdAt,
+            date: post.createdAt ? new Date(post.createdAt).toLocaleDateString() : 'Invalid',
+            daysOld: post.createdAt ? Math.floor((Date.now() - post.createdAt) / (1000 * 60 * 60 * 24)) : 'N/A',
+            hasContent: !!post.content
+          })));
+        }
+        
         setAllPosts(data.posts);
         setCacheStatus({
           isCached: data.isCached || false,
