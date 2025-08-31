@@ -1,4 +1,4 @@
-// Enhanced PostPulse processor with fixed historical post extraction
+// Enhanced PostPulse processor with comprehensive historical and recent post extraction
 // src/services/postpulse-processor.ts
 
 export interface PostData {
@@ -174,17 +174,6 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
         return;
       }
 
-      // ENHANCED: Better post ID extraction
-      let postId = `snapshot_${index}`;
-      if (url) {
-        const activityMatch = url.match(/activity[:-](\d+)/);
-        const ugcMatch = url.match(/ugcPost[:-](\d+)/);
-        const shareMatch = url.match(/share[:-](\d+)/);
-        if (activityMatch) postId = activityMatch[1];
-        else if (ugcMatch) postId = ugcMatch[1];
-        else if (shareMatch) postId = shareMatch[1];
-      }
-
       // ENHANCED: Better date parsing with fallbacks
       let timestamp = Date.now();
       if (date) {
@@ -217,6 +206,17 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
         }
       } else {
         console.log(`🔍 SNAPSHOT DEBUG: Including historical item ${index}: ${new Date(timestamp).toLocaleDateString()} (all-time mode)`);
+      }
+
+      // ENHANCED: Better post ID extraction
+      let postId = `snapshot_${index}`;
+      if (url) {
+        const activityMatch = url.match(/activity[:-](\d+)/);
+        const ugcMatch = url.match(/ugcPost[:-](\d+)/);
+        const shareMatch = url.match(/share[:-](\d+)/);
+        if (activityMatch) postId = activityMatch[1];
+        else if (ugcMatch) postId = ugcMatch[1];
+        else if (shareMatch) postId = shareMatch[1];
       }
 
       // ENHANCED: Better content handling
@@ -309,7 +309,7 @@ export const clearPostPulseCache = (userId?: string): void => {
   }
 };
 
-// ENHANCED: Main function with improved error handling and logging
+// ENHANCED: Main function with comprehensive snapshot and changelog processing
 export const getPostPulseData = async (token: string, showAllTime = false): Promise<PostPulseData> => {
   const user_id = getUserIdFromToken(token);
   
@@ -324,6 +324,8 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
     }
 
     let allPosts: PostData[] = [];
+    let snapshotPosts: PostData[] = [];
+    let changelogPosts: PostData[] = [];
 
     if (showAllTime) {
       console.log('🔄 Fetching ALL-TIME posts using enhanced pagination...');
@@ -354,34 +356,48 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
           firstElementKeys: snapshotData.elements?.[0] ? Object.keys(snapshotData.elements[0]) : []
         });
 
-        if (snapshotData.success && snapshotData.elements?.[0]?.snapshotData) {
-          const snapshotPosts = extractSnapshotPosts(snapshotData.elements[0].snapshotData, true);
-          console.log(`✅ Extracted ${snapshotPosts.length} all-time posts`);
-          allPosts.push(...snapshotPosts);
+        if (snapshotData.success && snapshotData.elements?.length > 0) {
+          // FIXED: Iterate through ALL elements, not just the first one
+          snapshotData.elements.forEach((element: any, elementIndex: number) => {
+            if (element.snapshotData && Array.isArray(element.snapshotData)) {
+              console.log(`🔍 Processing snapshot element ${elementIndex}: ${element.snapshotData.length} items`);
+              const elementPosts = extractSnapshotPosts(element.snapshotData, true);
+              snapshotPosts.push(...elementPosts);
+              console.log(`✅ Extracted ${elementPosts.length} posts from element ${elementIndex}`);
+            } else {
+              console.log(`⚠️ Element ${elementIndex} has no snapshotData or is not an array`);
+            }
+          });
+          console.log(`✅ Total snapshot posts extracted: ${snapshotPosts.length}`);
         }
       } else {
         const errorText = await snapshotResponse.text();
         console.warn('All-time snapshot API failed:', snapshotResponse.status, errorText);
       }
     } else {
-      console.log('🔄 Fetching RECENT posts with enhanced changelog focus...');
+      console.log('🔄 Fetching RECENT posts with extended changelog coverage (730 days)...');
       
-      // ENHANCED: Fetch more changelog data with multiple calls
-      const changelogCalls = [
-        { count: 100, startTime: Date.now() - (7 * 24 * 60 * 60 * 1000) }, // Last 7 days
-        { count: 100, startTime: Date.now() - (14 * 24 * 60 * 60 * 1000) }, // Last 14 days
-        { count: 100, startTime: Date.now() - (28 * 24 * 60 * 60 * 1000) }, // Last 28 days
-      ];
-
-      for (const callConfig of changelogCalls) {
-        console.log(`🔍 Fetching changelog for last ${Math.round((Date.now() - callConfig.startTime) / (24 * 60 * 60 * 1000))} days...`);
+      // ENHANCED: Extended changelog calls to cover 730 days in 30-day chunks
+      const totalDays = 730;
+      const daysPerCall = 30;
+      const numberOfCalls = Math.ceil(totalDays / daysPerCall);
+      
+      console.log(`📅 Planning ${numberOfCalls} changelog calls to cover ${totalDays} days (${daysPerCall} days per call)`);
+      
+      for (let i = 0; i < numberOfCalls; i++) {
+        const startDaysBack = i * daysPerCall;
+        const endDaysBack = Math.min((i + 1) * daysPerCall, totalDays);
+        const startTime = Date.now() - (endDaysBack * 24 * 60 * 60 * 1000);
+        const endTime = Date.now() - (startDaysBack * 24 * 60 * 60 * 1000);
         
-        const changelogUrl = `/.netlify/functions/linkedin-changelog?count=${callConfig.count}&startTime=${callConfig.startTime}`;
+        console.log(`🔍 Fetching changelog batch ${i + 1}/${numberOfCalls}: days ${startDaysBack}-${endDaysBack} back (${new Date(startTime).toLocaleDateString()} to ${new Date(endTime).toLocaleDateString()})`);
+        
+        const changelogUrl = `/.netlify/functions/linkedin-changelog?count=100&startTime=${startTime}`;
         const changelogResponse = await fetch(changelogUrl, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
-        console.log(`🔍 CHANGELOG API Response (${Math.round((Date.now() - callConfig.startTime) / (24 * 60 * 60 * 1000))} days):`, {
+        console.log(`🔍 CHANGELOG API Response (batch ${i + 1}/${numberOfCalls}):`, {
           status: changelogResponse.status,
           statusText: changelogResponse.statusText,
           ok: changelogResponse.ok
@@ -389,27 +405,30 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
 
         if (changelogResponse.ok) {
           const changelogData = await changelogResponse.json();
-          console.log(`🔍 CHANGELOG API Data (${Math.round((Date.now() - callConfig.startTime) / (24 * 60 * 60 * 1000))} days):`, {
+          console.log(`🔍 CHANGELOG API Data (batch ${i + 1}/${numberOfCalls}):`, {
             hasElements: !!changelogData.elements,
             elementsLength: changelogData.elements?.length,
             keys: Object.keys(changelogData || {}),
             firstElementKeys: changelogData.elements?.[0] ? Object.keys(changelogData.elements[0]) : []
           });
           
-          const changelogPosts = extractChangelogPosts(changelogData);
-          allPosts.push(...changelogPosts);
-          console.log(`📊 Added ${changelogPosts.length} posts from ${Math.round((Date.now() - callConfig.startTime) / (24 * 60 * 60 * 1000))}-day changelog`);
+          const batchPosts = extractChangelogPosts(changelogData);
+          changelogPosts.push(...batchPosts);
+          console.log(`📊 Added ${batchPosts.length} posts from changelog batch ${i + 1}/${numberOfCalls}`);
         } else {
           const errorText = await changelogResponse.text();
-          console.warn(`Changelog API failed for ${Math.round((Date.now() - callConfig.startTime) / (24 * 60 * 60 * 1000))} days:`, changelogResponse.status, errorText);
+          console.warn(`Changelog API failed for batch ${i + 1}/${numberOfCalls}:`, changelogResponse.status, errorText);
         }
 
-        // Rate limiting between calls
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Rate limiting between calls (avoid overwhelming the API)
+        if (i < numberOfCalls - 1) {
+          console.log(`⏱️ Rate limiting: waiting 500ms before next changelog call...`);
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
       }
 
-      // Fetch snapshot
-      console.log('🔍 Fetching snapshot...');
+      // Fetch snapshot data for recent posts as well
+      console.log('🔍 Fetching recent snapshot data...');
       const snapshotResponse = await fetch('/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO', {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -432,14 +451,27 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
           firstSnapshotDataKeys: snapshotData.elements?.[0]?.snapshotData?.[0] ? Object.keys(snapshotData.elements[0].snapshotData[0]) : []
         });
         
-        const snapshotPosts = extractSnapshotPosts(snapshotData.elements?.[0]?.snapshotData || [], false);
-        allPosts.push(...snapshotPosts);
+        // FIXED: Process ALL snapshot elements
+        if (snapshotData.elements?.length > 0) {
+          snapshotData.elements.forEach((element: any, elementIndex: number) => {
+            if (element.snapshotData && Array.isArray(element.snapshotData)) {
+              console.log(`🔍 Processing snapshot element ${elementIndex}: ${element.snapshotData.length} items`);
+              const elementPosts = extractSnapshotPosts(element.snapshotData, false);
+              snapshotPosts.push(...elementPosts);
+              console.log(`✅ Extracted ${elementPosts.length} posts from snapshot element ${elementIndex}`);
+            }
+          });
+        }
         console.log(`📸 Added ${snapshotPosts.length} posts from snapshot`);
       } else {
         const errorText = await snapshotResponse.text();
         console.warn('Snapshot API failed:', snapshotResponse.status, errorText);
       }
     }
+
+    // ENHANCED: Merge all posts from different sources
+    console.log(`📊 Merging posts: ${snapshotPosts.length} snapshot + ${changelogPosts.length} changelog = ${snapshotPosts.length + changelogPosts.length} total`);
+    allPosts = [...snapshotPosts, ...changelogPosts];
 
     console.log(`📊 Total posts collected: ${allPosts.length}`);
 
@@ -453,20 +485,23 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
       };
     }
 
-    // Deduplicate posts
+    // ENHANCED: Deduplicate posts by ID
     const seenIds = new Set<string>();
     const deduplicatedPosts = allPosts.filter(post => {
-      if (seenIds.has(post.id)) return false;
+      if (seenIds.has(post.id)) {
+        console.log(`🔄 Deduplicating: removing duplicate post ID ${post.id}`);
+        return false;
+      }
       seenIds.add(post.id);
       return true;
     });
 
-    console.log(`🔄 After deduplication: ${deduplicatedPosts.length} posts`);
+    console.log(`🔄 After deduplication: ${deduplicatedPosts.length} posts (removed ${allPosts.length - deduplicatedPosts.length} duplicates)`);
 
     // Sort by date (newest first)
     const sortedPosts = deduplicatedPosts.sort((a, b) => b.createdAt - a.createdAt);
     
-    // For recent posts, limit to 90
+    // For recent posts, limit to 90; for all-time, keep everything
     const finalPosts = showAllTime ? sortedPosts : sortedPosts.slice(0, 90);
     
     console.log(`✅ Final result: ${finalPosts.length} ${showAllTime ? 'all-time' : 'recent'} posts`);
