@@ -1,140 +1,198 @@
 // src/hooks/usePostPulseData.ts
-import { useState, useEffect, useCallback } from 'react';
-import { useAuthStore } from '../stores/authStore';
-import { getPostPulseData, processPostPulseData } from '../services/postpulse-processor';
-import { PostData, CacheStatus } from '../types/linkedin';
+// Enhanced with all-time posts support
 
-export const usePostPulseData = () => {
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useAuthStore } from '../stores/authStore';
+import { PostData } from '../types/linkedin';
+import { getPostPulseData, processPostPulseData, clearPostPulseCache, PostPulseFilters } from '../services/postpulse-processor';
+
+interface UsePostPulseDataResult {
+  posts: PostData[];
+  loading: boolean;
+  error: string | null;
+  filters: PostPulseFilters;
+  setFilters: (filters: PostPulseFilters) => void;
+  currentPage: number;
+  totalPages: number;
+  setCurrentPage: (page: number) => void;
+  cacheStatus: {
+    isCached: boolean;
+    timestamp: string | null;
+    isAllTime: boolean;
+  };
+  refreshData: () => Promise<void>;
+  clearCache: () => void;
+  showAllTime: boolean;
+  setShowAllTime: (show: boolean) => void;
+  totalPosts: number;
+  dateRange?: {
+    newest: string;
+    oldest: string;
+    spanDays: number;
+  };
+}
+
+const POSTS_PER_PAGE = 24;
+
+export const usePostPulseData = (): UsePostPulseDataResult => {
+  const { dmaToken } = useAuthStore();
+  
+  // State management
   const [allPosts, setAllPosts] = useState<PostData[]>([]);
-  const [processedPosts, setProcessedPosts] = useState<PostData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // FIX: Remove timeFilter since we only want the 90 most recent posts
-  const [filters, setFilters] = useState({
-    postType: 'all',
-    sortBy: 'oldest', // FIX: Default to oldest first as requested
-  });
-  
-  const [currentPage, setCurrentPage] = useState(1);
-  const [cacheStatus, setCacheStatus] = useState<CacheStatus>({
+  const [showAllTime, setShowAllTime] = useState(false);
+  const [cacheStatus, setCacheStatus] = useState({
     isCached: false,
-    timestamp: null,
+    timestamp: null as string | null,
+    isAllTime: false
+  });
+  const [dateRange, setDateRange] = useState<{
+    newest: string;
+    oldest: string;
+    spanDays: number;
+  } | undefined>(undefined);
+
+  // Filters
+  const [filters, setFilters] = useState<PostPulseFilters>({
+    postType: 'all',
+    sortBy: 'recent',
+    searchQuery: '',
+    showAllTime: false
   });
 
-  const POSTS_PER_PAGE = 12; // Show 12 posts per page
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // FIX: Enhanced fetchData with proper error handling
-  const fetchData = useCallback(async (forceRefresh = false) => {
-    setLoading(true);
-    setError(null);
-    
-    if (forceRefresh) {
-      console.log('usePostPulseData: Force refresh - clearing cache');
-      const { profile } = useAuthStore.getState();
-      if (profile?.sub) {
-        localStorage.removeItem(`postPulseData_${profile.sub}`);
-      }
+  // Load posts data
+  const loadPosts = useCallback(async (forceRefresh = false, useAllTime = showAllTime) => {
+    if (!dmaToken) {
+      setError('No DMA token available');
+      setLoading(false);
+      return;
     }
-    
+
     try {
-      console.log('usePostPulseData: Starting data fetch...');
-      const data = await getPostPulseData(forceRefresh);
+      setLoading(true);
+      setError(null);
       
-      if (data && Array.isArray(data.posts)) {
-        console.log(`usePostPulseData: Received ${data.posts.length} posts`);
-        
-        if (data.posts.length > 0) {
-          console.log('usePostPulseData: Sample posts received:', data.posts.slice(0, 3).map(post => ({
-            id: post.id?.substring(0, 20),
-            createdAt: post.createdAt,
-            date: post.createdAt ? new Date(post.createdAt).toLocaleDateString() : 'Invalid',
-            daysOld: post.createdAt ? Math.floor((Date.now() - post.createdAt) / (1000 * 60 * 60 * 24)) : 'N/A',
-            hasContent: !!post.content
-          })));
+      console.log(`🔄 Loading ${useAllTime ? 'ALL-TIME' : 'RECENT'} posts...`);
+      
+      const startTime = Date.now();
+      const result = await getPostPulseData(dmaToken, useAllTime);
+      const loadTime = Date.now() - startTime;
+      
+      console.log(`✅ Loaded ${result.posts.length} posts in ${loadTime}ms`);
+      
+      setAllPosts(result.posts);
+      setCacheStatus({
+        isCached: result.isCached,
+        timestamp: result.timestamp,
+        isAllTime: result.isAllTime || false
+      });
+      
+      // Set date range if available
+      if (result.posts.length > 0) {
+        const timestamps = result.posts.map(p => p.createdAt).filter(t => t > 0);
+        if (timestamps.length > 0) {
+          const newest = Math.max(...timestamps);
+          const oldest = Math.min(...timestamps);
+          setDateRange({
+            newest: new Date(newest).toISOString(),
+            oldest: new Date(oldest).toISOString(),
+            spanDays: Math.round((newest - oldest) / (1000 * 60 * 60 * 24))
+          });
         }
-        
-        setAllPosts(data.posts);
-        setCacheStatus({
-          isCached: data.isCached || false,
-          timestamp: data.timestamp || new Date().toISOString(),
-        });
-      } else {
-        console.warn('usePostPulseData: Invalid data structure received:', data);
-        setAllPosts([]);
-        setCacheStatus({
-          isCached: false,
-          timestamp: new Date().toISOString(),
-        });
       }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-      console.error('usePostPulseData: Error fetching data:', errorMessage);
-      setError(errorMessage);
       
-      // Don't clear existing posts on error
-      if (allPosts.length === 0) {
-        setAllPosts([]);
-      }
+      setCurrentPage(1); // Reset to first page when data changes
+      
+    } catch (err) {
+      console.error('❌ Error loading posts:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load posts');
     } finally {
       setLoading(false);
     }
-  }, [allPosts.length]);
+  }, [dmaToken, showAllTime]);
 
-  // Initialize data fetch
+  // Initial load
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    loadPosts(false, showAllTime);
+  }, [loadPosts, showAllTime]);
 
-  // Process posts when data or filters change
+  // Update filters when showAllTime changes
   useEffect(() => {
-    try {
-      if (Array.isArray(allPosts) && allPosts.length > 0) {
-        console.log(`usePostPulseData: Processing ${allPosts.length} posts with filters:`, filters);
-        const processed = processPostPulseData(allPosts, filters);
-        setProcessedPosts(Array.isArray(processed) ? processed : []);
-        setCurrentPage(1); // Reset to first page on filter change
-      } else {
-        setProcessedPosts([]);
-      }
-    } catch (processingError) {
-      console.error('usePostPulseData: Error processing posts:', processingError);
-      setProcessedPosts([]);
-      setError('Error processing posts data');
-    }
+    setFilters(prev => ({ ...prev, showAllTime }));
+  }, [showAllTime]);
+
+  // Refresh function
+  const refreshData = useCallback(async () => {
+    await loadPosts(true, showAllTime);
+  }, [loadPosts, showAllTime]);
+
+  // Clear cache function
+  const clearCache = useCallback(() => {
+    const user_id = dmaToken ? getUserIdFromToken(dmaToken) : undefined;
+    clearPostPulseCache(user_id);
+    setCacheStatus({
+      isCached: false,
+      timestamp: null,
+      isAllTime: false
+    });
+    loadPosts(true, showAllTime); // Force reload from API
+  }, [dmaToken, loadPosts, showAllTime]);
+
+  // Handle showAllTime toggle
+  const handleSetShowAllTime = useCallback((show: boolean) => {
+    setShowAllTime(show);
+    setCurrentPage(1); // Reset pagination
+  }, []);
+
+  // Process and filter posts
+  const filteredPosts = useMemo(() => {
+    if (allPosts.length === 0) return [];
+    return processPostPulseData(allPosts, filters);
   }, [allPosts, filters]);
 
-  // Safe pagination calculations
-  const totalPages = Math.max(1, Math.ceil((processedPosts?.length || 0) / POSTS_PER_PAGE));
-  const safePage = Math.min(currentPage, totalPages);
-  const startIndex = (safePage - 1) * POSTS_PER_PAGE;
-  const endIndex = startIndex + POSTS_PER_PAGE;
-  const paginatedPosts = Array.isArray(processedPosts) 
-    ? processedPosts.slice(startIndex, endIndex)
-    : [];
+  // Pagination
+  const totalPages = Math.ceil(filteredPosts.length / POSTS_PER_PAGE);
+  const paginatedPosts = useMemo(() => {
+    const startIndex = (currentPage - 1) * POSTS_PER_PAGE;
+    return filteredPosts.slice(startIndex, startIndex + POSTS_PER_PAGE);
+  }, [filteredPosts, currentPage]);
 
-  // Safe refresh function
-  const refreshData = useCallback(() => {
-    console.log('usePostPulseData: Manual refresh triggered');
-    fetchData(true);
-  }, [fetchData]);
-
-  // Safe setFilters wrapper
-  const safeSetFilters = useCallback((newFilters: typeof filters) => {
-    console.log('usePostPulseData: Updating filters:', newFilters);
-    setFilters(newFilters);
-  }, []);
+  // Auto-reset page if out of bounds
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [currentPage, totalPages]);
 
   return {
     posts: paginatedPosts,
     loading,
     error,
     filters,
-    setFilters: safeSetFilters,
-    currentPage: safePage,
+    setFilters,
+    currentPage,
     totalPages,
     setCurrentPage,
     cacheStatus,
     refreshData,
+    clearCache,
+    showAllTime,
+    setShowAllTime: handleSetShowAllTime,
+    totalPosts: filteredPosts.length,
+    dateRange
   };
+};
+
+// Helper function to extract user ID from token
+const getUserIdFromToken = (token: string): string => {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.sub || 'unknown';
+  } catch {
+    return 'fallback_user';
+  }
 };
