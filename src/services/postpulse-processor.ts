@@ -118,7 +118,7 @@ const extractChangelogPosts = (changelogData: any): PostData[] => {
 };
 
 // FIXED: Enhanced snapshot processing with relaxed validation and better field mapping
-const extractSnapshotPosts = (snapshotData: any): PostData[] => {
+const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[] => {
   console.log('🔍 SNAPSHOT DEBUG: Starting analysis...');
   console.log('🔍 SNAPSHOT DEBUG: Raw data structure:', {
     isArray: Array.isArray(snapshotData),
@@ -207,11 +207,16 @@ const extractSnapshotPosts = (snapshotData: any): PostData[] => {
         }
       }
 
-      // FILTER: Only include posts from 2023 onwards (last 2 years)
-      const twoYearsAgo = new Date('2023-01-01').getTime();
-      if (timestamp < twoYearsAgo) {
-        console.log(`🔍 SNAPSHOT DEBUG: Skipping item ${index}: too old (${new Date(timestamp).toLocaleDateString()})`);
-        return;
+      // CONDITIONAL FILTER: Only apply date filter for recent posts, not all-time
+      if (!showAllTime) {
+        // FILTER: Only include posts from 2023 onwards for recent posts
+        const twoYearsAgo = new Date('2023-01-01').getTime();
+        if (timestamp < twoYearsAgo) {
+          console.log(`🔍 SNAPSHOT DEBUG: Skipping item ${index}: too old for recent view (${new Date(timestamp).toLocaleDateString()})`);
+          return;
+        }
+      } else {
+        console.log(`🔍 SNAPSHOT DEBUG: Including historical item ${index}: ${new Date(timestamp).toLocaleDateString()} (all-time mode)`);
       }
 
       // ENHANCED: Better content handling
@@ -350,7 +355,7 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
         });
 
         if (snapshotData.success && snapshotData.elements?.[0]?.snapshotData) {
-          const snapshotPosts = extractSnapshotPosts(snapshotData.elements[0].snapshotData);
+          const snapshotPosts = extractSnapshotPosts(snapshotData.elements[0].snapshotData, true);
           console.log(`✅ Extracted ${snapshotPosts.length} all-time posts`);
           allPosts.push(...snapshotPosts);
         }
@@ -359,35 +364,48 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
         console.warn('All-time snapshot API failed:', snapshotResponse.status, errorText);
       }
     } else {
-      console.log('🔄 Fetching RECENT posts (90 most recent)...');
+      console.log('🔄 Fetching RECENT posts with enhanced changelog focus...');
       
-      // Fetch changelog first
-      console.log('🔍 Fetching changelog...');
-      const changelogResponse = await fetch('/.netlify/functions/linkedin-changelog?count=100', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      // ENHANCED: Fetch more changelog data with multiple calls
+      const changelogCalls = [
+        { count: 100, startTime: Date.now() - (7 * 24 * 60 * 60 * 1000) }, // Last 7 days
+        { count: 100, startTime: Date.now() - (14 * 24 * 60 * 60 * 1000) }, // Last 14 days
+        { count: 100, startTime: Date.now() - (28 * 24 * 60 * 60 * 1000) }, // Last 28 days
+      ];
 
-      console.log('🔍 CHANGELOG API Response:', {
-        status: changelogResponse.status,
-        statusText: changelogResponse.statusText,
-        ok: changelogResponse.ok
-      });
-
-      if (changelogResponse.ok) {
-        const changelogData = await changelogResponse.json();
-        console.log('🔍 CHANGELOG API Data structure:', {
-          hasElements: !!changelogData.elements,
-          elementsLength: changelogData.elements?.length,
-          keys: Object.keys(changelogData || {}),
-          firstElementKeys: changelogData.elements?.[0] ? Object.keys(changelogData.elements[0]) : []
-        });
+      for (const callConfig of changelogCalls) {
+        console.log(`🔍 Fetching changelog for last ${Math.round((Date.now() - callConfig.startTime) / (24 * 60 * 60 * 1000))} days...`);
         
-        const changelogPosts = extractChangelogPosts(changelogData);
-        allPosts.push(...changelogPosts);
-        console.log(`📊 Added ${changelogPosts.length} posts from changelog`);
-      } else {
-        const errorText = await changelogResponse.text();
-        console.warn('Changelog API failed:', changelogResponse.status, errorText);
+        const changelogUrl = `/.netlify/functions/linkedin-changelog?count=${callConfig.count}&startTime=${callConfig.startTime}`;
+        const changelogResponse = await fetch(changelogUrl, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        console.log(`🔍 CHANGELOG API Response (${Math.round((Date.now() - callConfig.startTime) / (24 * 60 * 60 * 1000))} days):`, {
+          status: changelogResponse.status,
+          statusText: changelogResponse.statusText,
+          ok: changelogResponse.ok
+        });
+
+        if (changelogResponse.ok) {
+          const changelogData = await changelogResponse.json();
+          console.log(`🔍 CHANGELOG API Data (${Math.round((Date.now() - callConfig.startTime) / (24 * 60 * 60 * 1000))} days):`, {
+            hasElements: !!changelogData.elements,
+            elementsLength: changelogData.elements?.length,
+            keys: Object.keys(changelogData || {}),
+            firstElementKeys: changelogData.elements?.[0] ? Object.keys(changelogData.elements[0]) : []
+          });
+          
+          const changelogPosts = extractChangelogPosts(changelogData);
+          allPosts.push(...changelogPosts);
+          console.log(`📊 Added ${changelogPosts.length} posts from ${Math.round((Date.now() - callConfig.startTime) / (24 * 60 * 60 * 1000))}-day changelog`);
+        } else {
+          const errorText = await changelogResponse.text();
+          console.warn(`Changelog API failed for ${Math.round((Date.now() - callConfig.startTime) / (24 * 60 * 60 * 1000))} days:`, changelogResponse.status, errorText);
+        }
+
+        // Rate limiting between calls
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       // Fetch snapshot
@@ -414,7 +432,7 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
           firstSnapshotDataKeys: snapshotData.elements?.[0]?.snapshotData?.[0] ? Object.keys(snapshotData.elements[0].snapshotData[0]) : []
         });
         
-        const snapshotPosts = extractSnapshotPosts(snapshotData.elements?.[0]?.snapshotData || []);
+        const snapshotPosts = extractSnapshotPosts(snapshotData.elements?.[0]?.snapshotData || [], false);
         allPosts.push(...snapshotPosts);
         console.log(`📸 Added ${snapshotPosts.length} posts from snapshot`);
       } else {
