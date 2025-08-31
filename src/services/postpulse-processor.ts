@@ -1,5 +1,5 @@
 // src/services/postpulse-processor.ts
-// Enhanced with all-time posts support
+// Debug version with enhanced logging to identify the issue
 
 import { PostData } from '../types/linkedin';
 
@@ -7,7 +7,7 @@ export interface PostPulseFilters {
   postType: 'all' | 'text' | 'image' | 'video';
   sortBy: 'oldest' | 'recent' | 'likes' | 'comments' | 'views';
   searchQuery?: string;
-  showAllTime?: boolean; // New flag for all-time posts
+  showAllTime?: boolean;
 }
 
 export interface PostPulseData {
@@ -29,7 +29,6 @@ const ALL_TIME_CACHE_KEY_PREFIX = 'postpulse_alltime_cache_';
 const CACHE_DURATION = 6 * 60 * 60 * 1000; // 6 hours
 const MAX_CACHE_SIZE = 10 * 1024 * 1024; // 10MB
 
-// Get user ID for cache key
 const getUserIdFromToken = (token: string): string => {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
@@ -39,12 +38,10 @@ const getUserIdFromToken = (token: string): string => {
   }
 };
 
-// Enhanced cache management
 const setCachedPostPulseData = (userId: string, posts: PostData[], isAllTime = false): void => {
   try {
     const cacheKey = (isAllTime ? ALL_TIME_CACHE_KEY_PREFIX : CACHE_KEY_PREFIX) + userId;
     
-    // Calculate date range
     let dateRange = null;
     const postsWithDates = posts.filter(p => p.createdAt > 0);
     if (postsWithDates.length > 0) {
@@ -70,7 +67,6 @@ const setCachedPostPulseData = (userId: string, posts: PostData[], isAllTime = f
 
     const serialized = JSON.stringify(cacheData);
     
-    // Check size before caching
     if (serialized.length > MAX_CACHE_SIZE) {
       console.warn(`Cache data too large (${Math.round(serialized.length / 1024 / 1024)}MB), skipping cache`);
       return;
@@ -95,7 +91,6 @@ const getCachedPostPulseData = (userId: string, isAllTime = false): PostPulseDat
 
     const cacheData = JSON.parse(cached);
     
-    // Check cache age
     const age = Date.now() - cacheData.timestamp;
     if (age > CACHE_DURATION) {
       console.log(`${isAllTime ? 'All-time' : 'Recent'} cache expired (${Math.round(age / 60000)}min old), removing`);
@@ -119,14 +114,12 @@ const getCachedPostPulseData = (userId: string, isAllTime = false): PostPulseDat
   }
 };
 
-// Clear cache function
 export const clearPostPulseCache = (userId?: string): void => {
   if (userId) {
     localStorage.removeItem(CACHE_KEY_PREFIX + userId);
     localStorage.removeItem(ALL_TIME_CACHE_KEY_PREFIX + userId);
     console.log('Cleared PostPulse cache for user:', userId);
   } else {
-    // Clear all PostPulse caches
     const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -139,53 +132,104 @@ export const clearPostPulseCache = (userId?: string): void => {
   }
 };
 
-// Extract posts from changelog API
+// Enhanced debug logging for changelog processing
 const extractChangelogPosts = (changelogData: any): PostData[] => {
-  console.log('extractChangelogPosts: Processing changelog data...');
+  console.log('🔍 CHANGELOG DEBUG: Starting analysis...');
+  console.log('🔍 CHANGELOG DEBUG: Raw data structure:', {
+    hasElements: !!changelogData?.elements,
+    elementsLength: changelogData?.elements?.length,
+    dataType: typeof changelogData,
+    keys: Object.keys(changelogData || {})
+  });
   
   const posts: PostData[] = [];
   const elements = changelogData?.elements || [];
-
+  
+  console.log(`🔍 CHANGELOG DEBUG: Processing ${elements.length} elements`);
+  
   elements.forEach((event: any, index: number) => {
+    console.log(`🔍 CHANGELOG DEBUG: Element ${index}:`, {
+      resourceName: event.resourceName,
+      method: event.method,
+      hasActivity: !!event.activity,
+      resourceId: event.resourceId?.substring(0, 30),
+      keys: Object.keys(event || {})
+    });
+    
     if (event.resourceName === 'ugcPosts' && event.method === 'CREATE' && event.activity) {
+      console.log(`🔍 CHANGELOG DEBUG: Found UGC post at index ${index}`);
       try {
         const activity = event.activity;
         const content = activity.specificContent?.['com.linkedin.ugc.ShareContent'];
+        
+        console.log('🔍 CHANGELOG DEBUG: Activity structure:', {
+          hasSpecificContent: !!activity.specificContent,
+          hasShareContent: !!content,
+          shareContentKeys: content ? Object.keys(content) : [],
+          commentary: content?.shareCommentary?.text?.substring(0, 100)
+        });
         
         if (content) {
           const postId = event.resourceId || `changelog_${index}`;
           const createdAt = event.capturedAt || event.processedAt || Date.now();
           const commentary = content.shareCommentary?.text || '';
           
+          console.log(`🔍 CHANGELOG DEBUG: Creating post:`, {
+            postId: postId.substring(0, 30),
+            createdAt: new Date(createdAt).toISOString(),
+            commentaryLength: commentary.length,
+            commentaryPreview: commentary.substring(0, 100)
+          });
+          
           posts.push({
             id: postId,
             content: commentary,
             createdAt: createdAt,
-            likes: 0, // Will be filled from engagement data
+            likes: 0,
             comments: 0,
             reposts: 0,
             url: `https://linkedin.com/feed/activity/${postId}`,
             author: 'You'
           });
+        } else {
+          console.log(`🔍 CHANGELOG DEBUG: No ShareContent found in element ${index}`);
         }
       } catch (error) {
-        console.warn(`Error processing changelog event ${index}:`, error);
+        console.warn(`🔍 CHANGELOG DEBUG: Error processing element ${index}:`, error);
       }
+    } else {
+      console.log(`🔍 CHANGELOG DEBUG: Skipping element ${index}: ${event.resourceName}/${event.method}`);
     }
   });
 
-  console.log(`extractChangelogPosts: Extracted ${posts.length} posts from changelog`);
+  console.log(`🔍 CHANGELOG DEBUG: Final result: ${posts.length} posts extracted`);
   return posts;
 };
 
-// Extract posts from snapshot API (all-time or recent)
+// Enhanced debug logging for snapshot processing
 const extractSnapshotPosts = (snapshotData: any): PostData[] => {
-  console.log('extractSnapshotPosts: Processing snapshot data...');
+  console.log('🔍 SNAPSHOT DEBUG: Starting analysis...');
+  console.log('🔍 SNAPSHOT DEBUG: Raw data structure:', {
+    isArray: Array.isArray(snapshotData),
+    length: snapshotData?.length,
+    dataType: typeof snapshotData,
+    firstItemKeys: snapshotData?.[0] ? Object.keys(snapshotData[0]) : [],
+    sampleItem: snapshotData?.[0]
+  });
   
   const posts: PostData[] = [];
   const shareInfo = snapshotData || [];
-
+  
+  console.log(`🔍 SNAPSHOT DEBUG: Processing ${shareInfo.length} items`);
+  
   shareInfo.forEach((item: any, index: number) => {
+    console.log(`🔍 SNAPSHOT DEBUG: Item ${index}:`, {
+      keys: Object.keys(item || {}),
+      hasShareURL: !!(item['Share URL'] || item['share_url'] || item.shareUrl || item['URL'] || item.url),
+      hasContent: !!(item['Share Commentary'] || item['share_commentary'] || item.shareCommentary || item['Commentary'] || item.commentary),
+      allValues: item
+    });
+    
     try {
       // Handle multiple field name variations
       const url = item['Share URL'] || item['share_url'] || item.shareUrl || 
@@ -195,6 +239,15 @@ const extractSnapshotPosts = (snapshotData: any): PostData[] => {
       const content = item['Share Commentary'] || item['share_commentary'] || 
                      item.shareCommentary || item['Commentary'] || item.commentary || '';
       const visibility = item['Visibility'] || item.visibility || 'PUBLIC';
+
+      console.log(`🔍 SNAPSHOT DEBUG: Extracted fields for item ${index}:`, {
+        hasUrl: !!url,
+        hasContent: !!content,
+        urlPreview: url?.substring(0, 50),
+        contentPreview: content?.substring(0, 100),
+        date: date,
+        visibility: visibility
+      });
 
       if (url && content) {
         // Extract post ID from URL
@@ -211,32 +264,41 @@ const extractSnapshotPosts = (snapshotData: any): PostData[] => {
             timestamp = new Date(date).getTime();
             if (isNaN(timestamp)) timestamp = Date.now();
           } catch (e) {
-            console.warn('Could not parse date:', date);
+            console.warn(`🔍 SNAPSHOT DEBUG: Could not parse date for item ${index}:`, date);
             timestamp = Date.now();
           }
         }
+
+        console.log(`🔍 SNAPSHOT DEBUG: Creating post for item ${index}:`, {
+          postId,
+          contentLength: content.length,
+          timestamp: new Date(timestamp).toISOString(),
+          url: url?.substring(0, 50)
+        });
 
         posts.push({
           id: postId,
           content: content,
           createdAt: timestamp,
-          likes: 0, // Will be filled from engagement data
+          likes: 0,
           comments: 0,
           reposts: 0,
           url: url,
           author: 'You'
         });
+      } else {
+        console.log(`🔍 SNAPSHOT DEBUG: Skipping item ${index}: missing URL or content`);
       }
     } catch (error) {
-      console.warn(`Error processing snapshot item ${index}:`, error);
+      console.warn(`🔍 SNAPSHOT DEBUG: Error processing item ${index}:`, error);
     }
   });
 
-  console.log(`extractSnapshotPosts: Extracted ${posts.length} posts from snapshot`);
+  console.log(`🔍 SNAPSHOT DEBUG: Final result: ${posts.length} posts extracted`);
   return posts;
 };
 
-// Enhanced main function with all-time support
+// Enhanced main function with comprehensive debug logging
 export const getPostPulseData = async (token: string, showAllTime = false): Promise<PostPulseData> => {
   const user_id = getUserIdFromToken(token);
   
@@ -255,7 +317,6 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
     if (showAllTime) {
       console.log('🔄 Fetching ALL-TIME posts using enhanced pagination...');
       
-      // Fetch all-time posts using the enhanced API
       const snapshotResponse = await fetch(
         '/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO&getAllPosts=true&maxPages=50&count=100',
         {
@@ -263,14 +324,22 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
         }
       );
 
+      console.log('🔍 ALL-TIME API Response:', {
+        status: snapshotResponse.status,
+        statusText: snapshotResponse.statusText,
+        ok: snapshotResponse.ok
+      });
+
       if (snapshotResponse.ok) {
         const snapshotData = await snapshotResponse.json();
-        console.log('All-time snapshot response:', {
+        console.log('🔍 ALL-TIME API Data:', {
           success: snapshotData.success,
           allTimeData: snapshotData.allTimeData,
           totalPosts: snapshotData.pagination?.totalPosts,
           dateRange: snapshotData.dateRange,
-          hasElements: !!snapshotData.elements
+          hasElements: !!snapshotData.elements,
+          elementsLength: snapshotData.elements?.length,
+          firstElementKeys: snapshotData.elements?.[0] ? Object.keys(snapshotData.elements[0]) : []
         });
 
         if (snapshotData.success && snapshotData.elements?.[0]?.snapshotData) {
@@ -279,49 +348,71 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
           allPosts.push(...snapshotPosts);
         }
       } else {
-        console.warn('All-time snapshot API failed:', snapshotResponse.status);
-        // Fallback to regular snapshot
-        const fallbackResponse = await fetch(
-          '/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO',
-          {
-            headers: { Authorization: `Bearer ${token}` }
-          }
-        );
-        
-        if (fallbackResponse.ok) {
-          const fallbackData = await fallbackResponse.json();
-          const fallbackPosts = extractSnapshotPosts(fallbackData.elements?.[0]?.snapshotData || []);
-          allPosts.push(...fallbackPosts);
-          console.log(`🔄 Used fallback snapshot: ${fallbackPosts.length} posts`);
-        }
+        const errorText = await snapshotResponse.text();
+        console.warn('All-time snapshot API failed:', snapshotResponse.status, errorText);
       }
     } else {
       console.log('🔄 Fetching RECENT posts (90 most recent)...');
       
-      // Fetch both changelog and snapshot for recent posts
-      const [changelogResponse, snapshotResponse] = await Promise.all([
-        fetch('/.netlify/functions/linkedin-changelog?count=100', {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        fetch('/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-      ]);
+      // Fetch changelog first
+      console.log('🔍 Fetching changelog...');
+      const changelogResponse = await fetch('/.netlify/functions/linkedin-changelog?count=100', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
 
-      // Process changelog data
+      console.log('🔍 CHANGELOG API Response:', {
+        status: changelogResponse.status,
+        statusText: changelogResponse.statusText,
+        ok: changelogResponse.ok
+      });
+
       if (changelogResponse.ok) {
         const changelogData = await changelogResponse.json();
+        console.log('🔍 CHANGELOG API Data structure:', {
+          hasElements: !!changelogData.elements,
+          elementsLength: changelogData.elements?.length,
+          keys: Object.keys(changelogData || {}),
+          firstElementKeys: changelogData.elements?.[0] ? Object.keys(changelogData.elements[0]) : []
+        });
+        
         const changelogPosts = extractChangelogPosts(changelogData);
         allPosts.push(...changelogPosts);
         console.log(`📊 Added ${changelogPosts.length} posts from changelog`);
+      } else {
+        const errorText = await changelogResponse.text();
+        console.warn('Changelog API failed:', changelogResponse.status, errorText);
       }
 
-      // Process snapshot data
+      // Fetch snapshot
+      console.log('🔍 Fetching snapshot...');
+      const snapshotResponse = await fetch('/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      console.log('🔍 SNAPSHOT API Response:', {
+        status: snapshotResponse.status,
+        statusText: snapshotResponse.statusText,
+        ok: snapshotResponse.ok
+      });
+
       if (snapshotResponse.ok) {
         const snapshotData = await snapshotResponse.json();
+        console.log('🔍 SNAPSHOT API Data structure:', {
+          hasElements: !!snapshotData.elements,
+          elementsLength: snapshotData.elements?.length,
+          hasSnapshotData: !!snapshotData.elements?.[0]?.snapshotData,
+          snapshotDataLength: snapshotData.elements?.[0]?.snapshotData?.length,
+          keys: Object.keys(snapshotData || {}),
+          firstElementKeys: snapshotData.elements?.[0] ? Object.keys(snapshotData.elements[0]) : [],
+          firstSnapshotDataKeys: snapshotData.elements?.[0]?.snapshotData?.[0] ? Object.keys(snapshotData.elements[0].snapshotData[0]) : []
+        });
+        
         const snapshotPosts = extractSnapshotPosts(snapshotData.elements?.[0]?.snapshotData || []);
         allPosts.push(...snapshotPosts);
         console.log(`📸 Added ${snapshotPosts.length} posts from snapshot`);
+      } else {
+        const errorText = await snapshotResponse.text();
+        console.warn('Snapshot API failed:', snapshotResponse.status, errorText);
       }
     }
 
@@ -378,11 +469,9 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
   }
 };
 
-// Enhanced processing with all-time support
 export const processPostPulseData = (posts: PostData[], filters: PostPulseFilters): PostData[] => {
   let filtered = [...posts];
 
-  // Apply filters
   if (filters.postType !== 'all') {
     filtered = filtered.filter(post => {
       const content = post.content.toLowerCase();
@@ -399,7 +488,6 @@ export const processPostPulseData = (posts: PostData[], filters: PostPulseFilter
     });
   }
 
-  // Apply search filter
   if (filters.searchQuery) {
     const query = filters.searchQuery.toLowerCase();
     filtered = filtered.filter(post => 
@@ -407,7 +495,6 @@ export const processPostPulseData = (posts: PostData[], filters: PostPulseFilter
     );
   }
 
-  // Apply sorting
   filtered.sort((a, b) => {
     switch (filters.sortBy) {
       case 'oldest':
@@ -428,7 +515,6 @@ export const processPostPulseData = (posts: PostData[], filters: PostPulseFilter
   return filtered;
 };
 
-// Repurpose status and utilities (required by PostCard)
 export interface RepurposeStatus {
   canRepurpose: boolean;
   daysOld: number;
@@ -440,7 +526,6 @@ export const getRepurposeStatus = (post: PostData): RepurposeStatus => {
   const postDate = post.createdAt;
   const daysOld = Math.floor((now - postDate) / (1000 * 60 * 60 * 24));
   
-  // LinkedIn's general guideline is 30+ days for reposting
   const canRepurpose = daysOld >= 30;
   
   return {
@@ -453,14 +538,12 @@ export const getRepurposeStatus = (post: PostData): RepurposeStatus => {
 };
 
 export const repurposePost = (post: PostData): void => {
-  // Navigate to PostGen with the post content
   const params = new URLSearchParams();
   params.set('mode', 'rewrite');
   params.set('content', post.content);
   params.set('originalUrl', post.url);
   params.set('originalDate', new Date(post.createdAt).toISOString());
   
-  // Use hash routing for SPA navigation
   window.location.hash = `postgen?${params.toString()}`;
   
   console.log('Navigating to PostGen for repurposing:', {
