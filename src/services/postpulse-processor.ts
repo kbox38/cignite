@@ -375,29 +375,33 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
         console.warn('All-time snapshot API failed:', snapshotResponse.status, errorText);
       }
     } else {
-      console.log('🔄 Fetching RECENT posts with extended changelog coverage (730 days)...');
+      console.log('🔄 Fetching RECENT posts with ALL-TIME changelog coverage...');
       
-      // ENHANCED: Extended changelog calls to cover 730 days in 30-day chunks
-      const totalDays = 730;
-      const daysPerCall = 30;
-      const numberOfCalls = Math.ceil(totalDays / daysPerCall);
+      // ENHANCED: All-time changelog calls - LinkedIn's changelog API has a 28-day limit per the DMA docs
+      // We'll make multiple calls to get as much as possible, but note the API limitation
+      console.log('📅 Planning all-time changelog extraction (limited by LinkedIn\'s 28-day changelog retention)');
       
-      console.log(`📅 Planning ${numberOfCalls} changelog calls to cover ${totalDays} days (${daysPerCall} days per call)`);
+      // Try to get the maximum 28 days of changelog data with multiple calls
+      const changelogCalls = [
+        { days: 28, label: 'Full 28-day window' },
+        { days: 21, label: 'Last 21 days' },
+        { days: 14, label: 'Last 14 days' },
+        { days: 7, label: 'Last 7 days' },
+        { days: 3, label: 'Last 3 days' },
+        { days: 1, label: 'Last 24 hours' }
+      ];
       
-      for (let i = 0; i < numberOfCalls; i++) {
-        const startDaysBack = i * daysPerCall;
-        const endDaysBack = Math.min((i + 1) * daysPerCall, totalDays);
-        const startTime = Date.now() - (endDaysBack * 24 * 60 * 60 * 1000);
-        const endTime = Date.now() - (startDaysBack * 24 * 60 * 60 * 1000);
+      for (const callConfig of changelogCalls) {
+        const startTime = Date.now() - (callConfig.days * 24 * 60 * 60 * 1000);
         
-        console.log(`🔍 Fetching changelog batch ${i + 1}/${numberOfCalls}: days ${startDaysBack}-${endDaysBack} back (${new Date(startTime).toLocaleDateString()} to ${new Date(endTime).toLocaleDateString()})`);
+        console.log(`🔍 Fetching changelog for ${callConfig.label} (${new Date(startTime).toLocaleDateString()} to now)`);
         
         const changelogUrl = `/.netlify/functions/linkedin-changelog?count=100&startTime=${startTime}`;
         const changelogResponse = await fetch(changelogUrl, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
-        console.log(`🔍 CHANGELOG API Response (batch ${i + 1}/${numberOfCalls}):`, {
+        console.log(`🔍 CHANGELOG API Response (${callConfig.label}):`, {
           status: changelogResponse.status,
           statusText: changelogResponse.statusText,
           ok: changelogResponse.ok
@@ -405,7 +409,7 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
 
         if (changelogResponse.ok) {
           const changelogData = await changelogResponse.json();
-          console.log(`🔍 CHANGELOG API Data (batch ${i + 1}/${numberOfCalls}):`, {
+          console.log(`🔍 CHANGELOG API Data (${callConfig.label}):`, {
             hasElements: !!changelogData.elements,
             elementsLength: changelogData.elements?.length,
             keys: Object.keys(changelogData || {}),
@@ -414,15 +418,15 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
           
           const batchPosts = extractChangelogPosts(changelogData);
           changelogPosts.push(...batchPosts);
-          console.log(`📊 Added ${batchPosts.length} posts from changelog batch ${i + 1}/${numberOfCalls}`);
+          console.log(`📊 Added ${batchPosts.length} posts from ${callConfig.label} changelog`);
         } else {
           const errorText = await changelogResponse.text();
-          console.warn(`Changelog API failed for batch ${i + 1}/${numberOfCalls}:`, changelogResponse.status, errorText);
+          console.warn(`Changelog API failed for ${callConfig.label}:`, changelogResponse.status, errorText);
         }
 
-        // Rate limiting between calls (avoid overwhelming the API)
-        if (i < numberOfCalls - 1) {
-          console.log(`⏱️ Rate limiting: waiting 500ms before next changelog call...`);
+        // Rate limiting between calls
+        if (callConfig !== changelogCalls[changelogCalls.length - 1]) {
+          console.log('⏱️ Rate limiting: waiting 500ms before next changelog call...');
           await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
