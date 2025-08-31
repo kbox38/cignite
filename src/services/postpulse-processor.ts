@@ -207,6 +207,13 @@ const extractSnapshotPosts = (snapshotData: any): PostData[] => {
         }
       }
 
+      // FILTER: Only include posts from 2023 onwards (last 2 years)
+      const twoYearsAgo = new Date('2023-01-01').getTime();
+      if (timestamp < twoYearsAgo) {
+        console.log(`🔍 SNAPSHOT DEBUG: Skipping item ${index}: too old (${new Date(timestamp).toLocaleDateString()})`);
+        return;
+      }
+
       // ENHANCED: Better content handling
       const finalContent = content || `Historical post from ${new Date(timestamp).toLocaleDateString()}`;
       const finalUrl = url || `#post-${postId}`;
@@ -316,8 +323,9 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
     if (showAllTime) {
       console.log('🔄 Fetching ALL-TIME posts using enhanced pagination...');
       
+      // Enhanced API call with recent data focus
       const snapshotResponse = await fetch(
-        '/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO&getAllPosts=true&maxPages=50&count=100',
+        '/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO&getAllPosts=true&maxPages=50&count=100&recentFirst=true&minDate=2023-01-01',
         {
           headers: { Authorization: `Bearer ${token}` }
         }
