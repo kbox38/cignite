@@ -427,3 +427,45 @@ export const processPostPulseData = (posts: PostData[], filters: PostPulseFilter
 
   return filtered;
 };
+
+// Repurpose status and utilities (required by PostCard)
+export interface RepurposeStatus {
+  canRepurpose: boolean;
+  daysOld: number;
+  reason?: string;
+}
+
+export const getRepurposeStatus = (post: PostData): RepurposeStatus => {
+  const now = Date.now();
+  const postDate = post.createdAt;
+  const daysOld = Math.floor((now - postDate) / (1000 * 60 * 60 * 24));
+  
+  // LinkedIn's general guideline is 30+ days for reposting
+  const canRepurpose = daysOld >= 30;
+  
+  return {
+    canRepurpose,
+    daysOld,
+    reason: canRepurpose ? 
+      `Posted ${daysOld} days ago - safe to repurpose` : 
+      `Posted ${daysOld} days ago - wait ${30 - daysOld} more days`
+  };
+};
+
+export const repurposePost = (post: PostData): void => {
+  // Navigate to PostGen with the post content
+  const params = new URLSearchParams();
+  params.set('mode', 'rewrite');
+  params.set('content', post.content);
+  params.set('originalUrl', post.url);
+  params.set('originalDate', new Date(post.createdAt).toISOString());
+  
+  // Use hash routing for SPA navigation
+  window.location.hash = `postgen?${params.toString()}`;
+  
+  console.log('Navigating to PostGen for repurposing:', {
+    postId: post.id,
+    content: post.content.substring(0, 100) + '...',
+    originalUrl: post.url
+  });
+};
