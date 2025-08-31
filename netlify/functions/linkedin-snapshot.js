@@ -19,7 +19,7 @@ export async function handler(event, context) {
     start = '0', 
     count = '50', 
     getAllPosts = 'false',
-    maxPages = '20' 
+    maxPages = '2000' 
   } = event.queryStringParameters || {};
 
   console.log("LinkedIn Snapshot Function - Parameters:", {
