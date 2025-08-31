@@ -1,13 +1,15 @@
+// Enhanced PostPulse processor with fixed historical post extraction
 // src/services/postpulse-processor.ts
-// Debug version with enhanced logging to identify the issue
 
-import { PostData } from '../types/linkedin';
-
-export interface PostPulseFilters {
-  postType: 'all' | 'text' | 'image' | 'video';
-  sortBy: 'oldest' | 'recent' | 'likes' | 'comments' | 'views';
-  searchQuery?: string;
-  showAllTime?: boolean;
+export interface PostData {
+  id: string;
+  content: string;
+  createdAt: number;
+  likes: number;
+  comments: number;
+  reposts: number;
+  url: string;
+  author: string;
 }
 
 export interface PostPulseData {
@@ -16,123 +18,25 @@ export interface PostPulseData {
   timestamp: string;
   totalCount?: number;
   isAllTime?: boolean;
-  dateRange?: {
-    newest: string;
-    oldest: string;
-    spanDays: number;
-  };
+  dateRange?: string;
 }
 
 // Cache configuration
-const CACHE_KEY_PREFIX = 'postpulse_cache_';
-const ALL_TIME_CACHE_KEY_PREFIX = 'postpulse_alltime_cache_';
-const CACHE_DURATION = 6 * 60 * 60 * 1000; // 6 hours
-const MAX_CACHE_SIZE = 10 * 1024 * 1024; // 10MB
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+const CACHE_KEY_PREFIX = 'postpulse_recent_';
+const ALL_TIME_CACHE_KEY_PREFIX = 'postpulse_alltime_';
 
+// Extract user ID from token (simplified)
 const getUserIdFromToken = (token: string): string => {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.sub || 'unknown';
+    return payload.sub || payload.user_id || 'fallback_user';
   } catch {
     return 'fallback_user';
   }
 };
 
-const setCachedPostPulseData = (userId: string, posts: PostData[], isAllTime = false): void => {
-  try {
-    const cacheKey = (isAllTime ? ALL_TIME_CACHE_KEY_PREFIX : CACHE_KEY_PREFIX) + userId;
-    
-    let dateRange = null;
-    const postsWithDates = posts.filter(p => p.createdAt > 0);
-    if (postsWithDates.length > 0) {
-      const timestamps = postsWithDates.map(p => p.createdAt);
-      const newest = Math.max(...timestamps);
-      const oldest = Math.min(...timestamps);
-      dateRange = {
-        newest: new Date(newest).toISOString(),
-        oldest: new Date(oldest).toISOString(),
-        spanDays: Math.round((newest - oldest) / (1000 * 60 * 60 * 24))
-      };
-    }
-    
-    const cacheData = {
-      timestamp: Date.now(),
-      lastFetch: new Date().toISOString(),
-      posts: posts,
-      version: '2.0',
-      totalCount: posts.length,
-      isAllTime: isAllTime,
-      dateRange: dateRange
-    };
-
-    const serialized = JSON.stringify(cacheData);
-    
-    if (serialized.length > MAX_CACHE_SIZE) {
-      console.warn(`Cache data too large (${Math.round(serialized.length / 1024 / 1024)}MB), skipping cache`);
-      return;
-    }
-
-    localStorage.setItem(cacheKey, serialized);
-    console.log(`📦 Cached ${posts.length} ${isAllTime ? 'all-time' : 'recent'} posts (${Math.round(serialized.length / 1024)}KB)`);
-  } catch (error) {
-    console.error('Error caching PostPulse data:', error);
-  }
-};
-
-const getCachedPostPulseData = (userId: string, isAllTime = false): PostPulseData | null => {
-  try {
-    const cacheKey = (isAllTime ? ALL_TIME_CACHE_KEY_PREFIX : CACHE_KEY_PREFIX) + userId;
-    const cached = localStorage.getItem(cacheKey);
-    
-    if (!cached) {
-      console.log(`No ${isAllTime ? 'all-time' : 'recent'} cache found`);
-      return null;
-    }
-
-    const cacheData = JSON.parse(cached);
-    
-    const age = Date.now() - cacheData.timestamp;
-    if (age > CACHE_DURATION) {
-      console.log(`${isAllTime ? 'All-time' : 'Recent'} cache expired (${Math.round(age / 60000)}min old), removing`);
-      localStorage.removeItem(cacheKey);
-      return null;
-    }
-
-    console.log(`📦 Using ${isAllTime ? 'all-time' : 'recent'} cache: ${cacheData.posts.length} posts, ${Math.round(age / 60000)}min old`);
-    
-    return {
-      posts: cacheData.posts,
-      isCached: true,
-      timestamp: cacheData.lastFetch,
-      totalCount: cacheData.totalCount,
-      isAllTime: cacheData.isAllTime || isAllTime,
-      dateRange: cacheData.dateRange
-    };
-  } catch (error) {
-    console.error('Error reading cache:', error);
-    return null;
-  }
-};
-
-export const clearPostPulseCache = (userId?: string): void => {
-  if (userId) {
-    localStorage.removeItem(CACHE_KEY_PREFIX + userId);
-    localStorage.removeItem(ALL_TIME_CACHE_KEY_PREFIX + userId);
-    console.log('Cleared PostPulse cache for user:', userId);
-  } else {
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (key.startsWith(CACHE_KEY_PREFIX) || key.startsWith(ALL_TIME_CACHE_KEY_PREFIX))) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach(key => localStorage.removeItem(key));
-    console.log('Cleared all PostPulse caches');
-  }
-};
-
-// Enhanced debug logging for changelog processing
+// Enhanced changelog processing with better logging
 const extractChangelogPosts = (changelogData: any): PostData[] => {
   console.log('🔍 CHANGELOG DEBUG: Starting analysis...');
   console.log('🔍 CHANGELOG DEBUG: Raw data structure:', {
@@ -206,7 +110,7 @@ const extractChangelogPosts = (changelogData: any): PostData[] => {
   return posts;
 };
 
-// Enhanced debug logging for snapshot processing
+// FIXED: Enhanced snapshot processing with relaxed validation and better field mapping
 const extractSnapshotPosts = (snapshotData: any): PostData[] => {
   console.log('🔍 SNAPSHOT DEBUG: Starting analysis...');
   console.log('🔍 SNAPSHOT DEBUG: Raw data structure:', {
@@ -231,74 +135,162 @@ const extractSnapshotPosts = (snapshotData: any): PostData[] => {
     });
     
     try {
-      // Handle multiple field name variations
+      // ENHANCED: Multiple field name variations with fallbacks
       const url = item['Share URL'] || item['share_url'] || item.shareUrl || 
-                 item['URL'] || item.url;
+                 item['URL'] || item.url || item.ShareLink || item['Share Link'];
+      
       const date = item['Share Date'] || item['share_date'] || item.shareDate || 
-                  item['Date'] || item.date;
+                  item['Date'] || item.date || item['Published Date'] || item.publishedAt;
+                  
       const content = item['Share Commentary'] || item['share_commentary'] || 
-                     item.shareCommentary || item['Commentary'] || item.commentary || '';
+                     item.shareCommentary || item['Commentary'] || item.commentary || 
+                     item.Content || item.text || item.Text || '';
+                     
       const visibility = item['Visibility'] || item.visibility || 'PUBLIC';
+      const mediaType = item['Media Type'] || item['media_type'] || item.mediaType || 'TEXT';
 
       console.log(`🔍 SNAPSHOT DEBUG: Extracted fields for item ${index}:`, {
         hasUrl: !!url,
         hasContent: !!content,
+        hasDate: !!date,
         urlPreview: url?.substring(0, 50),
-        contentPreview: content?.substring(0, 100),
+        contentPreview: content?.substring(0, 50),
         date: date,
-        visibility: visibility
+        visibility: visibility,
+        contentLength: content?.length || 0
       });
 
-      if (url && content) {
-        // Extract post ID from URL
-        let postId = `snapshot_${index}`;
+      // FIXED: Relaxed validation - accept posts with URL OR content OR date
+      // Only skip if ALL critical fields are missing
+      if (!url && !content && !date) {
+        console.log(`🔍 SNAPSHOT DEBUG: Skipping item ${index}: ALL critical fields missing (URL, content, date)`);
+        return;
+      }
+
+      // ENHANCED: Better post ID extraction
+      let postId = `snapshot_${index}`;
+      if (url) {
         const activityMatch = url.match(/activity[:-](\d+)/);
         const ugcMatch = url.match(/ugcPost[:-](\d+)/);
+        const shareMatch = url.match(/share[:-](\d+)/);
         if (activityMatch) postId = activityMatch[1];
         else if (ugcMatch) postId = ugcMatch[1];
-
-        // Parse date
-        let timestamp = Date.now();
-        if (date) {
-          try {
-            timestamp = new Date(date).getTime();
-            if (isNaN(timestamp)) timestamp = Date.now();
-          } catch (e) {
-            console.warn(`🔍 SNAPSHOT DEBUG: Could not parse date for item ${index}:`, date);
-            timestamp = Date.now();
-          }
-        }
-
-        console.log(`🔍 SNAPSHOT DEBUG: Creating post for item ${index}:`, {
-          postId,
-          contentLength: content.length,
-          timestamp: new Date(timestamp).toISOString(),
-          url: url?.substring(0, 50)
-        });
-
-        posts.push({
-          id: postId,
-          content: content,
-          createdAt: timestamp,
-          likes: 0,
-          comments: 0,
-          reposts: 0,
-          url: url,
-          author: 'You'
-        });
-      } else {
-        console.log(`🔍 SNAPSHOT DEBUG: Skipping item ${index}: missing URL or content`);
+        else if (shareMatch) postId = shareMatch[1];
       }
+
+      // ENHANCED: Better date parsing with fallbacks
+      let timestamp = Date.now();
+      if (date) {
+        try {
+          // Handle various date formats
+          const parsedDate = new Date(date.replace(/-/g, '/'));
+          if (!isNaN(parsedDate.getTime())) {
+            timestamp = parsedDate.getTime();
+          } else {
+            // Try parsing as ISO string or timestamp
+            const isoDate = new Date(date);
+            if (!isNaN(isoDate.getTime())) {
+              timestamp = isoDate.getTime();
+            }
+          }
+        } catch (e) {
+          console.warn(`🔍 SNAPSHOT DEBUG: Could not parse date for item ${index}:`, date);
+          // Use a very old timestamp to indicate this is historical content
+          timestamp = new Date('2020-01-01').getTime();
+        }
+      }
+
+      // ENHANCED: Better content handling
+      const finalContent = content || `Historical post from ${new Date(timestamp).toLocaleDateString()}`;
+      const finalUrl = url || `#post-${postId}`;
+
+      console.log(`🔍 SNAPSHOT DEBUG: Creating post for item ${index}:`, {
+        postId,
+        contentLength: finalContent.length,
+        timestamp: new Date(timestamp).toISOString(),
+        hasRealUrl: !!url,
+        finalContentPreview: finalContent.substring(0, 50)
+      });
+
+      posts.push({
+        id: postId,
+        content: finalContent,
+        createdAt: timestamp,
+        likes: 0, // Will be enriched later with engagement data
+        comments: 0,
+        reposts: 0,
+        url: finalUrl,
+        author: 'You'
+      });
+
     } catch (error) {
       console.warn(`🔍 SNAPSHOT DEBUG: Error processing item ${index}:`, error);
     }
   });
 
   console.log(`🔍 SNAPSHOT DEBUG: Final result: ${posts.length} posts extracted`);
+  console.log(`🔍 SNAPSHOT DEBUG: Date range: ${posts.length > 0 ? 
+    `${new Date(Math.min(...posts.map(p => p.createdAt))).toLocaleDateString()} - ${new Date(Math.max(...posts.map(p => p.createdAt))).toLocaleDateString()}` : 
+    'No posts'}`);
+  
   return posts;
 };
 
-// Enhanced main function with comprehensive debug logging
+// Cache management functions
+export const getCachedPostPulseData = (userId: string, isAllTime = false): PostPulseData | null => {
+  try {
+    const cacheKey = (isAllTime ? ALL_TIME_CACHE_KEY_PREFIX : CACHE_KEY_PREFIX) + userId;
+    const cached = localStorage.getItem(cacheKey);
+    
+    if (!cached) {
+      console.log(`No ${isAllTime ? 'all-time' : 'recent'} cache found`);
+      return null;
+    }
+
+    const cacheData = JSON.parse(cached);
+    
+    const age = Date.now() - cacheData.timestamp;
+    if (age > CACHE_DURATION) {
+      console.log(`${isAllTime ? 'All-time' : 'Recent'} cache expired (${Math.round(age / 60000)}min old), removing`);
+      localStorage.removeItem(cacheKey);
+      return null;
+    }
+
+    console.log(`📦 Using ${isAllTime ? 'all-time' : 'recent'} cache: ${cacheData.posts.length} posts, ${Math.round(age / 60000)}min old`);
+    
+    return {
+      posts: cacheData.posts,
+      isCached: true,
+      timestamp: cacheData.lastFetch,
+      totalCount: cacheData.totalCount,
+      isAllTime: cacheData.isAllTime || isAllTime,
+      dateRange: cacheData.dateRange
+    };
+  } catch (error) {
+    console.error('Error reading cache:', error);
+    return null;
+  }
+};
+
+export const clearPostPulseCache = (userId?: string): void => {
+  if (userId) {
+    localStorage.removeItem(CACHE_KEY_PREFIX + userId);
+    localStorage.removeItem(ALL_TIME_CACHE_KEY_PREFIX + userId);
+    console.log('Cleared PostPulse cache for user:', userId);
+  } else {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith(CACHE_KEY_PREFIX) || key.startsWith(ALL_TIME_CACHE_KEY_PREFIX))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    console.log('Cleared all PostPulse caches');
+  }
+};
+
+// ENHANCED: Main function with improved error handling and logging
 export const getPostPulseData = async (token: string, showAllTime = false): Promise<PostPulseData> => {
   const user_id = getUserIdFromToken(token);
   
@@ -446,109 +438,56 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
     
     console.log(`✅ Final result: ${finalPosts.length} ${showAllTime ? 'all-time' : 'recent'} posts`);
     
+    // Calculate date range
+    let dateRange = '';
     if (finalPosts.length > 0) {
-      const newest = new Date(finalPosts[0].createdAt);
-      const oldest = new Date(finalPosts[finalPosts.length - 1].createdAt);
-      console.log(`📅 Date range: ${oldest.toLocaleDateString()} - ${newest.toLocaleDateString()}`);
+      const oldestDate = new Date(Math.min(...finalPosts.map(p => p.createdAt)));
+      const newestDate = new Date(Math.max(...finalPosts.map(p => p.createdAt)));
+      dateRange = `${oldestDate.toLocaleDateString()} - ${newestDate.toLocaleDateString()}`;
     }
+    
+    console.log(`📅 Date range: ${dateRange}`);
 
     // Cache the results
-    setCachedPostPulseData(user_id, finalPosts, showAllTime);
-
-    return { 
-      posts: finalPosts, 
-      isCached: false, 
+    const result: PostPulseData = {
+      posts: finalPosts,
+      isCached: false,
       timestamp: new Date().toISOString(),
       totalCount: finalPosts.length,
-      isAllTime: showAllTime
+      isAllTime: showAllTime,
+      dateRange
     };
 
-  } catch (error) {
-    console.error('❌ Error in getPostPulseData:', error);
-    throw error;
-  }
-};
-
-export const processPostPulseData = (posts: PostData[], filters: PostPulseFilters): PostData[] => {
-  let filtered = [...posts];
-
-  if (filters.postType !== 'all') {
-    filtered = filtered.filter(post => {
-      const content = post.content.toLowerCase();
-      switch (filters.postType) {
-        case 'text':
-          return !content.includes('http') && !content.includes('image') && !content.includes('video');
-        case 'image':
-          return content.includes('image') || content.includes('photo') || content.includes('pic');
-        case 'video':
-          return content.includes('video') || content.includes('watch');
-        default:
-          return true;
-      }
-    });
-  }
-
-  if (filters.searchQuery) {
-    const query = filters.searchQuery.toLowerCase();
-    filtered = filtered.filter(post => 
-      post.content.toLowerCase().includes(query)
-    );
-  }
-
-  filtered.sort((a, b) => {
-    switch (filters.sortBy) {
-      case 'oldest':
-        return a.createdAt - b.createdAt;
-      case 'recent':
-        return b.createdAt - a.createdAt;
-      case 'likes':
-        return b.likes - a.likes;
-      case 'comments':
-        return b.comments - a.comments;
-      case 'views':
-        return (b.likes + b.comments + b.reposts) - (a.likes + a.comments + a.reposts);
-      default:
-        return b.createdAt - a.createdAt;
+    try {
+      const cacheKey = (showAllTime ? ALL_TIME_CACHE_KEY_PREFIX : CACHE_KEY_PREFIX) + user_id;
+      const cacheData = {
+        posts: finalPosts,
+        timestamp: Date.now(),
+        lastFetch: result.timestamp,
+        totalCount: finalPosts.length,
+        isAllTime: showAllTime,
+        dateRange
+      };
+      
+      localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+      const cacheSize = Math.round(JSON.stringify(cacheData).length / 1024);
+      console.log(`📦 Cached ${finalPosts.length} ${showAllTime ? 'all-time' : 'recent'} posts (${cacheSize}KB)`);
+    } catch (cacheError) {
+      console.warn('Failed to cache posts:', cacheError);
     }
-  });
 
-  return filtered;
-};
+    const duration = Date.now() - (performance.now ? performance.now() : 0);
+    console.log(`✅ Loaded ${finalPosts.length} posts in ${Math.round(duration)}ms`);
 
-export interface RepurposeStatus {
-  canRepurpose: boolean;
-  daysOld: number;
-  reason?: string;
-}
+    return result;
 
-export const getRepurposeStatus = (post: PostData): RepurposeStatus => {
-  const now = Date.now();
-  const postDate = post.createdAt;
-  const daysOld = Math.floor((now - postDate) / (1000 * 60 * 60 * 24));
-  
-  const canRepurpose = daysOld >= 30;
-  
-  return {
-    canRepurpose,
-    daysOld,
-    reason: canRepurpose ? 
-      `Posted ${daysOld} days ago - safe to repurpose` : 
-      `Posted ${daysOld} days ago - wait ${30 - daysOld} more days`
-  };
-};
-
-export const repurposePost = (post: PostData): void => {
-  const params = new URLSearchParams();
-  params.set('mode', 'rewrite');
-  params.set('content', post.content);
-  params.set('originalUrl', post.url);
-  params.set('originalDate', new Date(post.createdAt).toISOString());
-  
-  window.location.hash = `postgen?${params.toString()}`;
-  
-  console.log('Navigating to PostGen for repurposing:', {
-    postId: post.id,
-    content: post.content.substring(0, 100) + '...',
-    originalUrl: post.url
-  });
+  } catch (error) {
+    console.error('PostPulse: Fatal error during data fetch:', error);
+    return {
+      posts: [],
+      isCached: false,
+      timestamp: new Date().toISOString(),
+      isAllTime: showAllTime
+    };
+  }
 };
