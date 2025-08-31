@@ -21,6 +21,13 @@ export interface PostPulseData {
   dateRange?: string;
 }
 
+export interface PostPulseFilters {
+  postType: 'all' | 'text' | 'image' | 'video';
+  sortBy: 'recent' | 'oldest' | 'likes' | 'comments' | 'views';
+  searchQuery: string;
+  showAllTime: boolean;
+}
+
 // Cache configuration
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 const CACHE_KEY_PREFIX = 'postpulse_recent_';
@@ -490,4 +497,77 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
       isAllTime: showAllTime
     };
   }
+};
+
+// ENHANCED: Post filtering and processing function
+export const processPostPulseData = (posts: PostData[], filters: PostPulseFilters): PostData[] => {
+  let filtered = [...posts];
+
+  // Filter by post type
+  if (filters.postType !== 'all') {
+    filtered = filtered.filter(post => {
+      const content = post.content.toLowerCase();
+      switch (filters.postType) {
+        case 'text':
+          return !content.includes('http') && !content.includes('image') && !content.includes('video');
+        case 'image':
+          return content.includes('image') || content.includes('photo') || content.includes('pic');
+        case 'video':
+          return content.includes('video') || content.includes('watch');
+        default:
+          return true;
+      }
+    });
+  }
+
+  // Filter by search query
+  if (filters.searchQuery) {
+    const query = filters.searchQuery.toLowerCase();
+    filtered = filtered.filter(post => 
+      post.content.toLowerCase().includes(query)
+    );
+  }
+
+  // Sort posts
+  filtered.sort((a, b) => {
+    switch (filters.sortBy) {
+      case 'oldest':
+        return a.createdAt - b.createdAt;
+      case 'recent':
+        return b.createdAt - a.createdAt;
+      case 'likes':
+        return b.likes - a.likes;
+      case 'comments':
+        return b.comments - a.comments;
+      case 'views':
+        return (b.likes + b.comments + b.reposts) - (a.likes + a.comments + a.reposts);
+      default:
+        return b.createdAt - a.createdAt;
+    }
+  });
+
+  return filtered;
+};
+
+// Repurpose status helper
+export interface RepurposeStatus {
+  canRepurpose: boolean;
+  daysOld: number;
+  reason?: string;
+}
+
+export const getRepurposeStatus = (post: PostData): RepurposeStatus => {
+  const now = Date.now();
+  const postDate = post.createdAt;
+  const daysOld = Math.floor((now - postDate) / (1000 * 60 * 60 * 24));
+  
+  const canRepurpose = daysOld >= 30;
+  
+  return {
+    canRepurpose,
+    daysOld,
+    reason: canRepurpose ? 
+      `Post is ${daysOld} days old (30+ days rule met)` : 
+      `Post is only ${daysOld} days old (need 30+ days)`
+  };
 };
