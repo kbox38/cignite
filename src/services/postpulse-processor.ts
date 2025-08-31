@@ -571,3 +571,39 @@ export const getRepurposeStatus = (post: PostData): RepurposeStatus => {
       `Post is only ${daysOld} days old (need 30+ days)`
   };
 };
+
+// ENHANCED: Repurpose post function - handles navigation to PostGen
+export const repurposePost = (post: PostData): void => {
+  try {
+    // Store post data for PostGen to access
+    const repurposeData = {
+      text: post.content,
+      id: post.id,
+      createdAt: post.createdAt,
+      media_url: post.url,
+      linkedin_url: post.url,
+      source: 'postpulse'
+    };
+
+    // Store in sessionStorage for PostGen to pick up
+    sessionStorage.setItem('postgen_repurpose_post', JSON.stringify(repurposeData));
+    
+    // Navigate to PostGen - check if we're in a React Router context
+    if (typeof window !== 'undefined') {
+      // Try to use React Router navigation if available
+      const event = new CustomEvent('navigate', { detail: { path: '/postgen', tab: 'rewrite' } });
+      window.dispatchEvent(event);
+      
+      // Fallback: direct navigation
+      setTimeout(() => {
+        if (window.location.pathname !== '/postgen') {
+          window.location.href = '/postgen?tab=rewrite';
+        }
+      }, 100);
+    }
+    
+    console.log('Post prepared for repurposing:', repurposeData);
+  } catch (error) {
+    console.error('Error repurposing post:', error);
+  }
+};
