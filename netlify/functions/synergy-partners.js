@@ -203,7 +203,7 @@ async function getPartnersAndInvitations(userId) {
         message,
         created_at,
         from_user:users!synergy_invitations_from_user_id_fkey(
-          id, name, avatar_url, headline
+          id, name, avatar_url, headline, industry
         ),
         to_user:users!synergy_invitations_to_user_id_fkey(
           id, name, avatar_url, headline

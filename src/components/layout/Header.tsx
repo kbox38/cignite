@@ -109,16 +109,16 @@ export const Header = () => {
                       <div key={invitation.id} className="p-3 hover:bg-gray-50 rounded-lg">
                         <div className="flex items-center space-x-3">
                           <img
-                            src={invitation.fromUser?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(invitation.fromUser?.name)}&background=0ea5e9&color=fff`}
-                            alt={invitation.fromUser?.name}
+                            src={invitation.fromUser?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(invitation.fromUser?.name || 'User')}&background=0ea5e9&color=fff`}
+                            alt={invitation.fromUser?.name || 'User'}
                             className="w-8 h-8 rounded-full"
                           />
                           <div className="flex-1">
                             <p className="text-sm font-medium text-gray-900">
-                              Partnership invitation from {invitation.fromUser?.name}
+                              Partnership invitation from {invitation.fromUser?.name || 'LinkedIn User'}
                             </p>
                             <p className="text-xs text-gray-500">
-                              {new Date(invitation.createdAt).toLocaleDateString()}
+                              {invitation.fromUser?.industry || 'Professional Services'}
                             </p>
                           </div>
                         </div>
