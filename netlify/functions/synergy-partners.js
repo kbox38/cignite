@@ -275,7 +275,7 @@ async function getPartnersAndInvitations(userId) {
         partners,
         invitations: formattedInvitations,
         totalPartners: partners.length,
-        pendingInvitations: formattedInvitations.length,
+        pendingInvitations: formattedInvitations,
       }),
     };
   } catch (error) {
