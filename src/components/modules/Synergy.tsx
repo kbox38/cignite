@@ -1004,10 +1004,20 @@ export const Synergy = () => {
                           variant="primary"
                           size="sm"
                           onClick={() => sendInvitation(user.id)}
-                          disabled={sendInvitationMutation.isPending}
+                          disabled={user.invitationStatus === 'sent' || user.invitationStatus === 'received' || sendInvitationMutation.isPending}
                         >
                           {sendInvitationMutation.isPending ? (
                             <LoadingSpinner size="sm" />
+                          ) : user.invitationStatus === 'sent' ? (
+                            <>
+                              <Check size={14} className="mr-1" />
+                              Sent
+                            </>
+                          ) : user.invitationStatus === 'received' ? (
+                            <>
+                              <Bell size={14} className="mr-1" />
+                              Invited You
+                            </>
                           ) : (
                             <>
                               <UserPlus size={14} className="mr-1" />

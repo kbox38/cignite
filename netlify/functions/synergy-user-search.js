@@ -141,13 +141,22 @@ export async function handler(event, context) {
 
     // Filter out existing partners and pending invitations
     const availableUsers = users?.filter(user => 
-      !partnerIds.has(user.id) && !pendingIds.has(user.id)
+      !partnerIds.has(user.id)
     ) || [];
 
     console.log("Available users after filtering:", availableUsers.length);
 
-    // Format response with real user data
-    const formattedUsers = availableUsers.map(user => ({
+   // Format response with real user data and invitation status
+  const formattedUsers = availableUsers.map(user => {
+  // Check invitation status for this user
+    const sentInvitation = pendingInvitations?.find(inv => 
+      inv.from_user_id === currentUserId && inv.to_user_id === user.id
+    );
+    const receivedInvitation = pendingInvitations?.find(inv => 
+      inv.from_user_id === user.id && inv.to_user_id === currentUserId
+    );
+
+    return {
       id: user.id,
       name: user.name || 'LinkedIn User',
       email: user.email,
@@ -159,9 +168,13 @@ export async function handler(event, context) {
       dmaActive: user.dma_active,
       totalConnections: user.user_profiles?.total_connections || 0,
       profileCompleteness: user.user_profiles?.profile_completeness_score || 0,
-      mutualConnections: 0, // Would need complex query to calculate real mutual connections
-      joinedDate: user.created_at
-    }));
+      mutualConnections: 0,
+      joinedDate: user.created_at,
+      // Add invitation status
+      invitationStatus: sentInvitation ? 'sent' : receivedInvitation ? 'received' : null,
+      invitationId: sentInvitation?.id || receivedInvitation?.id || null
+    };
+  });
 
     console.log(`Returning ${formattedUsers.length} formatted users`);
 
