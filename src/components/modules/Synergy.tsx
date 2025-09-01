@@ -96,9 +96,7 @@ export const Synergy = () => {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  const partners = partnersData?.partners || [];
-  const pendingInvitations = partnersData?.pendingInvitations || [];
-
+  const partners = Array.isArray(partnersData?.partners) ? partnersData.partners : [];  const pendingInvitations = Array.isArray(partnersData?.pendingInvitations) ? partnersData.pendingInvitations : [];
   // Fetch partner posts using Snapshot API
   const {
     data: partnerPostsData,
@@ -468,14 +466,14 @@ export const Synergy = () => {
               </Button>
             </div>
 
-            {pendingInvitations.length === 0 ? (
-              <div className="text-center py-8">
-                <Bell size={48} className="mx-auto text-gray-300 mb-4" />
-                <p className="text-gray-500">No pending invitations</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {pendingInvitations.map((invitation) => (
+              {!Array.isArray(pendingInvitations) || pendingInvitations.length === 0 ? (
+                <div className="text-center py-8">
+                  <Bell size={48} className="mx-auto text-gray-300 mb-4" />
+                  <p className="text-gray-500">No pending invitations</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {pendingInvitations.map((invitation) => (
                   <div
                     key={invitation.id}
                     className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
