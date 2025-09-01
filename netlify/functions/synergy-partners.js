@@ -264,7 +264,9 @@ async function getPartnersAndInvitations(userId) {
         createdAt: invitation.created_at,
         status: invitation.invitation_status,
       })) || [];
-
+    // Add this debug logging before the return statement
+    console.log("DEBUG - formattedInvitations:", JSON.stringify(formattedInvitations, null, 2));
+    console.log("DEBUG - formattedInvitations.length:", formattedInvitations.length);
     return {
       statusCode: 200,
       headers: {
