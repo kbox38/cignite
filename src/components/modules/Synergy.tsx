@@ -160,6 +160,7 @@ export const Synergy = () => {
       setShowAddModal(false);
       setSearchTerm("");
       setSearchResults([]);
+      queryClient.invalidateQueries({ queryKey: ['synergy-user-search'] });
     },
   });
 
