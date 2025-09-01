@@ -109,13 +109,13 @@ export const Header = () => {
                       <div key={invitation.id} className="p-3 hover:bg-gray-50 rounded-lg">
                         <div className="flex items-center space-x-3">
                           <img
-                            src={invitation.fromUserAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(invitation.fromUserName)}&background=0ea5e9&color=fff`}
-                            alt={invitation.fromUserName}
+                            src={invitation.fromUser?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(invitation.fromUser?.name)}&background=0ea5e9&color=fff`}
+                            alt={invitation.fromUser?.name}
                             className="w-8 h-8 rounded-full"
                           />
                           <div className="flex-1">
                             <p className="text-sm font-medium text-gray-900">
-                              Partnership invitation from {invitation.fromUserName}
+                              Partnership invitation from {invitation.fromUser?.name}
                             </p>
                             <p className="text-xs text-gray-500">
                               {new Date(invitation.createdAt).toLocaleDateString()}
