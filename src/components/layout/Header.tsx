@@ -29,14 +29,19 @@ export const Header = () => {
       if (!response.ok) return { pendingInvitations: [] };
       
       const data = await response.json();
-      return data;
+      
+      // Ensure we always return a valid structure
+      return {
+        pendingInvitations: Array.isArray(data?.pendingInvitations) ? data.pendingInvitations : [],
+        partners: Array.isArray(data?.partners) ? data.partners : []
+      };
     },
     enabled: !!useAuthStore.getState().dmaToken,
-    staleTime: 30 * 1000, // 30 seconds
-    refetchInterval: 30 * 1000, // Refetch every 30 seconds
+    staleTime: 30 * 1000,
+    refetchInterval: 30 * 1000,
   });
 
-  const pendingCount = notificationsData?.pendingInvitations?.length || 0;
+  const pendingCount = Array.isArray(notificationsData?.pendingInvitations) ? notificationsData.pendingInvitations.length : 0;
   const handleLogout = () => {
     // Clear all auth data
     setTokens(null, null);
