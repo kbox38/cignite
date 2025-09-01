@@ -481,9 +481,9 @@ export const Synergy = () => {
                     <div className="flex items-center space-x-3">
                       <img
                         src={
-                          invitation.fromUserAvatar ||
+                          invitation.fromUser?.avatarUrl ||
                           `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                            invitation.fromUserName
+                            invitation.fromUser?.name
                           )}&background=0ea5e9&color=fff`
                         }
                         alt={invitation.fromUserName}
@@ -491,11 +491,10 @@ export const Synergy = () => {
                       />
                       <div>
                         <h4 className="font-medium text-gray-900">
-                          {invitation.fromUserName}
+                          {invitation.fromUser?.name || "LinkedIn User"}
                         </h4>
                         <p className="text-sm text-gray-600">
-                          {invitation.fromUserHeadline ||
-                            "LinkedIn Professional"}
+                          {invitation.fromUser?.headline || "LinkedIn Professional"}
                         </p>
                         <p className="text-xs text-gray-500">
                           Sent{" "}
