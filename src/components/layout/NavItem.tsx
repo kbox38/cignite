@@ -42,7 +42,7 @@ export const NavItem = ({ id, label, icon: Icon, collapsed, href }: NavItemProps
       
       {collapsed && (
         <motion.div
-          className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap"
+          className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-tooltip whitespace-nowrap"
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 0, x: 0 }}
           whileHover={{ opacity: 1, x: 0 }}

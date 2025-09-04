@@ -102,7 +102,7 @@ export const NotificationDropdown: React.FC<NotificationProps> = ({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black bg-opacity-20 z-40 md:hidden"
+              className="fixed inset-0 bg-black bg-opacity-20 z-backdrop md:hidden"
               onClick={() => setShowNotifications(false)}
             />
 
@@ -113,7 +113,7 @@ export const NotificationDropdown: React.FC<NotificationProps> = ({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="absolute top-full right-0 mt-2 w-80 max-w-[90vw] bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden"
+              className="absolute top-full right-0 mt-2 w-80 max-w-[90vw] bg-white rounded-xl shadow-2xl border border-gray-200 z-dropdown overflow-hidden"
               role="dialog"
               aria-label="Notifications"
             >

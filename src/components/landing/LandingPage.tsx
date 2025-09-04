@@ -30,7 +30,7 @@ const Navigation = ({ activeSection, onNavigate, isDark, toggleTheme, onStartGro
     <motion.nav
       initial={{ y: -100 }}
       animate={{ y: 0 }}
-      className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-xl border-b transition-colors ${
+      className={`fixed top-0 left-0 right-0 z-modal backdrop-blur-xl border-b transition-colors ${
         isDark 
           ? 'bg-black/80 border-gray-800' 
           : 'bg-white/80 border-gray-200'

@@ -342,7 +342,7 @@ export const PostGen = () => {
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -50 }}
-            className={`fixed top-4 right-4 z-50 flex items-center p-4 rounded-lg shadow-lg ${
+            className={`fixed top-4 right-4 z-toast flex items-center p-4 rounded-lg shadow-lg ${
               notification.type === 'success' 
                 ? 'bg-green-500 text-white' 
                 : 'bg-red-500 text-white'
