@@ -1,5 +1,4 @@
-// Enhanced PostPulse processor with comprehensive historical and recent post extraction
-// src/services/postpulse-processor.ts
+import crypto from 'crypto';
 
 export interface PostData {
   id: string;
@@ -16,108 +15,14 @@ export interface PostPulseData {
   posts: PostData[];
   isCached: boolean;
   timestamp: string;
-  totalCount?: number;
-  isAllTime?: boolean;
-  dateRange?: string;
+  isAllTime: boolean;
 }
 
-export interface PostPulseFilters {
-  postType: 'all' | 'text' | 'image' | 'video';
-  sortBy: 'recent' | 'oldest' | 'likes' | 'comments' | 'views';
-  searchQuery: string;
-  showAllTime: boolean;
-}
-
-// Cache configuration
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-const CACHE_KEY_PREFIX = 'postpulse_recent_';
-const ALL_TIME_CACHE_KEY_PREFIX = 'postpulse_alltime_';
-
-// Extract user ID from token (simplified)
-const getUserIdFromToken = (token: string): string => {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.sub || payload.user_id || 'fallback_user';
-  } catch {
-    return 'fallback_user';
-  }
+const getUserHash = (token: string): string => {
+  return crypto.createHash('sha256').update(token).digest('hex').substring(0, 12);
 };
 
-// Enhanced changelog processing with better logging
-const extractChangelogPosts = (changelogData: any): PostData[] => {
-  console.log('🔍 CHANGELOG DEBUG: Starting analysis...');
-  console.log('🔍 CHANGELOG DEBUG: Raw data structure:', {
-    hasElements: !!changelogData?.elements,
-    elementsLength: changelogData?.elements?.length,
-    dataType: typeof changelogData,
-    keys: Object.keys(changelogData || {})
-  });
-  
-  const posts: PostData[] = [];
-  const elements = changelogData?.elements || [];
-  
-  console.log(`🔍 CHANGELOG DEBUG: Processing ${elements.length} elements`);
-  
-  elements.forEach((event: any, index: number) => {
-    console.log(`🔍 CHANGELOG DEBUG: Element ${index}:`, {
-      resourceName: event.resourceName,
-      method: event.method,
-      hasActivity: !!event.activity,
-      resourceId: event.resourceId?.substring(0, 30),
-      keys: Object.keys(event || {})
-    });
-    
-    if (event.resourceName === 'ugcPosts' && event.method === 'CREATE' && event.activity) {
-      console.log(`🔍 CHANGELOG DEBUG: Found UGC post at index ${index}`);
-      try {
-        const activity = event.activity;
-        const content = activity.specificContent?.['com.linkedin.ugc.ShareContent'];
-        
-        console.log('🔍 CHANGELOG DEBUG: Activity structure:', {
-          hasSpecificContent: !!activity.specificContent,
-          hasShareContent: !!content,
-          shareContentKeys: content ? Object.keys(content) : [],
-          commentary: content?.shareCommentary?.text?.substring(0, 100)
-        });
-        
-        if (content) {
-          const postId = event.resourceId || `changelog_${index}`;
-          const createdAt = event.capturedAt || event.processedAt || Date.now();
-          const commentary = content.shareCommentary?.text || '';
-          
-          console.log(`🔍 CHANGELOG DEBUG: Creating post:`, {
-            postId: postId.substring(0, 30),
-            createdAt: new Date(createdAt).toISOString(),
-            commentaryLength: commentary.length,
-            commentaryPreview: commentary.substring(0, 100)
-          });
-          
-          posts.push({
-            id: postId,
-            content: commentary,
-            createdAt: createdAt,
-            likes: 0,
-            comments: 0,
-            reposts: 0,
-            url: `https://linkedin.com/feed/activity/${postId}`,
-            author: 'You'
-          });
-        } else {
-          console.log(`🔍 CHANGELOG DEBUG: No ShareContent found in element ${index}`);
-        }
-      } catch (error) {
-        console.warn(`🔍 CHANGELOG DEBUG: Error processing element ${index}:`, error);
-      }
-    } else {
-      console.log(`🔍 CHANGELOG DEBUG: Skipping element ${index}: ${event.resourceName}/${event.method}`);
-    }
-  });
-
-  console.log(`🔍 CHANGELOG DEBUG: Final result: ${posts.length} posts extracted`);
-  return posts;
-};
-
-// FIXED: Enhanced snapshot processing with relaxed validation and better field mapping
+// ENHANCED: Enhanced snapshot processing with better field mapping
 const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[] => {
   console.log('🔍 SNAPSHOT DEBUG: Starting analysis...');
   console.log('🔍 SNAPSHOT DEBUG: Raw data structure:', {
@@ -137,108 +42,109 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
     console.log(`🔍 SNAPSHOT DEBUG: Item ${index}:`, {
       keys: Object.keys(item || {}),
       hasShareURL: !!(item['Share URL'] || item['share_url'] || item.shareUrl || item['URL'] || item.url),
-      hasContent: !!(item['Share Commentary'] || item['share_commentary'] || item.shareCommentary || item['Commentary'] || item.commentary),
-      allValues: item
+      hasContent: !!(item['Commentary'] || item['comment'] || item['content'] || item['text']),
+      hasDate: !!(item['Date'] || item['created_at'] || item['timestamp']),
+      sampleFields: {
+        commentary: typeof item['Commentary'],
+        shareUrl: typeof item['Share URL'],
+        date: typeof item['Date']
+      }
     });
-    
+
     try {
-      // ENHANCED: Multiple field name variations with fallbacks
-      const url = item['Share URL'] || item['share_url'] || item.shareUrl || 
-                 item['URL'] || item.url || item.ShareLink || item['Share Link'];
-      
-      const date = item['Share Date'] || item['share_date'] || item.shareDate || 
-                  item['Date'] || item.date || item['Published Date'] || item.publishedAt;
-                  
-      const content = item['Share Commentary'] || item['share_commentary'] || 
-                     item.shareCommentary || item['Commentary'] || item.commentary || 
-                     item.Content || item.text || item.Text || '';
-                     
-      const visibility = item['Visibility'] || item.visibility || 'PUBLIC';
-      const mediaType = item['Media Type'] || item['media_type'] || item.mediaType || 'TEXT';
+      // ENHANCED: Try multiple field name variations for content
+      const content = 
+        item['Commentary'] || 
+        item['Share Commentary'] ||
+        item['comment'] || 
+        item['content'] || 
+        item['text'] ||
+        item['shareCommentary'] ||
+        item['post_content'] ||
+        '';
 
-      console.log(`🔍 SNAPSHOT DEBUG: Extracted fields for item ${index}:`, {
-        hasUrl: !!url,
-        hasContent: !!content,
-        hasDate: !!date,
-        urlPreview: url?.substring(0, 50),
-        contentPreview: content?.substring(0, 50),
-        date: date,
-        visibility: visibility,
-        contentLength: content?.length || 0
-      });
+      // ENHANCED: Try multiple field name variations for URL
+      const shareUrl = 
+        item['Share URL'] || 
+        item['share_url'] || 
+        item['shareUrl'] || 
+        item['URL'] || 
+        item['url'] ||
+        item['permalink'] ||
+        item['link'] ||
+        '';
 
-      // FIXED: Relaxed validation - accept posts with URL OR content OR date
-      // Only skip if ALL critical fields are missing
-      if (!url && !content && !date) {
-        console.log(`🔍 SNAPSHOT DEBUG: Skipping item ${index}: ALL critical fields missing (URL, content, date)`);
+      // ENHANCED: Try multiple field name variations for date
+      const dateStr = 
+        item['Date'] || 
+        item['Created Date'] ||
+        item['created_at'] || 
+        item['timestamp'] ||
+        item['published_at'] ||
+        item['date'] ||
+        '';
+
+      // ENHANCED: Try multiple field name variations for engagement metrics
+      const likesCount = parseInt(
+        item['Likes Count'] || 
+        item['likes_count'] || 
+        item['likes'] || 
+        item['reactions'] ||
+        '0'
+      ) || 0;
+
+      const commentsCount = parseInt(
+        item['Comments Count'] || 
+        item['comments_count'] || 
+        item['comments'] ||
+        '0'
+      ) || 0;
+
+      const sharesCount = parseInt(
+        item['Shares Count'] || 
+        item['shares_count'] || 
+        item['shares'] ||
+        item['reposts'] ||
+        '0'
+      ) || 0;
+
+      // Skip items without content or minimal content
+      if (!content || content.trim().length < 3) {
+        console.log(`🔍 SNAPSHOT DEBUG: Skipping item ${index}: no content (${content?.length || 0} chars)`);
         return;
       }
 
-      // ENHANCED: Better date parsing with fallbacks
-      let timestamp = Date.now();
-      if (date) {
-        try {
-          // Handle various date formats
-          const parsedDate = new Date(date.replace(/-/g, '/'));
-          if (!isNaN(parsedDate.getTime())) {
-            timestamp = parsedDate.getTime();
-          } else {
-            // Try parsing as ISO string or timestamp
-            const isoDate = new Date(date);
-            if (!isNaN(isoDate.getTime())) {
-              timestamp = isoDate.getTime();
-            }
-          }
-        } catch (e) {
-          console.warn(`🔍 SNAPSHOT DEBUG: Could not parse date for item ${index}:`, date);
-          // Use a very old timestamp to indicate this is historical content
-          timestamp = new Date('2020-01-01').getTime();
+      // Parse date
+      let createdAt = Date.now();
+      if (dateStr) {
+        const parsedDate = new Date(dateStr).getTime();
+        if (!isNaN(parsedDate)) {
+          createdAt = parsedDate;
         }
       }
 
-      // CONDITIONAL FILTER: Only apply date filter for recent posts, not all-time
-      if (!showAllTime) {
-        // FILTER: Only include posts from 2023 onwards for recent posts
-        const twoYearsAgo = new Date('2023-01-01').getTime();
-        if (timestamp < twoYearsAgo) {
-          console.log(`🔍 SNAPSHOT DEBUG: Skipping item ${index}: too old for recent view (${new Date(timestamp).toLocaleDateString()})`);
-          return;
-        }
-      } else {
-        console.log(`🔍 SNAPSHOT DEBUG: Including historical item ${index}: ${new Date(timestamp).toLocaleDateString()} (all-time mode)`);
-      }
+      // Generate ID from content hash or use URL
+      const postId = shareUrl ? 
+        shareUrl.split('/').pop() || `snapshot_${index}` : 
+        `snapshot_${crypto.createHash('md5').update(content).digest('hex').substring(0, 8)}`;
 
-      // ENHANCED: Better post ID extraction
-      let postId = `snapshot_${index}`;
-      if (url) {
-        const activityMatch = url.match(/activity[:-](\d+)/);
-        const ugcMatch = url.match(/ugcPost[:-](\d+)/);
-        const shareMatch = url.match(/share[:-](\d+)/);
-        if (activityMatch) postId = activityMatch[1];
-        else if (ugcMatch) postId = ugcMatch[1];
-        else if (shareMatch) postId = shareMatch[1];
-      }
-
-      // ENHANCED: Better content handling
-      const finalContent = content || `Historical post from ${new Date(timestamp).toLocaleDateString()}`;
-      const finalUrl = url || `#post-${postId}`;
-
-      console.log(`🔍 SNAPSHOT DEBUG: Creating post for item ${index}:`, {
-        postId,
-        contentLength: finalContent.length,
-        timestamp: new Date(timestamp).toISOString(),
-        hasRealUrl: !!url,
-        finalContentPreview: finalContent.substring(0, 50)
+      console.log(`🔍 SNAPSHOT DEBUG: Creating post ${index}:`, {
+        postId: postId.substring(0, 30),
+        contentLength: content.length,
+        contentPreview: content.substring(0, 100),
+        hasUrl: !!shareUrl,
+        createdAt: new Date(createdAt).toISOString(),
+        engagement: { likes: likesCount, comments: commentsCount, shares: sharesCount }
       });
 
       posts.push({
         id: postId,
-        content: finalContent,
-        createdAt: timestamp,
-        likes: 0, // Will be enriched later with engagement data
-        comments: 0,
-        reposts: 0,
-        url: finalUrl,
+        content: content.trim(),
+        createdAt: createdAt,
+        likes: likesCount,
+        comments: commentsCount,
+        reposts: sharesCount,
+        url: shareUrl || `https://linkedin.com/in/you/recent-activity/shares/`,
         author: 'You'
       });
 
@@ -248,239 +154,66 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
   });
 
   console.log(`🔍 SNAPSHOT DEBUG: Final result: ${posts.length} posts extracted`);
-  console.log(`🔍 SNAPSHOT DEBUG: Date range: ${posts.length > 0 ? 
-    `${new Date(Math.min(...posts.map(p => p.createdAt))).toLocaleDateString()} - ${new Date(Math.max(...posts.map(p => p.createdAt))).toLocaleDateString()}` : 
-    'No posts'}`);
-  
   return posts;
 };
 
-// Cache management functions
-export const getCachedPostPulseData = (userId: string, isAllTime = false): PostPulseData | null => {
-  try {
-    const cacheKey = (isAllTime ? ALL_TIME_CACHE_KEY_PREFIX : CACHE_KEY_PREFIX) + userId;
-    const cached = localStorage.getItem(cacheKey);
-    
-    if (!cached) {
-      console.log(`No ${isAllTime ? 'all-time' : 'recent'} cache found`);
-      return null;
-    }
-
-    const cacheData = JSON.parse(cached);
-    
-    const age = Date.now() - cacheData.timestamp;
-    if (age > CACHE_DURATION) {
-      console.log(`${isAllTime ? 'All-time' : 'Recent'} cache expired (${Math.round(age / 60000)}min old), removing`);
-      localStorage.removeItem(cacheKey);
-      return null;
-    }
-
-    console.log(`📦 Using ${isAllTime ? 'all-time' : 'recent'} cache: ${cacheData.posts.length} posts, ${Math.round(age / 60000)}min old`);
-    
-    return {
-      posts: cacheData.posts,
-      isCached: true,
-      timestamp: cacheData.lastFetch,
-      totalCount: cacheData.totalCount,
-      isAllTime: cacheData.isAllTime || isAllTime,
-      dateRange: cacheData.dateRange
-    };
-  } catch (error) {
-    console.error('Error reading cache:', error);
-    return null;
-  }
-};
-
-export const clearPostPulseCache = (userId?: string): void => {
-  if (userId) {
-    localStorage.removeItem(CACHE_KEY_PREFIX + userId);
-    localStorage.removeItem(ALL_TIME_CACHE_KEY_PREFIX + userId);
-    console.log('Cleared PostPulse cache for user:', userId);
-  } else {
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (key.startsWith(CACHE_KEY_PREFIX) || key.startsWith(ALL_TIME_CACHE_KEY_PREFIX))) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach(key => localStorage.removeItem(key));
-    console.log('Cleared all PostPulse caches');
-  }
-};
-
-// ENHANCED: Main function with comprehensive snapshot and changelog processing
-export const getPostPulseData = async (token: string, showAllTime = false): Promise<PostPulseData> => {
-  const user_id = getUserIdFromToken(token);
+// MAIN FETCH FUNCTION - SNAPSHOT ONLY
+export const fetchPostPulseData = async (
+  token: string, 
+  showAllTime = false
+): Promise<PostPulseData> => {
+  const startTime = Date.now();
+  console.log(`🚀 PostPulse: Starting SNAPSHOT-ONLY data fetch, showAllTime=${showAllTime}, user=${getUserHash(token)}`);
   
-  console.log(`🚀 PostPulse: Starting data fetch, showAllTime=${showAllTime}, user=${user_id}`);
-
+  let allPosts: PostData[] = [];
+  
   try {
-    // Check cache first
-    const cached = getCachedPostPulseData(user_id, showAllTime);
-    if (cached) {
-      console.log(`✅ Using cached data: ${cached.posts.length} posts`);
-      return cached;
-    }
-
-    let allPosts: PostData[] = [];
-    let snapshotPosts: PostData[] = [];
-    let changelogPosts: PostData[] = [];
-
-    if (showAllTime) {
-      console.log('🔄 Fetching ALL-TIME posts using enhanced pagination...');
+    console.log('🔄 Fetching posts with SNAPSHOT API only...');
+    
+    const snapshotUrl = showAllTime 
+      ? '/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO&allTime=true'
+      : '/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO';
       
-      // Enhanced API call with recent data focus
-      const snapshotResponse = await fetch(
-        '/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO&getAllPosts=true&maxPages=50&count=100&recentFirst=true&minDate=2023-01-01',
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
+    const snapshotResponse = await fetch(snapshotUrl, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
 
-      console.log('🔍 ALL-TIME API Response:', {
-        status: snapshotResponse.status,
-        statusText: snapshotResponse.statusText,
-        ok: snapshotResponse.ok
+    console.log('🔍 SNAPSHOT API Response:', {
+      status: snapshotResponse.status,
+      statusText: snapshotResponse.statusText,
+      ok: snapshotResponse.ok
+    });
+
+    if (snapshotResponse.ok) {
+      const snapshotData = await snapshotResponse.json();
+      console.log('🔍 SNAPSHOT API Data:', {
+        hasElements: !!snapshotData.elements,
+        elementsLength: snapshotData.elements?.length,
+        keys: Object.keys(snapshotData || {}),
+        firstElementKeys: snapshotData.elements?.[0] ? Object.keys(snapshotData.elements[0]) : []
       });
 
-      if (snapshotResponse.ok) {
-        const snapshotData = await snapshotResponse.json();
-        console.log('🔍 ALL-TIME API Data:', {
-          success: snapshotData.success,
-          allTimeData: snapshotData.allTimeData,
-          totalPosts: snapshotData.pagination?.totalPosts,
-          dateRange: snapshotData.dateRange,
-          hasElements: !!snapshotData.elements,
-          elementsLength: snapshotData.elements?.length,
-          firstElementKeys: snapshotData.elements?.[0] ? Object.keys(snapshotData.elements[0]) : []
+      if (snapshotData.elements?.length > 0) {
+        snapshotData.elements.forEach((element: any, elementIndex: number) => {
+          if (element.snapshotData && Array.isArray(element.snapshotData)) {
+            console.log(`🔍 Processing snapshot element ${elementIndex}: ${element.snapshotData.length} items`);
+            const elementPosts = extractSnapshotPosts(element.snapshotData, showAllTime);
+            allPosts.push(...elementPosts);
+            console.log(`✅ Extracted ${elementPosts.length} posts from element ${elementIndex}`);
+          } else {
+            console.log(`⚠️ Element ${elementIndex} has no snapshotData or is not an array`);
+          }
         });
-
-        if (snapshotData.success && snapshotData.elements?.length > 0) {
-          // FIXED: Iterate through ALL elements, not just the first one
-          snapshotData.elements.forEach((element: any, elementIndex: number) => {
-            if (element.snapshotData && Array.isArray(element.snapshotData)) {
-              console.log(`🔍 Processing snapshot element ${elementIndex}: ${element.snapshotData.length} items`);
-              const elementPosts = extractSnapshotPosts(element.snapshotData, true);
-              snapshotPosts.push(...elementPosts);
-              console.log(`✅ Extracted ${elementPosts.length} posts from element ${elementIndex}`);
-            } else {
-              console.log(`⚠️ Element ${elementIndex} has no snapshotData or is not an array`);
-            }
-          });
-          console.log(`✅ Total snapshot posts extracted: ${snapshotPosts.length}`);
-        }
-      } else {
-        const errorText = await snapshotResponse.text();
-        console.warn('All-time snapshot API failed:', snapshotResponse.status, errorText);
       }
     } else {
-      console.log('🔄 Fetching RECENT posts with ALL-TIME changelog coverage...');
-      
-      // ENHANCED: All-time changelog calls - LinkedIn's changelog API has a 28-day limit per the DMA docs
-      // We'll make multiple calls to get as much as possible, but note the API limitation
-      console.log('📅 Planning all-time changelog extraction (limited by LinkedIn\'s 28-day changelog retention)');
-      
-      // Try to get the maximum 28 days of changelog data with multiple calls
-      const changelogCalls = [
-        { days: 28, label: 'Full 28-day window' },
-        { days: 21, label: 'Last 21 days' },
-        { days: 14, label: 'Last 14 days' },
-        { days: 7, label: 'Last 7 days' },
-        { days: 3, label: 'Last 3 days' },
-        { days: 1, label: 'Last 24 hours' }
-      ];
-      
-      for (const callConfig of changelogCalls) {
-        const startTime = Date.now() - (callConfig.days * 24 * 60 * 60 * 1000);
-        
-        console.log(`🔍 Fetching changelog for ${callConfig.label} (${new Date(startTime).toLocaleDateString()} to now)`);
-        
-        const changelogUrl = `/.netlify/functions/linkedin-changelog?count=100&startTime=${startTime}`;
-        const changelogResponse = await fetch(changelogUrl, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-
-        console.log(`🔍 CHANGELOG API Response (${callConfig.label}):`, {
-          status: changelogResponse.status,
-          statusText: changelogResponse.statusText,
-          ok: changelogResponse.ok
-        });
-
-        if (changelogResponse.ok) {
-          const changelogData = await changelogResponse.json();
-          console.log(`🔍 CHANGELOG API Data (${callConfig.label}):`, {
-            hasElements: !!changelogData.elements,
-            elementsLength: changelogData.elements?.length,
-            keys: Object.keys(changelogData || {}),
-            firstElementKeys: changelogData.elements?.[0] ? Object.keys(changelogData.elements[0]) : []
-          });
-          
-          const batchPosts = extractChangelogPosts(changelogData);
-          changelogPosts.push(...batchPosts);
-          console.log(`📊 Added ${batchPosts.length} posts from ${callConfig.label} changelog`);
-        } else {
-          const errorText = await changelogResponse.text();
-          console.warn(`Changelog API failed for ${callConfig.label}:`, changelogResponse.status, errorText);
-        }
-
-        // Rate limiting between calls
-        if (callConfig !== changelogCalls[changelogCalls.length - 1]) {
-          console.log('⏱️ Rate limiting: waiting 500ms before next changelog call...');
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      }
-
-      // Fetch snapshot data for recent posts as well
-      console.log('🔍 Fetching recent snapshot data...');
-      const snapshotResponse = await fetch('/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      console.log('🔍 SNAPSHOT API Response:', {
-        status: snapshotResponse.status,
-        statusText: snapshotResponse.statusText,
-        ok: snapshotResponse.ok
-      });
-
-      if (snapshotResponse.ok) {
-        const snapshotData = await snapshotResponse.json();
-        console.log('🔍 SNAPSHOT API Data structure:', {
-          hasElements: !!snapshotData.elements,
-          elementsLength: snapshotData.elements?.length,
-          hasSnapshotData: !!snapshotData.elements?.[0]?.snapshotData,
-          snapshotDataLength: snapshotData.elements?.[0]?.snapshotData?.length,
-          keys: Object.keys(snapshotData || {}),
-          firstElementKeys: snapshotData.elements?.[0] ? Object.keys(snapshotData.elements[0]) : [],
-          firstSnapshotDataKeys: snapshotData.elements?.[0]?.snapshotData?.[0] ? Object.keys(snapshotData.elements[0].snapshotData[0]) : []
-        });
-        
-        // FIXED: Process ALL snapshot elements
-        if (snapshotData.elements?.length > 0) {
-          snapshotData.elements.forEach((element: any, elementIndex: number) => {
-            if (element.snapshotData && Array.isArray(element.snapshotData)) {
-              console.log(`🔍 Processing snapshot element ${elementIndex}: ${element.snapshotData.length} items`);
-              const elementPosts = extractSnapshotPosts(element.snapshotData, false);
-              snapshotPosts.push(...elementPosts);
-              console.log(`✅ Extracted ${elementPosts.length} posts from snapshot element ${elementIndex}`);
-            }
-          });
-        }
-        console.log(`📸 Added ${snapshotPosts.length} posts from snapshot`);
-      } else {
-        const errorText = await snapshotResponse.text();
-        console.warn('Snapshot API failed:', snapshotResponse.status, errorText);
-      }
+      const errorText = await snapshotResponse.text();
+      console.warn('Snapshot API failed:', snapshotResponse.status, errorText);
     }
-
-    // ENHANCED: Merge all posts from different sources
-    console.log(`📊 Merging posts: ${snapshotPosts.length} snapshot + ${changelogPosts.length} changelog = ${snapshotPosts.length + changelogPosts.length} total`);
-    allPosts = [...snapshotPosts, ...changelogPosts];
 
     console.log(`📊 Total posts collected: ${allPosts.length}`);
 
     if (allPosts.length === 0) {
-      console.warn('⚠️ No posts found from any source');
+      console.warn('⚠️ No posts found from snapshot API');
       return { 
         posts: [], 
         isCached: false, 
@@ -489,11 +222,11 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
       };
     }
 
-    // ENHANCED: Deduplicate posts by ID
+    // Remove duplicates by ID
     const seenIds = new Set<string>();
     const deduplicatedPosts = allPosts.filter(post => {
       if (seenIds.has(post.id)) {
-        console.log(`🔄 Deduplicating: removing duplicate post ID ${post.id}`);
+        console.log(`🔄 Removing duplicate post ID: ${post.id}`);
         return false;
       }
       seenIds.add(post.id);
@@ -508,167 +241,22 @@ export const getPostPulseData = async (token: string, showAllTime = false): Prom
     // For recent posts, limit to 90; for all-time, keep everything
     const finalPosts = showAllTime ? sortedPosts : sortedPosts.slice(0, 90);
     
-    console.log(`✅ Final result: ${finalPosts.length} ${showAllTime ? 'all-time' : 'recent'} posts`);
+    console.log(`✅ Final result: ${finalPosts.length} ${showAllTime ? 'all-time' : 'recent'} posts loaded in ${Date.now() - startTime}ms`);
     
-    // Calculate date range
-    let dateRange = '';
-    if (finalPosts.length > 0) {
-      const oldestDate = new Date(Math.min(...finalPosts.map(p => p.createdAt)));
-      const newestDate = new Date(Math.max(...finalPosts.map(p => p.createdAt)));
-      dateRange = `${oldestDate.toLocaleDateString()} - ${newestDate.toLocaleDateString()}`;
-    }
-    
-    console.log(`📅 Date range: ${dateRange}`);
-
-    // Cache the results
-    const result: PostPulseData = {
-      posts: finalPosts,
-      isCached: false,
-      timestamp: new Date().toISOString(),
-      totalCount: finalPosts.length,
-      isAllTime: showAllTime,
-      dateRange
-    };
-
-    try {
-      const cacheKey = (showAllTime ? ALL_TIME_CACHE_KEY_PREFIX : CACHE_KEY_PREFIX) + user_id;
-      const cacheData = {
-        posts: finalPosts,
-        timestamp: Date.now(),
-        lastFetch: result.timestamp,
-        totalCount: finalPosts.length,
-        isAllTime: showAllTime,
-        dateRange
-      };
-      
-      localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-      const cacheSize = Math.round(JSON.stringify(cacheData).length / 1024);
-      console.log(`📦 Cached ${finalPosts.length} ${showAllTime ? 'all-time' : 'recent'} posts (${cacheSize}KB)`);
-    } catch (cacheError) {
-      console.warn('Failed to cache posts:', cacheError);
-    }
-
-    const duration = Date.now() - (performance.now ? performance.now() : 0);
-    console.log(`✅ Loaded ${finalPosts.length} posts in ${Math.round(duration)}ms`);
-
-    return result;
-
-  } catch (error) {
-    console.error('PostPulse: Fatal error during data fetch:', error);
-    return {
-      posts: [],
-      isCached: false,
+    return { 
+      posts: finalPosts, 
+      isCached: false, 
       timestamp: new Date().toISOString(),
       isAllTime: showAllTime
     };
-  }
-};
 
-// ENHANCED: Post filtering and processing function
-export const processPostPulseData = (posts: PostData[], filters: PostPulseFilters): PostData[] => {
-  let filtered = [...posts];
-
-  // Filter by post type
-  if (filters.postType !== 'all') {
-    filtered = filtered.filter(post => {
-      const content = post.content.toLowerCase();
-      switch (filters.postType) {
-        case 'text':
-          return !content.includes('http') && !content.includes('image') && !content.includes('video');
-        case 'image':
-          return content.includes('image') || content.includes('photo') || content.includes('pic');
-        case 'video':
-          return content.includes('video') || content.includes('watch');
-        default:
-          return true;
-      }
-    });
-  }
-
-  // Filter by search query
-  if (filters.searchQuery) {
-    const query = filters.searchQuery.toLowerCase();
-    filtered = filtered.filter(post => 
-      post.content.toLowerCase().includes(query)
-    );
-  }
-
-  // Sort posts
-  filtered.sort((a, b) => {
-    switch (filters.sortBy) {
-      case 'oldest':
-        return a.createdAt - b.createdAt;
-      case 'recent':
-        return b.createdAt - a.createdAt;
-      case 'likes':
-        return b.likes - a.likes;
-      case 'comments':
-        return b.comments - a.comments;
-      case 'views':
-        return (b.likes + b.comments + b.reposts) - (a.likes + a.comments + a.reposts);
-      default:
-        return b.createdAt - a.createdAt;
-    }
-  });
-
-  return filtered;
-};
-
-// Repurpose status helper
-export interface RepurposeStatus {
-  canRepurpose: boolean;
-  daysOld: number;
-  reason?: string;
-}
-
-export const getRepurposeStatus = (post: PostData): RepurposeStatus => {
-  const now = Date.now();
-  const postDate = post.createdAt;
-  const daysOld = Math.floor((now - postDate) / (1000 * 60 * 60 * 24));
-  
-  const canRepurpose = daysOld >= 30;
-  
-  return {
-    canRepurpose,
-    daysOld,
-    reason: canRepurpose ? 
-      `Post is ${daysOld} days old (30+ days rule met)` : 
-      `Post is only ${daysOld} days old (need 30+ days)`
-  };
-};
-
-// ENHANCED: Repurpose post function - handles navigation to PostGen
-export const repurposePost = (post: PostData): void => {
-  try {
-    // Store post data for PostGen to access
-    const repurposeData = {
-      text: post.content,
-      id: post.id,
-      createdAt: post.createdAt,
-      media_url: post.url,
-      linkedin_url: post.url,
-      source: 'postpulse'
-    };
-
-    // Store in sessionStorage for PostGen to pick up
-    sessionStorage.setItem('postgen_repurpose_post', JSON.stringify(repurposeData));
-    
-    // Navigate to PostGen - check if we're in a React Router context
-    if (typeof window !== 'undefined') {
-      // Try to use React Router navigation if available
-      const event = new CustomEvent('navigate', { detail: { path: '/postgen', tab: 'rewrite' } });
-      window.dispatchEvent(event);
-      
-      // Fallback: direct navigation
-      setTimeout(() => {
-        if (window.location.pathname !== '/postgen') {
-          window.location.href = '/postgen?tab=rewrite';
-        }
-      }, 100);
-    }
-    
-    console.log('Post prepared for repurposing:', repurposeData);
   } catch (error) {
-    console.error('Error repurposing post:', error);
+    console.error('PostPulse: Fatal error during data fetch:', error);
+    return { 
+      posts: [], 
+      isCached: false, 
+      timestamp: new Date().toISOString(),
+      isAllTime: showAllTime
+    };
   }
 };
