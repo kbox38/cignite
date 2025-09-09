@@ -23,6 +23,8 @@ export interface PostData {
   reposts: number;
   url: string;
   author: string;
+  mediaUrl?: string;  // Add media support
+  mediaType?: 'image' | 'video' | 'document' | 'unknown';
 }
 
 export interface PostPulseData {
@@ -120,7 +122,7 @@ export const repurposePost = async (post: PostData) => {
   }
 };
 
-// ENHANCED: Enhanced snapshot processing with better field mapping
+// ENHANCED: Enhanced snapshot processing with media extraction
 const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[] => {
   console.log('🔍 SNAPSHOT DEBUG: Starting analysis...');
   console.log('🔍 SNAPSHOT DEBUG: Raw data structure:', {
@@ -142,10 +144,12 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
       hasShareURL: !!(item['Share URL'] || item['share_url'] || item.shareUrl || item['URL'] || item.url),
       hasContent: !!(item['ShareCommentary'] || item['Commentary'] || item['comment'] || item['content'] || item['text']),
       hasDate: !!(item['Date'] || item['created_at'] || item['timestamp']),
+      hasMedia: !!(item['MediaUrl'] || item['Media URL'] || item['media_url']),
       sampleFields: {
         shareCommentary: typeof item['ShareCommentary'],
         commentary: typeof item['Commentary'],
         shareUrl: typeof item['Share URL'],
+        mediaUrl: typeof item['MediaUrl'],
         date: typeof item['Date']
       }
     });
@@ -175,6 +179,29 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
         item['permalink'] ||
         item['link'] ||
         '';
+
+      // ENHANCED: Extract media information
+      const mediaUrl = 
+        item['MediaUrl'] ||        // LinkedIn's media field
+        item['Media URL'] ||
+        item['media_url'] ||
+        item['mediaUrl'] ||
+        item['image'] ||
+        item['ImageUrl'] ||
+        '';
+
+      // Determine media type from URL or field
+      let mediaType: 'image' | 'video' | 'document' | 'unknown' = 'unknown';
+      if (mediaUrl) {
+        const urlLower = mediaUrl.toLowerCase();
+        if (urlLower.includes('image') || urlLower.match(/\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i)) {
+          mediaType = 'image';
+        } else if (urlLower.includes('video') || urlLower.match(/\.(mp4|mov|avi|wmv|webm)(\?|$)/i)) {
+          mediaType = 'video';
+        } else if (urlLower.match(/\.(pdf|doc|docx|ppt|pptx)(\?|$)/i)) {
+          mediaType = 'document';
+        }
+      }
 
       // ENHANCED: Try multiple field name variations for date
       const dateStr = 
@@ -235,6 +262,9 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
         contentLength: content.length,
         contentPreview: content.substring(0, 100),
         hasUrl: !!shareUrl,
+        hasMedia: !!mediaUrl,
+        mediaType: mediaType,
+        mediaUrlPreview: mediaUrl?.substring(0, 50),
         createdAt: new Date(createdAt).toISOString(),
         engagement: { likes: likesCount, comments: commentsCount, shares: sharesCount }
       });
@@ -247,7 +277,9 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
         comments: commentsCount,
         reposts: sharesCount,
         url: shareUrl || `https://linkedin.com/in/you/recent-activity/shares/`,
-        author: 'You'
+        author: 'You',
+        mediaUrl: mediaUrl || undefined,
+        mediaType: mediaUrl ? mediaType : undefined
       });
 
     } catch (error) {
