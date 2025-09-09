@@ -157,9 +157,8 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
   return posts;
 };
 
-// MAIN FETCH FUNCTION - SNAPSHOT ONLY  
+// MAIN FETCH FUNCTION - SNAPSHOT ONLY
 export const getPostPulseData = async (
-export const fetchPostPulseData = async (
   token: string, 
   showAllTime = false
 ): Promise<PostPulseData> => {
