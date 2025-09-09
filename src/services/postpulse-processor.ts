@@ -1,4 +1,18 @@
-import crypto from 'crypto';
+// Simple hash function for browser compatibility (NO CRYPTO IMPORT)
+const simpleHash = (str: string): string => {
+  let hash = 0;
+  if (str.length === 0) return hash.toString();
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash).toString(36).substring(0, 8);
+};
+
+const getUserHash = (token: string): string => {
+  return simpleHash(token).substring(0, 12);
+};
 
 export interface PostData {
   id: string;
@@ -106,10 +120,6 @@ export const repurposePost = async (post: PostData) => {
   }
 };
 
-const getUserHash = (token: string): string => {
-  return crypto.createHash('sha256').update(token).digest('hex').substring(0, 12);
-};
-
 // ENHANCED: Enhanced snapshot processing with better field mapping
 const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[] => {
   console.log('🔍 SNAPSHOT DEBUG: Starting analysis...');
@@ -130,9 +140,10 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
     console.log(`🔍 SNAPSHOT DEBUG: Item ${index}:`, {
       keys: Object.keys(item || {}),
       hasShareURL: !!(item['Share URL'] || item['share_url'] || item.shareUrl || item['URL'] || item.url),
-      hasContent: !!(item['Commentary'] || item['comment'] || item['content'] || item['text']),
+      hasContent: !!(item['ShareCommentary'] || item['Commentary'] || item['comment'] || item['content'] || item['text']),
       hasDate: !!(item['Date'] || item['created_at'] || item['timestamp']),
       sampleFields: {
+        shareCommentary: typeof item['ShareCommentary'],
         commentary: typeof item['Commentary'],
         shareUrl: typeof item['Share URL'],
         date: typeof item['Date']
@@ -154,6 +165,8 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
 
       // ENHANCED: Try multiple field name variations for URL
       const shareUrl = 
+        item['ShareLink'] ||       // LinkedIn's actual field name
+        item['SharedUrl'] ||       // Alternative LinkedIn field
         item['Share URL'] || 
         item['share_url'] || 
         item['shareUrl'] || 
@@ -212,10 +225,10 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
         }
       }
 
-      // Generate ID from content hash or use URL
+      // Generate ID using browser-compatible hash (NO CRYPTO)
       const postId = shareUrl ? 
         shareUrl.split('/').pop() || `snapshot_${index}` : 
-        `snapshot_${crypto.createHash('md5').update(content).digest('hex').substring(0, 8)}`;
+        `snapshot_${simpleHash(content)}`;
 
       console.log(`🔍 SNAPSHOT DEBUG: Creating post ${index}:`, {
         postId: postId.substring(0, 30),
