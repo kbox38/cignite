@@ -18,6 +18,49 @@ export interface PostPulseData {
   isAllTime: boolean;
 }
 
+export interface PostPulseFilters {
+  sortBy: 'newest' | 'oldest' | 'engagement';
+  postType: 'all' | 'text' | 'image' | 'video' | 'article';
+  dateRange?: {
+    start: Date;
+    end: Date;
+  };
+}
+
+// Cache management functions for backward compatibility
+export const clearPostPulseCache = () => {
+  console.log('Cache cleared (snapshot-only mode)');
+};
+
+export const processPostPulseData = (posts: PostData[], filters?: PostPulseFilters) => {
+  if (!filters) return posts;
+  
+  let filteredPosts = [...posts];
+  
+  // Apply sorting
+  switch (filters.sortBy) {
+    case 'oldest':
+      filteredPosts.sort((a, b) => a.createdAt - b.createdAt);
+      break;
+    case 'engagement':
+      filteredPosts.sort((a, b) => (b.likes + b.comments + b.reposts) - (a.likes + a.comments + a.reposts));
+      break;
+    default: // newest
+      filteredPosts.sort((a, b) => b.createdAt - a.createdAt);
+  }
+  
+  // Apply date range filter
+  if (filters.dateRange) {
+    const startTime = filters.dateRange.start.getTime();
+    const endTime = filters.dateRange.end.getTime();
+    filteredPosts = filteredPosts.filter(post => 
+      post.createdAt >= startTime && post.createdAt <= endTime
+    );
+  }
+  
+  return filteredPosts;
+};
+
 const getUserHash = (token: string): string => {
   return crypto.createHash('sha256').update(token).digest('hex').substring(0, 12);
 };
