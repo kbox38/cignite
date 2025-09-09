@@ -61,6 +61,51 @@ export const processPostPulseData = (posts: PostData[], filters?: PostPulseFilte
   return filteredPosts;
 };
 
+// PostCard component functions
+export const getRepurposeStatus = (post: PostData) => {
+  const now = Date.now();
+  const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);
+  
+  if (post.createdAt < thirtyDaysAgo) {
+    return {
+      canRepurpose: true,
+      status: 'ready',
+      message: 'Ready to repurpose'
+    };
+  }
+  
+  const daysLeft = Math.ceil((post.createdAt - thirtyDaysAgo) / (24 * 60 * 60 * 1000));
+  return {
+    canRepurpose: false,
+    status: 'waiting',
+    message: `${daysLeft} days remaining`
+  };
+};
+
+export const repurposePost = async (post: PostData) => {
+  // Simplified repurpose function for snapshot-only mode
+  console.log('Repurposing post:', post.id);
+  
+  try {
+    // In a full implementation, this would:
+    // 1. Copy the post content
+    // 2. Navigate to PostGen
+    // 3. Pre-fill the content
+    
+    // For now, just return success
+    return {
+      success: true,
+      message: 'Post prepared for repurposing'
+    };
+  } catch (error) {
+    console.error('Error repurposing post:', error);
+    return {
+      success: false,
+      message: 'Failed to repurpose post'
+    };
+  }
+};
+
 const getUserHash = (token: string): string => {
   return crypto.createHash('sha256').update(token).digest('hex').substring(0, 12);
 };
