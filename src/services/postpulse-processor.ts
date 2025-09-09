@@ -142,6 +142,7 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
     try {
       // ENHANCED: Try multiple field name variations for content
       const content = 
+        item['ShareCommentary'] ||  // LinkedIn's actual field name
         item['Commentary'] || 
         item['Share Commentary'] ||
         item['comment'] || 
