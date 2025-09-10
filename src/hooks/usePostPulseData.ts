@@ -76,13 +76,7 @@ export const usePostPulseData = (): UsePostPulseDataResult => {
       setLoading(true);
       setError(null);
       
-      console.log(`🔄 Loading ${useAllTime ? 'ALL-TIME' : 'RECENT'} posts...`);
-      
-      const startTime = Date.now();
       const result = await getPostPulseData(dmaToken, useAllTime);
-      const loadTime = Date.now() - startTime;
-      
-      console.log(`✅ Loaded ${result.posts.length} posts in ${loadTime}ms`);
       
       setAllPosts(result.posts);
       setCacheStatus({
@@ -127,13 +121,12 @@ export const usePostPulseData = (): UsePostPulseDataResult => {
 
   // Refresh function
   const refreshData = useCallback(async () => {
-    await loadPosts(true, showAllTime);
-  }, [loadPosts, showAllTime]);
+    await loadPosts(true);
+  }, [loadPosts]);
 
   // Clear cache function
   const clearCache = useCallback(() => {
-    const user_id = dmaToken ? getUserIdFromToken(dmaToken) : undefined;
-    clearPostPulseCache(user_id);
+    clearPostPulseCache();
     setCacheStatus({
       isCached: false,
       timestamp: null,

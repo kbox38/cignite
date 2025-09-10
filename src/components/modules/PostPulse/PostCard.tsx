@@ -93,7 +93,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
               e.currentTarget.style.display = 'none';
             }}
             onLoad={() => {
-              console.log('Image loaded successfully:', safePost.media_url);
+              // Image loaded successfully
             }}
           />
         </div>

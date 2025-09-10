@@ -1,3 +1,6 @@
+// Debug flag - set to true for detailed logging
+const DEBUG = false;
+
 // Simple hash function for browser compatibility (NO CRYPTO IMPORT)
 const simpleHash = (str: string): string => {
   let hash = 0;
@@ -45,7 +48,7 @@ export interface PostPulseFilters {
 
 // Cache management functions for backward compatibility
 export const clearPostPulseCache = () => {
-  console.log('Cache cleared (snapshot-only mode)');
+  if (DEBUG) console.log('Cache cleared (snapshot-only mode)');
 };
 
 export const processPostPulseData = (posts: PostData[], filters?: PostPulseFilters) => {
@@ -100,7 +103,7 @@ export const getRepurposeStatus = (post: PostData) => {
 
 export const repurposePost = async (post: PostData) => {
   // Simplified repurpose function for snapshot-only mode
-  console.log('Repurposing post:', post.id);
+  if (DEBUG) console.log('Repurposing post:', post.id);
   
   try {
     // In a full implementation, this would:
@@ -124,35 +127,39 @@ export const repurposePost = async (post: PostData) => {
 
 // ENHANCED: Enhanced snapshot processing with media extraction
 const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[] => {
-  console.log('🔍 SNAPSHOT DEBUG: Starting analysis...');
-  console.log('🔍 SNAPSHOT DEBUG: Raw data structure:', {
-    isArray: Array.isArray(snapshotData),
-    length: snapshotData?.length,
-    dataType: typeof snapshotData,
-    firstItemKeys: snapshotData?.[0] ? Object.keys(snapshotData[0]) : [],
-    sampleItem: snapshotData?.[0]
-  });
+  if (DEBUG) {
+    console.log('🔍 SNAPSHOT DEBUG: Starting analysis...');
+    console.log('🔍 SNAPSHOT DEBUG: Raw data structure:', {
+      isArray: Array.isArray(snapshotData),
+      length: snapshotData?.length,
+      dataType: typeof snapshotData,
+      firstItemKeys: snapshotData?.[0] ? Object.keys(snapshotData[0]) : [],
+      sampleItem: snapshotData?.[0]
+    });
+  }
   
   const posts: PostData[] = [];
   const shareInfo = snapshotData || [];
   
-  console.log(`🔍 SNAPSHOT DEBUG: Processing ${shareInfo.length} items`);
+  if (DEBUG) console.log(`🔍 SNAPSHOT DEBUG: Processing ${shareInfo.length} items`);
   
   shareInfo.forEach((item: any, index: number) => {
-    console.log(`🔍 SNAPSHOT DEBUG: Item ${index}:`, {
-      keys: Object.keys(item || {}),
-      hasShareURL: !!(item['Share URL'] || item['share_url'] || item.shareUrl || item['URL'] || item.url),
-      hasContent: !!(item['ShareCommentary'] || item['Commentary'] || item['comment'] || item['content'] || item['text']),
-      hasDate: !!(item['Date'] || item['created_at'] || item['timestamp']),
-      hasMedia: !!(item['MediaUrl'] || item['Media URL'] || item['media_url']),
-      sampleFields: {
-        shareCommentary: typeof item['ShareCommentary'],
-        commentary: typeof item['Commentary'],
-        shareUrl: typeof item['Share URL'],
-        mediaUrl: typeof item['MediaUrl'],
-        date: typeof item['Date']
-      }
-    });
+    if (DEBUG) {
+      console.log(`🔍 SNAPSHOT DEBUG: Item ${index}:`, {
+        keys: Object.keys(item || {}),
+        hasShareURL: !!(item['Share URL'] || item['share_url'] || item.shareUrl || item['URL'] || item.url),
+        hasContent: !!(item['ShareCommentary'] || item['Commentary'] || item['comment'] || item['content'] || item['text']),
+        hasDate: !!(item['Date'] || item['created_at'] || item['timestamp']),
+        hasMedia: !!(item['MediaUrl'] || item['Media URL'] || item['media_url']),
+        sampleFields: {
+          shareCommentary: typeof item['ShareCommentary'],
+          commentary: typeof item['Commentary'],
+          shareUrl: typeof item['Share URL'],
+          mediaUrl: typeof item['MediaUrl'],
+          date: typeof item['Date']
+        }
+      });
+    }
 
     try {
       // ENHANCED: Try multiple field name variations for content
@@ -239,7 +246,7 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
 
       // Skip items without content or minimal content
       if (!content || content.trim().length < 3) {
-        console.log(`🔍 SNAPSHOT DEBUG: Skipping item ${index}: no content (${content?.length || 0} chars)`);
+        if (DEBUG) console.log(`🔍 SNAPSHOT DEBUG: Skipping item ${index}: no content (${content?.length || 0} chars)`);
         return;
       }
 
@@ -257,17 +264,19 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
         shareUrl.split('/').pop() || `snapshot_${index}` : 
         `snapshot_${simpleHash(content)}`;
 
-      console.log(`🔍 SNAPSHOT DEBUG: Creating post ${index}:`, {
-        postId: postId.substring(0, 30),
-        contentLength: content.length,
-        contentPreview: content.substring(0, 100),
-        hasUrl: !!shareUrl,
-        hasMedia: !!mediaUrl,
-        mediaType: mediaType,
-        mediaUrlPreview: mediaUrl?.substring(0, 50),
-        createdAt: new Date(createdAt).toISOString(),
-        engagement: { likes: likesCount, comments: commentsCount, shares: sharesCount }
-      });
+      if (DEBUG) {
+        console.log(`🔍 SNAPSHOT DEBUG: Creating post ${index}:`, {
+          postId: postId.substring(0, 30),
+          contentLength: content.length,
+          contentPreview: content.substring(0, 100),
+          hasUrl: !!shareUrl,
+          hasMedia: !!mediaUrl,
+          mediaType: mediaType,
+          mediaUrlPreview: mediaUrl?.substring(0, 50),
+          createdAt: new Date(createdAt).toISOString(),
+          engagement: { likes: likesCount, comments: commentsCount, shares: sharesCount }
+        });
+      }
 
       posts.push({
         id: postId,
@@ -283,11 +292,11 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
       });
 
     } catch (error) {
-      console.warn(`🔍 SNAPSHOT DEBUG: Error processing item ${index}:`, error);
+      if (DEBUG) console.warn(`🔍 SNAPSHOT DEBUG: Error processing item ${index}:`, error);
     }
   });
 
-  console.log(`🔍 SNAPSHOT DEBUG: Final result: ${posts.length} posts extracted`);
+  if (DEBUG) console.log(`🔍 SNAPSHOT DEBUG: Final result: ${posts.length} posts extracted`);
   return posts;
 };
 
@@ -297,13 +306,10 @@ export const getPostPulseData = async (
   showAllTime = false
 ): Promise<PostPulseData> => {
   const startTime = Date.now();
-  console.log(`🚀 PostPulse: Starting SNAPSHOT-ONLY data fetch, showAllTime=${showAllTime}, user=${getUserHash(token)}`);
   
   let allPosts: PostData[] = [];
   
-  try {
-    console.log('🔄 Fetching posts with SNAPSHOT API only...');
-    
+  try {    
     const snapshotUrl = showAllTime 
       ? '/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO&allTime=true'
       : '/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO';
@@ -312,30 +318,37 @@ export const getPostPulseData = async (
       headers: { Authorization: `Bearer ${token}` }
     });
 
-    console.log('🔍 SNAPSHOT API Response:', {
-      status: snapshotResponse.status,
-      statusText: snapshotResponse.statusText,
-      ok: snapshotResponse.ok
-    });
+    if (DEBUG) {
+      console.log(`🚀 PostPulse: Starting SNAPSHOT-ONLY data fetch, showAllTime=${showAllTime}, user=${getUserHash(token)}`);
+      console.log('🔄 Fetching posts with SNAPSHOT API only...');
+      console.log('🔍 SNAPSHOT API Response:', {
+        status: snapshotResponse.status,
+        statusText: snapshotResponse.statusText,
+        ok: snapshotResponse.ok
+      });
+    }
 
     if (snapshotResponse.ok) {
       const snapshotData = await snapshotResponse.json();
-      console.log('🔍 SNAPSHOT API Data:', {
-        hasElements: !!snapshotData.elements,
-        elementsLength: snapshotData.elements?.length,
-        keys: Object.keys(snapshotData || {}),
-        firstElementKeys: snapshotData.elements?.[0] ? Object.keys(snapshotData.elements[0]) : []
-      });
+      
+      if (DEBUG) {
+        console.log('🔍 SNAPSHOT API Data:', {
+          hasElements: !!snapshotData.elements,
+          elementsLength: snapshotData.elements?.length,
+          keys: Object.keys(snapshotData || {}),
+          firstElementKeys: snapshotData.elements?.[0] ? Object.keys(snapshotData.elements[0]) : []
+        });
+      }
 
       if (snapshotData.elements?.length > 0) {
         snapshotData.elements.forEach((element: any, elementIndex: number) => {
           if (element.snapshotData && Array.isArray(element.snapshotData)) {
-            console.log(`🔍 Processing snapshot element ${elementIndex}: ${element.snapshotData.length} items`);
+            if (DEBUG) console.log(`🔍 Processing snapshot element ${elementIndex}: ${element.snapshotData.length} items`);
             const elementPosts = extractSnapshotPosts(element.snapshotData, showAllTime);
             allPosts.push(...elementPosts);
-            console.log(`✅ Extracted ${elementPosts.length} posts from element ${elementIndex}`);
+            if (DEBUG) console.log(`✅ Extracted ${elementPosts.length} posts from element ${elementIndex}`);
           } else {
-            console.log(`⚠️ Element ${elementIndex} has no snapshotData or is not an array`);
+            if (DEBUG) console.log(`⚠️ Element ${elementIndex} has no snapshotData or is not an array`);
           }
         });
       }
@@ -344,10 +357,8 @@ export const getPostPulseData = async (
       console.warn('Snapshot API failed:', snapshotResponse.status, errorText);
     }
 
-    console.log(`📊 Total posts collected: ${allPosts.length}`);
-
     if (allPosts.length === 0) {
-      console.warn('⚠️ No posts found from snapshot API');
+      console.warn('No posts found from snapshot API');
       return { 
         posts: [], 
         isCached: false, 
@@ -360,14 +371,12 @@ export const getPostPulseData = async (
     const seenIds = new Set<string>();
     const deduplicatedPosts = allPosts.filter(post => {
       if (seenIds.has(post.id)) {
-        console.log(`🔄 Removing duplicate post ID: ${post.id}`);
+        if (DEBUG) console.log(`🔄 Removing duplicate post ID: ${post.id}`);
         return false;
       }
       seenIds.add(post.id);
       return true;
     });
-
-    console.log(`🔄 After deduplication: ${deduplicatedPosts.length} posts (removed ${allPosts.length - deduplicatedPosts.length} duplicates)`);
 
     // Sort by date (newest first)
     const sortedPosts = deduplicatedPosts.sort((a, b) => b.createdAt - a.createdAt);
@@ -375,7 +384,8 @@ export const getPostPulseData = async (
     // For recent posts, limit to 90; for all-time, keep everything
     const finalPosts = showAllTime ? sortedPosts : sortedPosts.slice(0, 90);
     
-    console.log(`✅ Final result: ${finalPosts.length} ${showAllTime ? 'all-time' : 'recent'} posts loaded in ${Date.now() - startTime}ms`);
+    // Keep one essential status log
+    console.log(`PostPulse: Loaded ${finalPosts.length} ${showAllTime ? 'all-time' : 'recent'} posts`);
     
     return { 
       posts: finalPosts, 

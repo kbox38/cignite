@@ -39,7 +39,6 @@ export const setCachedPostPulseData = (userId: string, posts: PostData[]) => {
 
     try {
         localStorage.setItem(cacheKey, JSON.stringify(dataToCache));
-        console.log(`Cached ${posts.length} posts for user ${userId}`);
     } catch (error) {
         console.error('Error setting cached Post Pulse data:', error);
         // Handle storage quota exceeded
@@ -67,5 +66,4 @@ const clearOldCache = () => {
     }
     
     keysToRemove.forEach(key => localStorage.removeItem(key));
-    console.log(`Cleared ${keysToRemove.length} old cache entries`);
 };
