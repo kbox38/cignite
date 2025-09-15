@@ -22,7 +22,10 @@ import { useDashboardData } from "../../hooks/useDashboardData";
 import { QuickStatsCard } from "./QuickStatsCard";
 import { ProfileEvaluationCard } from "./ProfileEvaluationCard";
 import { SummaryKPIsCard } from "./SummaryKPIsCard";
-import { MiniTrendsCard } from "./MiniTrendsCard";
+import { ProfileCompletenessCard } from "./ProfileCompletenessCard";
+import { WeeklyPostsChart } from "./WeeklyPostsChart";
+import { ConsistencyRating } from "./ConsistencyRating";
+import { ProfileViewersCard } from "./ProfileViewersCard";
 
 export const Dashboard = () => {
   const navigate = useNavigate();
@@ -199,8 +202,7 @@ export const Dashboard = () => {
         <div>
           <h2 className="text-2xl font-bold">Dashboard</h2>
           <p className="text-gray-600 mt-1">
-            LinkedIn performance insights from Snapshot data •{" "}
-            {dashboardData.metadata.postsCount} posts analyzed
+            Comprehensive LinkedIn analytics powered by DMA portability data
           </p>
         </div>
         <div className="flex space-x-2">
@@ -374,13 +376,15 @@ export const Dashboard = () => {
         </Card>
       )}
 
-      {/* Profile Evaluation - Main Focus */}
-      <div className="mb-8">
-        <ProfileEvaluationCard
-          scores={dashboardData.scores}
-          overallScore={profileEvaluation.overallScore}
-          analysis={dashboardData.analysis}
-        />
+      {/* New Analytics Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <ProfileCompletenessCard />
+        <WeeklyPostsChart />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <ConsistencyRating />
+        <ProfileViewersCard />
       </div>
 
       {/* Quick Stats Overview */}
@@ -432,6 +436,15 @@ export const Dashboard = () => {
             avgEngagementPerPost: dashboardData.summary.avgEngagementPerPost,
             postsPerWeek: dashboardData.summary.postsPerWeek,
           }}
+        />
+      </div>
+
+      {/* Legacy Profile Evaluation - Moved to bottom */}
+      <div className="mb-8">
+        <ProfileEvaluationCard
+          scores={dashboardData.scores}
+          overallScore={profileEvaluation.overallScore}
+          analysis={dashboardData.analysis}
         />
       </div>
 

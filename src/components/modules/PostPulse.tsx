@@ -33,8 +33,6 @@ const ErrorBoundary: React.FC<{ children: React.ReactNode; error?: string }> = (
 const FilterControls: React.FC<{
   filters: { postType: string; sortBy: string };
   setFilters: (filters: { postType: string; sortBy: string }) => void;
-  showAllTime: boolean;
-  setShowAllTime: (show: boolean) => void;
   cacheStatus: any;
   refreshData: () => void;
   clearCache: () => void;
@@ -43,8 +41,6 @@ const FilterControls: React.FC<{
 }> = ({ 
   filters, 
   setFilters, 
-  showAllTime, 
-  setShowAllTime, 
   cacheStatus, 
   refreshData, 
   clearCache, 
@@ -55,35 +51,6 @@ const FilterControls: React.FC<{
     <div className="space-y-4">
       {/* Main Controls Row */}
       <div className="flex flex-col sm:flex-row gap-4 p-4 bg-white/50 backdrop-blur-sm rounded-lg border border-gray-200">
-        {/* All-Time Toggle - Most Important */}
-        <div className="flex flex-col">
-          <label className="text-sm font-medium text-gray-700 mb-2">
-            Data Range
-          </label>
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => setShowAllTime(false)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                !showAllTime 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Recent Posts (90)
-            </button>
-            <button
-              onClick={() => setShowAllTime(true)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                showAllTime 
-                  ? 'bg-purple-600 text-white' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              🚀 All-Time Posts
-            </button>
-          </div>
-        </div>
-
         {/* Post Type Filter */}
         <div className="flex flex-col">
           <label className="text-sm font-medium text-gray-700 mb-2">
@@ -146,7 +113,7 @@ const FilterControls: React.FC<{
             {totalPosts.toLocaleString()}
           </div>
           <div className="text-sm text-gray-600">
-            {showAllTime ? 'All-Time Posts' : 'Recent Posts'}
+            Recent Posts (90 days)
           </div>
         </div>
 
@@ -178,27 +145,19 @@ const FilterControls: React.FC<{
         </div>
       </div>
 
-      {/* All-Time Mode Notice */}
-      {showAllTime && (
-        <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
-          <div className="flex items-start space-x-3">
-            <div className="text-purple-600 text-xl">🚀</div>
-            <div>
-              <h4 className="font-semibold text-purple-800 mb-1">All-Time Posts Mode Active</h4>
-              <p className="text-sm text-purple-700">
-                Displaying your complete LinkedIn posting history using DMA API. 
-                This includes all posts since you joined LinkedIn, processed through 
-                the Member Snapshot API with full pagination support.
-              </p>
-              {totalPosts > 500 && (
-                <p className="text-sm text-purple-600 mt-2 font-medium">
-                  💫 Wow! You have {totalPosts.toLocaleString()} posts - that's impressive posting consistency!
-                </p>
-              )}
-            </div>
+      {/* Repurpose Mode Notice */}
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="flex items-start space-x-3">
+          <div className="text-blue-600 text-xl">🔄</div>
+          <div>
+            <h4 className="font-semibold text-blue-800 mb-1">Repurpose Mode Active</h4>
+            <p className="text-sm text-blue-700">
+              Posts are sorted oldest-first to help you identify content ready for repurposing. 
+              Posts older than 30 days can be safely repurposed for fresh engagement.
+            </p>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };
@@ -217,8 +176,6 @@ export const PostPulse: React.FC = () => {
     cacheStatus,
     refreshData,
     clearCache,
-    showAllTime,
-    setShowAllTime,
     totalPosts,
     dateRange
   } = usePostPulseData();
@@ -231,13 +188,8 @@ export const PostPulse: React.FC = () => {
           <div className="text-center">
             <LoadingSpinner />
             <p className="mt-4 text-gray-600">
-              Loading your {showAllTime ? 'complete posting history' : 'recent posts'}...
+              Loading your recent posts...
             </p>
-            {showAllTime && (
-              <p className="mt-2 text-sm text-gray-500">
-                This may take a moment as we fetch ALL your LinkedIn posts
-              </p>
-            )}
           </div>
         </div>
       </div>
@@ -251,13 +203,10 @@ export const PostPulse: React.FC = () => {
         <div className="mb-6">
           <div className="flex items-center space-x-3 mb-2">
             <h1 className="text-2xl font-bold text-gray-900">PostPulse</h1>
-            {showAllTime && <span className="text-2xl">🚀</span>}
+            <span className="text-2xl">🔄</span>
           </div>
           <p className="text-gray-600">
-            {showAllTime 
-              ? 'Your complete LinkedIn posting history with advanced analytics and reposting capabilities'
-              : 'Manage and repurpose your recent LinkedIn posts with AI-powered insights'
-            }
+            Manage and repurpose your recent LinkedIn posts with AI-powered insights
           </p>
         </div>
 
@@ -265,8 +214,6 @@ export const PostPulse: React.FC = () => {
         <FilterControls
           filters={filters}
           setFilters={setFilters}
-          showAllTime={showAllTime}
-          setShowAllTime={setShowAllTime}
           cacheStatus={cacheStatus}
           refreshData={refreshData}
           clearCache={clearCache}
@@ -302,10 +249,7 @@ export const PostPulse: React.FC = () => {
                 No Posts Found
               </h3>
               <p className="text-sm text-yellow-700 mb-4">
-                {showAllTime 
-                  ? "We couldn't find any historical posts. This could mean no DMA consent was provided or no posts exist."
-                  : "We couldn't find any recent posts. Try switching to All-Time Posts mode."
-                }
+                We couldn't find any recent posts in the last 90 days. Try refreshing the data or check your LinkedIn posting activity.
               </p>
               <div className="space-y-2">
                 <button
@@ -314,14 +258,6 @@ export const PostPulse: React.FC = () => {
                 >
                   Refresh Data
                 </button>
-                {!showAllTime && (
-                  <button
-                    onClick={() => setShowAllTime(true)}
-                    className="ml-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                  >
-                    Try All-Time Posts
-                  </button>
-                )}
               </div>
             </div>
           </div>
@@ -331,7 +267,7 @@ export const PostPulse: React.FC = () => {
         <div className="mt-12 p-4 bg-gray-50 rounded-lg border border-gray-200 text-sm text-gray-600">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <strong>Current Mode:</strong> {showAllTime ? 'All-Time Posts' : 'Recent Posts (90)'}
+              <strong>Current Mode:</strong> Recent Posts (90 days)
             </div>
             <div>
               <strong>Data Source:</strong> LinkedIn DMA API
@@ -343,12 +279,10 @@ export const PostPulse: React.FC = () => {
               }
             </div>
           </div>
-          {showAllTime && (
-            <div className="mt-2 pt-2 border-t border-gray-200">
-              <strong>All-Time Features:</strong> Complete posting history • Advanced analytics • 
-              Smart caching • Engagement insights • Repost recommendations
-            </div>
-          )}
+          <div className="mt-2 pt-2 border-t border-gray-200">
+            <strong>Repurpose Features:</strong> Oldest-first sorting • 30-day repurpose eligibility • 
+            Smart content recommendations • Engagement insights
+          </div>
         </div>
       </ErrorBoundary>
     </div>

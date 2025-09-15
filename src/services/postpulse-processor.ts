@@ -64,8 +64,11 @@ export const processPostPulseData = (posts: PostData[], filters?: PostPulseFilte
     case 'engagement':
       filteredPosts.sort((a, b) => (b.likes + b.comments + b.reposts) - (a.likes + a.comments + a.reposts));
       break;
-    default: // newest
+    case 'recent':
       filteredPosts.sort((a, b) => b.createdAt - a.createdAt);
+      break;
+    default: // Default to oldest for repurpose workflow
+      filteredPosts.sort((a, b) => a.createdAt - b.createdAt);
   }
   
   // Apply date range filter
@@ -89,7 +92,7 @@ export const getRepurposeStatus = (post: PostData) => {
     return {
       canRepurpose: true,
       status: 'ready',
-      message: 'Ready to repurpose'
+      message: '✅ Ready to repurpose'
     };
   }
   
@@ -97,24 +100,35 @@ export const getRepurposeStatus = (post: PostData) => {
   return {
     canRepurpose: false,
     status: 'waiting',
-    message: `${daysLeft} days remaining`
+    message: `⏳ ${daysLeft} days left`
   };
 };
 
 export const repurposePost = async (post: PostData) => {
-  // Simplified repurpose function for snapshot-only mode
   if (DEBUG) console.log('Repurposing post:', post.id);
   
   try {
-    // In a full implementation, this would:
-    // 1. Copy the post content
-    // 2. Navigate to PostGen
-    // 3. Pre-fill the content
+    // Store post data for repurposing in PostGen
+    const repurposeData = {
+      text: post.content,
+      originalDate: post.createdAt,
+      engagement: {
+        likes: post.likes,
+        comments: post.comments,
+        shares: post.reposts
+      },
+      media_url: post.mediaUrl,
+      source: 'postpulse'
+    };
     
-    // For now, just return success
+    sessionStorage.setItem('REPURPOSE_POST', JSON.stringify(repurposeData));
+    
+    // Navigate to PostGen
+    window.location.href = '/postgen?tab=rewrite';
+    
     return {
       success: true,
-      message: 'Post prepared for repurposing'
+      message: 'Post sent to PostGen for repurposing'
     };
   } catch (error) {
     console.error('Error repurposing post:', error);
@@ -303,23 +317,22 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
 // MAIN FETCH FUNCTION - SNAPSHOT ONLY
 export const getPostPulseData = async (
   token: string, 
-  showAllTime = false
+  showAllTime = false // Parameter kept for compatibility but always false
 ): Promise<PostPulseData> => {
   const startTime = Date.now();
   
   let allPosts: PostData[] = [];
   
   try {    
-    const snapshotUrl = showAllTime 
-      ? '/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO&allTime=true'
-      : '/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO';
+    // Always use recent posts (90 days) - remove all-time functionality
+    const snapshotUrl = '/.netlify/functions/linkedin-snapshot?domain=MEMBER_SHARE_INFO';
       
     const snapshotResponse = await fetch(snapshotUrl, {
       headers: { Authorization: `Bearer ${token}` }
     });
 
     if (DEBUG) {
-      console.log(`🚀 PostPulse: Starting SNAPSHOT-ONLY data fetch, showAllTime=${showAllTime}, user=${getUserHash(token)}`);
+      console.log(`🚀 PostPulse: Starting SNAPSHOT-ONLY data fetch (90 days), user=${getUserHash(token)}`);
       console.log('🔄 Fetching posts with SNAPSHOT API only...');
       console.log('🔍 SNAPSHOT API Response:', {
         status: snapshotResponse.status,
@@ -381,17 +394,17 @@ export const getPostPulseData = async (
     // Sort by date (newest first)
     const sortedPosts = deduplicatedPosts.sort((a, b) => b.createdAt - a.createdAt);
     
-    // For recent posts, limit to 90; for all-time, keep everything
-    const finalPosts = showAllTime ? sortedPosts : sortedPosts.slice(0, 90);
+    // Limit to 90 most recent posts
+    const finalPosts = sortedPosts.slice(0, 90);
     
     // Keep one essential status log
-    console.log(`PostPulse: Loaded ${finalPosts.length} ${showAllTime ? 'all-time' : 'recent'} posts`);
+    console.log(`PostPulse: Loaded ${finalPosts.length} recent posts (90 days)`);
     
     return { 
       posts: finalPosts, 
       isCached: false, 
       timestamp: new Date().toISOString(),
-      isAllTime: showAllTime
+      isAllTime: false
     };
 
   } catch (error) {
@@ -400,7 +413,7 @@ export const getPostPulseData = async (
       posts: [], 
       isCached: false, 
       timestamp: new Date().toISOString(),
-      isAllTime: showAllTime
+      isAllTime: false
     };
   }
 };

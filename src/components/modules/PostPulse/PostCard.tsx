@@ -76,7 +76,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
           repurposeStatus.canRepurpose 
             ? 'bg-green-100 text-green-700' 
-            : 'bg-yellow-100 text-yellow-700'
+            : 'bg-orange-100 text-orange-700'
         }`}>
           {repurposeStatus.message}
         </span>
@@ -142,7 +142,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
           }`}
         >
           <RefreshCw size={12} />
-          <span>Repurpose</span>
+          <span>{repurposeStatus.canRepurpose ? 'Repurpose Now' : 'Too Recent'}</span>
         </button>
       </div>
     </motion.div>

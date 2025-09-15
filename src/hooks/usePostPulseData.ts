@@ -41,7 +41,6 @@ export const usePostPulseData = (): UsePostPulseDataResult => {
   const [allPosts, setAllPosts] = useState<PostData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showAllTime, setShowAllTime] = useState(false);
   const [cacheStatus, setCacheStatus] = useState({
     isCached: false,
     timestamp: null as string | null,
@@ -56,7 +55,7 @@ export const usePostPulseData = (): UsePostPulseDataResult => {
   // Filters
   const [filters, setFilters] = useState<PostPulseFilters>({
     postType: 'all',
-    sortBy: 'recent',
+    sortBy: 'oldest',
     searchQuery: '',
     showAllTime: false
   });
@@ -65,7 +64,7 @@ export const usePostPulseData = (): UsePostPulseDataResult => {
   const [currentPage, setCurrentPage] = useState(1);
 
   // Load posts data
-  const loadPosts = useCallback(async (forceRefresh = false, useAllTime = showAllTime) => {
+  const loadPosts = useCallback(async (forceRefresh = false, useAllTime = false) => {
     if (!dmaToken) {
       setError('No DMA token available');
       setLoading(false);
@@ -76,13 +75,13 @@ export const usePostPulseData = (): UsePostPulseDataResult => {
       setLoading(true);
       setError(null);
       
-      const result = await getPostPulseData(dmaToken, useAllTime);
+      const result = await getPostPulseData(dmaToken, false); // Always use recent posts (90 days)
       
       setAllPosts(result.posts);
       setCacheStatus({
         isCached: result.isCached,
         timestamp: result.timestamp,
-        isAllTime: result.isAllTime || false
+        isAllTime: false
       });
       
       // Set date range if available
@@ -107,17 +106,12 @@ export const usePostPulseData = (): UsePostPulseDataResult => {
     } finally {
       setLoading(false);
     }
-  }, [dmaToken, showAllTime]);
+  }, [dmaToken]);
 
   // Initial load
   useEffect(() => {
-    loadPosts(false, showAllTime);
-  }, [loadPosts, showAllTime]);
-
-  // Update filters when showAllTime changes
-  useEffect(() => {
-    setFilters(prev => ({ ...prev, showAllTime }));
-  }, [showAllTime]);
+    loadPosts(false, false);
+  }, [loadPosts]);
 
   // Refresh function
   const refreshData = useCallback(async () => {
@@ -132,13 +126,12 @@ export const usePostPulseData = (): UsePostPulseDataResult => {
       timestamp: null,
       isAllTime: false
     });
-    loadPosts(true, showAllTime); // Force reload from API
-  }, [dmaToken, loadPosts, showAllTime]);
+    loadPosts(true, false); // Force reload from API
+  }, [dmaToken, loadPosts]);
 
   // Handle showAllTime toggle
   const handleSetShowAllTime = useCallback((show: boolean) => {
-    setShowAllTime(show);
-    setCurrentPage(1); // Reset pagination
+    // No-op: All-time toggle removed
   }, []);
 
   // Process and filter posts
@@ -173,7 +166,7 @@ export const usePostPulseData = (): UsePostPulseDataResult => {
     cacheStatus,
     refreshData,
     clearCache,
-    showAllTime,
+    showAllTime: false, // Always false now
     setShowAllTime: handleSetShowAllTime,
     totalPosts: filteredPosts.length,
     dateRange
