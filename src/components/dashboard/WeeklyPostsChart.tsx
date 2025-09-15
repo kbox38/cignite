@@ -57,8 +57,34 @@ export const WeeklyPostsChart = () => {
   };
 
   const weeklyData = calculateWeeklyPostsData();
-  const totalPosts = weeklyData.reduce((sum, week) => sum + week.posts, 0);
-  const avgPostsPerWeek = weeklyData.length > 0 ? (totalPosts / weeklyData.length).toFixed(1) : '0';
+
+  // Fix 1: Get total posts from actual data source (not weekly aggregation)
+  const totalPosts = postsSnapshot?.elements?.[0]?.snapshotData?.length || 0;
+  
+  // Fix 2: Use same calculation as dashboard analytics (date range method)
+  const getCorrectAvgPostsPerWeek = () => {
+    const posts = postsSnapshot?.elements?.[0]?.snapshotData || [];
+    
+    if (posts.length === 0) return '0';
+    
+    // Same logic as dashboard-analytics.ts
+    const postDates = posts
+      .map((post: any) => new Date(post.Date || post.date))
+      .filter((date: Date) => !isNaN(date.getTime()))
+      .sort((a: Date, b: Date) => b.getTime() - a.getTime());
+  
+    if (postDates.length === 0) return '0';
+  
+    const oldestPost = postDates[postDates.length - 1];
+    const newestPost = postDates[0];
+    const daysDiff = Math.max(1, (newestPost.getTime() - oldestPost.getTime()) / (1000 * 60 * 60 * 24));
+    const postsPerWeek = (posts.length / daysDiff) * 7;
+  
+    return (Math.round(postsPerWeek * 10) / 10).toFixed(1);
+  };
+  
+  const avgPostsPerWeek = getCorrectAvgPostsPerWeek();
+
   const weeksAboveTarget = weeklyData.filter(week => week.posts >= 7).length;
   const consistencyPercentage = weeklyData.length > 0 ? Math.round((weeksAboveTarget / weeklyData.length) * 100) : 0;
 
