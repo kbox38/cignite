@@ -319,7 +319,7 @@ export const Dashboard = () => {
           trend="up"
         />
         <QuickStatsCard
-          title="Total Posts"
+          title="Total Posts (DMA)"
           value={dashboardData.summary?.totalPosts || 0}
           change={
             (dashboardData.summary?.totalPosts || 0) >= 5 ? "Active" : "Growing"

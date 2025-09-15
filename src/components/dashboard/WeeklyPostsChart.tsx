@@ -154,7 +154,6 @@ export const WeeklyPostsChart = () => {
           </BarChart>
         </ResponsiveContainer>
       </div>
-
     </Card>
   );
 };
