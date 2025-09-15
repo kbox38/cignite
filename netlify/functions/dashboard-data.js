@@ -54,7 +54,7 @@ export async function handler(event, context) {
     }
 
     // Always generate dashboard data - don't check for recent activity
-    const dashboardData = await generateDashboardData(authorization, startTime);
+    const dashboardData = await generateDashboardData(userId, authorization, startTime);
 
     return {
       statusCode: 200,
@@ -143,12 +143,12 @@ async function verifyDMAConsent(authorization) {
   }
 }
 
-async function generateDashboardData(authorization, startTime) {
+async function generateDashboardData(userId, authorization, startTime) {
   try {
     // Fetch LinkedIn data - always try to get data
     console.log("Dashboard: Fetching LinkedIn snapshot data...");
     
-    const [profileSnapshot, memberShareSnapshot, connectionsSnapshot, skillsSnapshot, positionsSnapshot] = await Promise.all([
+    const [profileSnapshot, memberShareSnapshot, connectionsSnapshot] = await Promise.all([
       fetchMemberSnapshot(authorization, "PROFILE").catch(err => {
         console.warn("Profile snapshot failed:", err.message);
         return null;
@@ -160,14 +160,6 @@ async function generateDashboardData(authorization, startTime) {
       fetchMemberSnapshot(authorization, "CONNECTIONS").catch(err => {
         console.warn("Connections snapshot failed:", err.message);
         return null;
-      }),
-      fetchMemberSnapshot(authorization, "SKILLS").catch(err => {
-        console.warn("Skills snapshot failed:", err.message);
-        return null;
-      }),
-      fetchMemberSnapshot(authorization, "POSITIONS").catch(err => {
-        console.warn("Positions snapshot failed:", err.message);
-        return null;
       })
     ]);
 
@@ -175,12 +167,10 @@ async function generateDashboardData(authorization, startTime) {
     const profile = profileSnapshot?.elements?.[0]?.snapshotData || [];
     const posts = memberShareSnapshot?.elements?.[0]?.snapshotData || [];
     const connections = connectionsSnapshot?.elements?.[0]?.snapshotData || [];
-    const skills = skillsSnapshot?.elements?.[0]?.snapshotData || [];
-    const positions = positionsSnapshot?.elements?.[0]?.snapshotData || [];
-    console.log(`Data fetched - Profile: ${profile.length}, Posts: ${posts.length}, Connections: ${connections.length}, Skills: ${skills.length}, Positions: ${positions.length}`);
+    console.log(`Data fetched - Profile: ${profile.length}, Posts: ${posts.length}, Connections: ${connections.length}`);
 
     // Calculate metrics with fallbacks
-    const profileAnalysis = analyzeProfileCompleteness(profile, skills, positions);
+    const profileAnalysis = analyzeProfileCompleteness(profile);
     const postingAnalysis = analyzePostingActivity(posts);
     const engagementAnalysis = analyzeEngagementQuality(posts);
     const contentImpactAnalysis = analyzeContentImpact(posts);
@@ -218,8 +208,10 @@ async function generateDashboardData(authorization, startTime) {
     const summary = {
       totalConnections: connections.length,
       totalPosts: posts.length,
+      posts30d: posts.length, // Use total posts instead of filtering by 28 days
       avgEngagementPerPost: posts.length > 0 ? Math.round((totalEngagement / posts.length) * 10) / 10 : 0,
       postsPerWeek: postingAnalysis.postsPerWeek || 0,
+      engagementRatePct: posts.length > 0 ? Math.round((totalEngagement / posts.length) * 100) / 100 : 0,
       newConnections28d: Math.min(Math.round(posts.length * 0.1), 10), // Estimate based on total posts
     };
 
@@ -234,8 +226,6 @@ async function generateDashboardData(authorization, startTime) {
         profileDataAvailable: profile.length > 0,
         postsDataAvailable: posts.length > 0,
         connectionsDataAvailable: connections.length > 0,
-        skillsDataAvailable: skills.length > 0,
-        positionsDataAvailable: positions.length > 0,
         postsCount: posts.length
       },
       lastUpdated: new Date().toISOString()
@@ -266,8 +256,10 @@ async function generateDashboardData(authorization, startTime) {
       summary: {
         totalConnections: 0,
         totalPosts: 0,
+        posts30d: 0,
         avgEngagementPerPost: 0,
         postsPerWeek: 0,
+        engagementRatePct: 0,
         newConnections28d: 0,
       },
       metadata: {
@@ -277,8 +269,6 @@ async function generateDashboardData(authorization, startTime) {
         profileDataAvailable: false,
         postsDataAvailable: false,
         connectionsDataAvailable: false,
-        skillsDataAvailable: false,
-        positionsDataAvailable: false,
         postsCount: 0
       },
       lastUpdated: new Date().toISOString(),
@@ -390,7 +380,7 @@ function getPostingConsistencyRecommendations(posts) {
   return ["Great consistency! Keep up the regular posting schedule"];
 }
 
-function analyzeProfileCompleteness(profileData, skillsData = [], positionsData = []) {
+function analyzeProfileCompleteness(profileData) {
   if (!profileData || profileData.length === 0) {
     return {
       score: 0,
@@ -407,21 +397,23 @@ function analyzeProfileCompleteness(profileData, skillsData = [], positionsData 
   const breakdown = {
     headline: profile.Headline ? 30 : 0,
     summary: profile.Summary ? 25 : 0,
-    experience: profile.Experience ? 25 : 0,
-  // Skills (20 points) - Use SKILLS domain data
-  if (skillsData.length > 0) {
-    if (skillsData.length >= 10) breakdown.skills = 20;
-    else if (skillsData.length >= 5) breakdown.skills = 15;
-    else if (skillsData.length >= 3) breakdown.skills = 10;
-    else breakdown.skills = 5;
-  } else {
-    // Fallback: check profile data for skills indicators
-    const hasSkills = profileData.some(item => 
-      item['Skills'] || item['Top Skills'] || item['Skill'] || 
-      Object.keys(item).some(key => key.toLowerCase().includes('skill'))
-    );
-    if (hasSkills) breakdown.skills = 10;
-  }
+    experience: 0,
+    skills: 0
+  };
+
+  // Experience (20 points) - check for experience indicators in profile data
+  const hasExperience = profileData.some(item => 
+    item['Position'] || item['Company'] || item['Current Position'] || 
+    item['Current Company'] || item['Job Title'] || item['Employer']
+  );
+  if (hasExperience) breakdown.experience = 20;
+
+  // Skills (20 points) - check for skills indicators in profile data
+  const hasSkills = profileData.some(item => 
+    item['Skills'] || item['Top Skills'] || item['Skill'] || 
+    Object.keys(item).some(key => key.toLowerCase().includes('skill'))
+  );
+  if (hasSkills) breakdown.skills = 20;
 
   const finalScore = Object.values(breakdown).reduce((sum, val) => sum + val, 0) / 10;
 
@@ -429,8 +421,8 @@ function analyzeProfileCompleteness(profileData, skillsData = [], positionsData 
   if (breakdown.headline === 0) recommendations.push("Add a compelling headline");
   if (breakdown.summary === 0) recommendations.push("Write a professional summary");
   if (breakdown.experience === 0) recommendations.push("Add your work experience");
-  if (breakdown.experience < 15) recommendations.push(`Add more work experience (currently ${positionsData.length} positions)`);
-  if (breakdown.skills < 15) recommendations.push(`Add more skills to your profile (currently ${skillsData.length} skills)`);
+  if (breakdown.skills === 0) recommendations.push("List your key skills");
+  if (finalScore >= 8) recommendations.push("Great profile! Your LinkedIn presence is well-optimized");
 
   return {
     score: Math.round(finalScore * 10) / 10,
@@ -445,19 +437,9 @@ function analyzePostingActivity(posts) {
   if (totalPosts === 0) {
     return {
       score: 0,
-  // Experience (20 points) - Use POSITIONS domain data
-  if (positionsData.length > 0) {
-    if (positionsData.length >= 3) breakdown.experience = 20;
-    else if (positionsData.length >= 2) breakdown.experience = 15;
-    else breakdown.experience = 10;
-  } else {
-    // Fallback: check profile data for experience indicators
-    const hasExperience = profileData.some(item => 
-      item['Position'] || item['Company'] || item['Current Position'] || 
-      item['Current Company'] || item['Job Title'] || item['Employer']
-    );
-    if (hasExperience) breakdown.experience = 10;
-  }
+      postsPerWeek: 0,
+      totalPosts,
+      recommendations: ["Start posting regularly to build your LinkedIn presence"],
     };
   }
 
