@@ -143,7 +143,7 @@ export const synergyService = {
       headline?: string;
       topics?: string[];
     }
-  ): Promise<string[]> {
+  ): Promise<any[]> {
     const response = await fetch(`${API_BASE}/synergy-suggest-comment`, {
       method: "POST",
       headers: {
@@ -162,7 +162,7 @@ export const synergyService = {
     }
 
     const data = await response.json();
-    return [data.suggestion]; // Return as array for compatibility
+    return data.suggestions || [data.suggestion]; // Return 5 suggestions or fallback to single
   },
 };
 

@@ -256,10 +256,18 @@ export const Synergy = () => {
       return response.json();
     },
     onSuccess: (data) => {
-      setSuggestions((prev) => ({
-        ...prev,
-        [data.postUrn]: data.suggestion,
-      }));
+      // Handle both single suggestion and multiple suggestions format
+      if (data.suggestions && Array.isArray(data.suggestions)) {
+        setSuggestions((prev) => ({
+          ...prev,
+          [data.postUrn]: data.suggestions,
+        }));
+      } else if (data.suggestion) {
+        setSuggestions((prev) => ({
+          ...prev,
+          [data.postUrn]: data.suggestion,
+        }));
+      }
       setSuggestingFor(null);
     },
     onError: (error) => {
@@ -689,7 +697,7 @@ export const Synergy = () => {
                     )}
                   </Card>
                 ) : partnerPostsData && partnerPostsData.posts.length > 0 ? (
-                  <div className="space-y-4 max-h-96 overflow-y-auto">
+                  <div className="space-y-6 max-h-[600px] overflow-y-auto">
                     {partnerPostsData.posts.map((post, index) => (
                       <motion.div
                         key={post.postUrn}
@@ -699,7 +707,7 @@ export const Synergy = () => {
                       >
                         <Card
                           variant="glass"
-                          className="p-6 hover:shadow-lg transition-all duration-200"
+                          className="p-6 hover:shadow-lg transition-all duration-200 border border-gray-200"
                         >
                           {/* Post Header */}
                           <div className="flex items-center justify-between mb-4">
@@ -721,7 +729,7 @@ export const Synergy = () => {
                               size="sm"
                               onClick={() =>
                                 window.open(
-                                  `https://linkedin.com/feed/update/${post.postUrn}`,
+                                  post.permalink || `https://linkedin.com/feed/`,
                                   "_blank"
                                 )
                               }
@@ -759,67 +767,85 @@ export const Synergy = () => {
                           <div className="border-t pt-4">
                             <h5 className="font-medium text-gray-900 mb-3 flex items-center">
                               <Sparkles size={16} className="mr-2" />
-                              AI Engagement Suggestion
+                              AI Comment Suggestions (5 Approaches)
                             </h5>
 
                             {suggestions[post.postUrn] ? (
                               <div className="space-y-3">
-                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                                  <p className="text-sm font-medium text-blue-800 mb-2">
-                                    AI Suggestion:
-                                  </p>
-                                  <p className="text-sm text-blue-700 mb-3">
-                                    "{suggestions[post.postUrn]}"
-                                  </p>
-                                  <div className="flex space-x-2">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() =>
-                                        handleCopySuggestion(
-                                          suggestions[post.postUrn]
-                                        )
-                                      }
-                                    >
-                                      <Copy size={14} className="mr-1" />
-                                      Copy
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() =>
-                                        window.open(
-                                          `https://linkedin.com/feed/update/${post.postUrn}`,
-                                          "_blank"
-                                        )
-                                      }
-                                    >
-                                      <Send size={14} className="mr-1" />
-                                      Use on LinkedIn
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() =>
-                                        handleRegenerateSuggestion(
-                                          post,
-                                          selectedPartnerData.name
-                                        )
-                                      }
-                                      disabled={suggestingFor === post.postUrn}
-                                    >
-                                      <RefreshCw size={14} className="mr-1" />
-                                      Regenerate
-                                    </Button>
-                                  </div>
+                                {/* Display all 5 suggestions */}
+                                <div className="grid grid-cols-1 gap-3">
+                                  {Array.isArray(suggestions[post.postUrn]) ? 
+                                    suggestions[post.postUrn].map((suggestion, suggestionIndex) => (
+                                      <div key={suggestionIndex} className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-3">
+                                        <div className="flex items-start justify-between mb-2">
+                                          <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                                            {suggestion.approach || `Approach ${suggestionIndex + 1}`}
+                                          </span>
+                                          <span className="text-xs text-blue-500 font-medium">
+                                            {suggestion.tone || 'professional'}
+                                          </span>
+                                        </div>
+                                        <p className="text-sm text-blue-800 mb-3 leading-relaxed">
+                                          "{suggestion.text || suggestion}"
+                                        </p>
+                                        <div className="flex space-x-2">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleCopySuggestion(suggestion.text || suggestion)}
+                                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+                                          >
+                                            <Copy size={12} className="mr-1" />
+                                            Copy
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => window.open(post.permalink || `https://linkedin.com/feed/`, "_blank")}
+                                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+                                          >
+                                            <Send size={12} className="mr-1" />
+                                            Use
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    )) :
+                                    // Fallback for single suggestion format
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                      <p className="text-sm text-blue-700 mb-3">
+                                        "{suggestions[post.postUrn]}"
+                                      </p>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleCopySuggestion(suggestions[post.postUrn])}
+                                      >
+                                        <Copy size={14} className="mr-1" />
+                                        Copy
+                                      </Button>
+                                    </div>
+                                  }
+                                </div>
+                                
+                                {/* Regenerate Button */}
+                                <div className="mt-4 pt-3 border-t border-blue-200">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleRegenerateSuggestion(post, selectedPartnerData.name)}
+                                    disabled={suggestingFor === post.postUrn}
+                                    className="w-full"
+                                  >
+                                    <RefreshCw size={14} className="mr-1" />
+                                    Regenerate All 5 Suggestions
+                                  </Button>
                                 </div>
                               </div>
                             ) : (
                               <div className="space-y-3">
                                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                                   <p className="text-sm text-gray-600">
-                                    Generate an AI suggestion to engage with
-                                    this post.
+                                    Generate 5 AI comment suggestions to engage with this post.
                                   </p>
                                 </div>
 
@@ -846,7 +872,7 @@ export const Synergy = () => {
                                   ) : (
                                     <>
                                       <Sparkles size={16} className="mr-2" />
-                                      Suggest Comment with AI
+                                      Generate 5 Comment Suggestions
                                     </>
                                   )}
                                 </Button>

@@ -131,7 +131,7 @@ async function getPartnerLinkedInUrn(partnerUserId) {
 
     const { data: user, error } = await supabase
       .from('users')
-      .select('linkedin_member_urn, name')
+      .select('linkedin_dma_member_urn, name')
       .eq('id', partnerUserId)
       .single();
 
@@ -141,7 +141,7 @@ async function getPartnerLinkedInUrn(partnerUserId) {
     }
 
     console.log("Found LinkedIn URN for user:", user.name);
-    return user.linkedin_member_urn;
+    return user.linkedin_dma_member_urn;
   } catch (error) {
     console.error('Error getting partner LinkedIn URN:', error);
     return null;
@@ -206,8 +206,8 @@ async function fetchPartnerPostsFromDMA(authorization, partnerUrn, limit = 5) {
   try {
     console.log("Fetching posts from LinkedIn DMA API for:", partnerUrn);
 
-    // Call LinkedIn Member Snapshot API for MEMBER_SHARE_INFO domain
-    const response = await fetch(`https://api.linkedin.com/rest/memberSnapshots/${encodeURIComponent(partnerUrn)}?q=member&domains=MEMBER_SHARE_INFO`, {
+    // FIXED: Use correct Member Snapshot API endpoint
+    const response = await fetch(`https://api.linkedin.com/rest/memberSnapshotData?q=criteria&domain=MEMBER_SHARE_INFO`, {
       headers: {
         'Authorization': authorization,
         'LinkedIn-Version': '202312',
@@ -224,41 +224,39 @@ async function fetchPartnerPostsFromDMA(authorization, partnerUrn, limit = 5) {
     const data = await response.json();
     console.log("LinkedIn DMA API response received");
 
-    // Extract posts from MEMBER_SHARE_INFO domain
-    const memberShareInfo = data.elements?.find(element => 
-      element.domainType === 'MEMBER_SHARE_INFO'
-    );
+    // FIXED: Extract posts from correct response structure
+    const memberShareInfo = data.elements?.[0];
 
-    if (!memberShareInfo || !memberShareInfo.snapshot) {
+    if (!memberShareInfo || !memberShareInfo.snapshotData) {
       console.log("No MEMBER_SHARE_INFO data found");
       return [];
     }
 
-    const rawPosts = memberShareInfo.snapshot;
+    const rawPosts = memberShareInfo.snapshotData;
     console.log(`Found ${rawPosts.length} raw posts`);
 
     // Process and format posts (limit to 5 most recent)
     const posts = rawPosts
       .sort((a, b) => {
         // Sort by creation time descending (most recent first)
-        const timeA = a.createdAt || a.firstPublishedAt || 0;
-        const timeB = b.createdAt || b.firstPublishedAt || 0;
+        const timeA = new Date(a.Date || a.date || 0).getTime();
+        const timeB = new Date(b.Date || b.date || 0).getTime();
         return timeB - timeA;
       })
       .slice(0, limit)
       .map(post => {
         // Extract essential post data only (no engagement metrics)
-        const createdAtMs = post.createdAt || post.firstPublishedAt || Date.now();
+        const createdAtMs = new Date(post.Date || post.date || Date.now()).getTime();
         const textContent = extractTextContent(post);
         const mediaInfo = extractMediaInfo(post);
 
         return {
-          postUrn: post.urn || `urn:li:share:${Date.now()}`,
+          postUrn: post.ShareLink || `urn:li:share:${Date.now()}`,
           createdAtMs: createdAtMs,
           textPreview: textContent,
           mediaType: mediaInfo.type,
           mediaAssetUrn: mediaInfo.assetUrn,
-          permalink: post.permalink || null
+          permalink: post.ShareLink || null
         };
       });
 
@@ -273,13 +271,16 @@ async function fetchPartnerPostsFromDMA(authorization, partnerUrn, limit = 5) {
 function extractTextContent(post) {
   try {
     // Try different possible text content fields
-    if (post.text) return post.text.substring(0, 500);
-    if (post.content?.commentary) return post.content.commentary.substring(0, 500);
-    if (post.commentary) return post.commentary.substring(0, 500);
-    if (post.specificContent?.com_linkedin_ugc_ShareContent?.shareCommentary?.text) {
-      return post.specificContent.com_linkedin_ugc_ShareContent.shareCommentary.text.substring(0, 500);
-    }
-    return '';
+    const textContent = 
+      post.ShareCommentary || 
+      post['Share Commentary'] ||
+      post.shareCommentary ||
+      post.Commentary ||
+      post.commentary ||
+      post.text ||
+      '';
+    
+    return textContent.substring(0, 500);
   } catch (error) {
     console.error('Error extracting text content:', error);
     return '';
@@ -290,27 +291,15 @@ function extractMediaInfo(post) {
   try {
     const defaultInfo = { type: 'NONE', assetUrn: null };
 
-    // Check for media in various possible locations
-    if (post.content?.media) {
-      const media = post.content.media;
-      if (media.length > 0) {
-        const firstMedia = media[0];
-        return {
-          type: firstMedia.type || 'IMAGE',
-          assetUrn: firstMedia.media || firstMedia.urn || null
-        };
-      }
-    }
-
-    if (post.specificContent?.com_linkedin_ugc_ShareContent?.media) {
-      const media = post.specificContent.com_linkedin_ugc_ShareContent.media;
-      if (media.length > 0) {
-        const firstMedia = media[0];
-        return {
-          type: firstMedia.mediaType || 'IMAGE',
-          assetUrn: firstMedia.media || null
-        };
-      }
+    // FIXED: Check for media in snapshot data format
+    const mediaUrl = post.MediaUrl || post['Media URL'] || post.mediaUrl;
+    const mediaType = post.MediaType || post['Media Type'] || post.mediaType || 'NONE';
+    
+    if (mediaUrl) {
+      return {
+        type: mediaType,
+        assetUrn: mediaUrl
+      };
     }
 
     return defaultInfo;

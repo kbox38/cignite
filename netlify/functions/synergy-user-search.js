@@ -164,7 +164,7 @@ export async function handler(event, context) {
       industry: user.industry || 'Professional Services',
       location: user.location || 'Location not specified',
       avatarUrl: user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=0ea5e9&color=fff`,
-      linkedinMemberUrn: user.linkedin_member_urn,
+      linkedinMemberUrn: user.linkedin_dma_member_urn,
       dmaActive: user.dma_active,
       totalConnections: user.user_profiles?.total_connections || 0,
       profileCompleteness: user.user_profiles?.profile_completeness_score || 0,

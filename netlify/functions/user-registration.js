@@ -52,6 +52,32 @@ export async function handler(event, context) {
     });
 
     const linkedinUrn = `urn:li:person:${userInfo.sub}`;
+    
+    // CRITICAL: Get DMA URN for synergy functionality
+    let dmaUrn = null;
+    try {
+      console.log("Fetching DMA URN for synergy system...");
+      const dmaResponse = await fetch(
+        "https://api.linkedin.com/rest/memberAuthorizations?q=memberAndApplication",
+        {
+          headers: {
+            Authorization: authorization,
+            "LinkedIn-Version": "202312",
+            "X-Restli-Protocol-Version": "2.0.0",
+          },
+        }
+      );
+
+      if (dmaResponse.ok) {
+        const dmaData = await dmaResponse.json();
+        if (dmaData.elements && dmaData.elements.length > 0) {
+          dmaUrn = dmaData.elements[0].memberComplianceAuthorizationKey.member;
+          console.log("DMA URN captured:", dmaUrn);
+        }
+      }
+    } catch (dmaError) {
+      console.warn("Could not fetch DMA URN:", dmaError.message);
+    }
 
     // Connect to Supabase
     const { createClient } = await import('@supabase/supabase-js');
@@ -63,12 +89,25 @@ export async function handler(event, context) {
     console.log("Supabase client initialized");
 
     // Check if user already exists
-    const { data: existingUser, error: lookupError } = await supabase
+    let { data: existingUser, error: lookupError } = await supabase
       .from('users')
       .select('id, dma_active, name, email')
       .eq('linkedin_member_urn', linkedinUrn)
       .single();
 
+    // If not found by regular URN, try DMA URN
+    if (!existingUser && dmaUrn) {
+      const { data: dmaUser } = await supabase
+        .from('users')
+        .select('id, dma_active, name, email')
+        .eq('linkedin_dma_member_urn', dmaUrn)
+        .single();
+      
+      if (dmaUser) {
+        existingUser = dmaUser;
+        console.log("User found by DMA URN:", dmaUser.id);
+      }
+    }
     if (existingUser) {
       console.log("User already exists:", existingUser.id, existingUser.name);
       
@@ -77,6 +116,7 @@ export async function handler(event, context) {
         .from('users')
         .update({ 
           dma_active: true,
+          linkedin_dma_member_urn: dmaUrn, // CRITICAL: Ensure DMA URN is stored
           dma_consent_date: new Date().toISOString(),
           last_login: new Date().toISOString(),
           name: userInfo.name,
@@ -128,6 +168,7 @@ export async function handler(event, context) {
         family_name: userInfo.family_name,
         avatar_url: userInfo.picture,
         linkedin_member_urn: linkedinUrn,
+        linkedin_dma_member_urn: dmaUrn, // CRITICAL: Store DMA URN for synergy
         headline: userInfo.headline || '',
         industry: userInfo.industry || '',
         location: userInfo.location || '',
