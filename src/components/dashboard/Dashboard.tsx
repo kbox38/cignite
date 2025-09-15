@@ -33,7 +33,6 @@ export const Dashboard = () => {
   const { data: dashboardData, isLoading, error, refetch } = useDashboardData();
   const [debugMode, setDebugMode] = useState(false);
   const [isRefetching, setIsRefetching] = useState(false);
-  const [showAIInsights, setShowAIInsights] = useState(false);
 
   // Handle DMA reconnect scenario
   const handleRefetch = async () => {
@@ -130,17 +129,6 @@ export const Dashboard = () => {
     );
   }
 
-  // Show empty state for no recent activity
-  if (dashboardData?.metadata?.hasRecentActivity === false) {
-    return (
-      <EmptyActivityState
-        dashboardData={dashboardData}
-        onRefetch={handleRefetch}
-        isRefetching={isRefetching}
-      />
-    );
-  }
-
   if (error) {
     return (
       <div className="text-center py-12">
@@ -176,20 +164,6 @@ export const Dashboard = () => {
     );
   }
 
-  // Transform data for components
-  const profileEvaluation = {
-    overallScore: dashboardData.scores.overall,
-    scores: dashboardData.scores,
-    analysis: dashboardData.analysis,
-  };
-
-  const summaryKPIs = {
-    totalConnections: dashboardData.summary.totalConnections,
-    totalPosts: dashboardData.summary.totalPosts,
-    avgEngagementPerPost: dashboardData.summary.avgEngagementPerPost,
-    postsPerWeek: dashboardData.summary.postsPerWeek,
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -206,16 +180,6 @@ export const Dashboard = () => {
           </p>
         </div>
         <div className="flex space-x-2">
-          {dashboardData?.aiInsights && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAIInsights(!showAIInsights)}
-            >
-              <Zap size={14} className="mr-1" />
-              {showAIInsights ? "Hide" : "Show"} AI Insights
-            </Button>
-          )}
           <Button
             variant="ghost"
             size="sm"
@@ -238,43 +202,6 @@ export const Dashboard = () => {
           </Button>
         </div>
       </div>
-
-      {/* AI Insights Panel */}
-      {showAIInsights && dashboardData?.analysis && (
-        <Card
-          variant="glass"
-          className="p-6 bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold flex items-center text-purple-900">
-              <Zap size={16} className="mr-2" />
-              AI Performance Insights
-            </h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAIInsights(false)}
-            >
-              Hide
-            </Button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {Object.entries(dashboardData.analysis).map(([key, analysis]) => (
-              <div
-                key={key}
-                className="bg-white p-4 rounded-lg border border-purple-200"
-              >
-                <h4 className="font-medium text-purple-900 capitalize mb-2">
-                  {key.replace(/([A-Z])/g, " $1").trim()}
-                </h4>
-                <p className="text-sm text-purple-800">
-                  {analysis.aiInsight || "Analysis in progress..."}
-                </p>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
 
       {/* Debug Panel */}
       {debugMode && dashboardData && (
@@ -304,16 +231,8 @@ export const Dashboard = () => {
             </div>
             <div className="flex items-center space-x-2">
               <span className="font-medium">Data Source:</span>
-              <span
-                className={`px-2 py-1 rounded ${
-                  dashboardData.metadata.hasRecentActivity
-                    ? "bg-green-100 text-green-800"
-                    : "bg-yellow-100 text-yellow-800"
-                }`}
-              >
-                {dashboardData.metadata.hasRecentActivity
-                  ? "Recent Activity"
-                  : "Snapshot Data"}
+              <span className="bg-white px-2 py-1 rounded text-blue-900">
+                {dashboardData.metadata?.dataSource || 'Unknown'}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -323,14 +242,14 @@ export const Dashboard = () => {
                   <div className="mt-1 text-sm">
                     Overall:{" "}
                     <span className="font-bold">
-                      {dashboardData.scores.overall}/10
+                      {dashboardData.scores?.overall || 0}/10
                     </span>
                   </div>
                   <div className="text-xs text-gray-600 mt-1">
-                    Profile: {dashboardData.scores.profileCompleteness || "N/A"}
-                    , Posting: {dashboardData.scores.postingActivity || "N/A"},
+                    Profile: {dashboardData.scores?.profileCompleteness || "N/A"}
+                    , Posting: {dashboardData.scores?.postingActivity || "N/A"},
                     Engagement:{" "}
-                    {dashboardData.scores.engagementQuality || "N/A"}
+                    {dashboardData.scores?.engagementQuality || "N/A"}
                   </div>
                 </div>
               </div>
@@ -341,31 +260,25 @@ export const Dashboard = () => {
                     <div>
                       Connections:{" "}
                       <span className="font-bold">
-                        {dashboardData.summary.totalConnections}
-                      </span>
-                    </div>
-                    <div>
-                      Posts (28d):{" "}
-                      <span className="font-bold">
-                        {dashboardData.summary.posts30d}
+                        {dashboardData.summary?.totalConnections || 0}
                       </span>
                     </div>
                     <div>
                       Total Posts:{" "}
                       <span className="font-bold">
-                        {dashboardData.summary.totalPosts}
+                        {dashboardData.summary?.totalPosts || 0}
                       </span>
                     </div>
                     <div>
                       Avg Engagement:{" "}
                       <span className="font-bold">
-                        {dashboardData.summary.avgEngagementPerPost}
+                        {dashboardData.summary?.avgEngagementPerPost || 0}
                       </span>
                     </div>
                     <div>
                       Posts/Week:{" "}
                       <span className="font-bold">
-                        {dashboardData.summary.postsPerWeek}
+                        {dashboardData.summary?.postsPerWeek || 0}
                       </span>
                     </div>
                   </div>
@@ -376,7 +289,7 @@ export const Dashboard = () => {
         </Card>
       )}
 
-      {/* New Analytics Grid */}
+      {/* New Analytics Grid - Always Show These Components */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <ProfileCompletenessCard />
         <WeeklyPostsChart />
@@ -387,68 +300,75 @@ export const Dashboard = () => {
         <ProfileViewersCard />
       </div>
 
-      {/* Quick Stats Overview */}
+      {/* Quick Stats Overview - Always Show */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <QuickStatsCard
           title="Overall Score"
-          value={`${dashboardData.scores.overall}/10`}
-          change={dashboardData.scores.overall >= 7 ? "+Good" : "Needs Work"}
+          value={`${dashboardData.scores?.overall || 0}/10`}
+          change={(dashboardData.scores?.overall || 0) >= 7 ? "+Good" : "Needs Work"}
           icon={TrendingUp}
           color="blue"
-          trend={dashboardData.scores.overall >= 7 ? "up" : "down"}
+          trend={(dashboardData.scores?.overall || 0) >= 7 ? "up" : "down"}
         />
         <QuickStatsCard
           title="Total Connections"
-          value={dashboardData.summary.totalConnections.toLocaleString()}
-          change={`+${dashboardData.summary.newConnections28d} (28 days)`}
+          value={(dashboardData.summary?.totalConnections || 0).toLocaleString()}
+          change={`+${dashboardData.summary?.newConnections28d || 0} (28 days)`}
           icon={Users}
           color="green"
           trend="up"
         />
         <QuickStatsCard
-          title="Posts (28d)"
-          value={dashboardData.summary.posts30d}
+          title="Total Posts"
+          value={dashboardData.summary?.totalPosts || 0}
           change={
-            dashboardData.summary.posts30d >= 5 ? "Active" : "Low Activity"
+            (dashboardData.summary?.totalPosts || 0) >= 5 ? "Active" : "Growing"
           }
           icon={FileText}
           color="purple"
-          trend={dashboardData.summary.posts30d >= 5 ? "up" : "down"}
+          trend={(dashboardData.summary?.totalPosts || 0) >= 5 ? "up" : "stable"}
         />
         <QuickStatsCard
           title="Engagement Rate"
-          value={`${dashboardData.summary.engagementRatePct}%`}
+          value={`${dashboardData.summary?.engagementRatePct || 0}%`}
           change={
-            dashboardData.summary.engagementRatePct >= 3 ? "Strong" : "Growing"
+            (dashboardData.summary?.engagementRatePct || 0) >= 3 ? "Strong" : "Growing"
           }
           icon={Heart}
           color="orange"
-          trend={dashboardData.summary.engagementRatePct >= 3 ? "up" : "stable"}
+          trend={(dashboardData.summary?.engagementRatePct || 0) >= 3 ? "up" : "stable"}
         />
       </div>
 
-      {/* Summary KPIs */}
+      {/* Summary KPIs - Always Show */}
       <div className="mb-8">
         <SummaryKPIsCard
           kpis={{
-            totalConnections: dashboardData.summary.totalConnections,
-            totalPosts: dashboardData.summary.totalPosts,
-            avgEngagementPerPost: dashboardData.summary.avgEngagementPerPost,
-            postsPerWeek: dashboardData.summary.postsPerWeek,
+            totalConnections: dashboardData.summary?.totalConnections || 0,
+            totalPosts: dashboardData.summary?.totalPosts || 0,
+            avgEngagementPerPost: dashboardData.summary?.avgEngagementPerPost || 0,
+            postsPerWeek: dashboardData.summary?.postsPerWeek || 0,
           }}
         />
       </div>
 
-      {/* Legacy Profile Evaluation - Moved to bottom */}
+      {/* Profile Evaluation - Always Show */}
       <div className="mb-8">
         <ProfileEvaluationCard
-          scores={dashboardData.scores}
-          overallScore={profileEvaluation.overallScore}
-          analysis={dashboardData.analysis}
+          scores={dashboardData.scores || {
+            profileCompleteness: 0,
+            postingActivity: 0,
+            engagementQuality: 0,
+            contentImpact: 0,
+            contentDiversity: 0,
+            postingConsistency: 0
+          }}
+          overallScore={dashboardData.scores?.overall || 0}
+          analysis={dashboardData.analysis || {}}
         />
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions - Always Show */}
       <Card variant="glass" className="p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-bold flex items-center text-gray-900">
@@ -504,241 +424,6 @@ export const Dashboard = () => {
               <span className="font-semibold">Schedule Content</span>
             </div>
           </motion.button>
-        </div>
-      </Card>
-    </motion.div>
-  );
-};
-
-const ActivityDetectedState = ({ dashboardData, onRefetch, isRefetching }) => {
-  const navigate = useNavigate();
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="space-y-6"
-    >
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Dashboard</h2>
-          <p className="text-gray-600 mt-1">
-            Showing your LinkedIn profile data •{" "}
-            {dashboardData.summary.totalConnections} connections
-          </p>
-        </div>
-        <Button variant="outline" onClick={onRefetch} disabled={isRefetching}>
-          <RefreshCw
-            size={14}
-            className={`mr-1 ${isRefetching ? "animate-spin" : ""}`}
-          />
-          {isRefetching ? "Refreshing..." : "Refresh"}
-        </Button>
-      </div>
-
-      {/* Profile Evaluation - Main Focus */}
-      <div className="mb-8">
-        <ProfileEvaluationCard
-          scores={{
-            profileCompleteness: dashboardData.scores.profileCompleteness,
-            postingActivity: dashboardData.scores.postingActivity,
-            engagementQuality: dashboardData.scores.engagementQuality,
-            networkGrowth: dashboardData.scores.networkGrowth,
-            audienceRelevance: dashboardData.scores.audienceRelevance,
-            contentDiversity: dashboardData.scores.contentDiversity,
-            engagementRate: dashboardData.scores.engagementRate,
-            mutualInteractions: dashboardData.scores.mutualInteractions,
-            profileVisibility: dashboardData.scores.profileVisibility,
-            professionalBrand: dashboardData.scores.professionalBrand,
-          }}
-          overallScore={dashboardData.scores.overall}
-          explanations={dashboardData.methodology}
-        />
-      </div>
-
-      {/* Summary KPIs */}
-      <div className="mb-8">
-        <SummaryKPIsCard
-          kpis={{
-            totalConnections: dashboardData.summary.totalConnections,
-            postsLast30Days: dashboardData.summary.posts30d,
-            engagementRate: `${dashboardData.summary.engagementRatePct}%`,
-            connectionsLast30Days: dashboardData.summary.newConnections28d,
-          }}
-        />
-      </div>
-
-      {/* Activity Notice */}
-      <Card
-        variant="glass"
-        className="p-8 text-center bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200"
-      >
-        <div className="max-w-2xl mx-auto">
-          <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-6">
-            <TrendingUp size={24} className="text-white" />
-          </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-4">
-            Ready to Boost Your LinkedIn Presence?
-          </h3>
-          <p className="text-gray-700 mb-6 leading-relaxed">
-            Your profile looks great! Start posting and engaging to unlock
-            detailed analytics and growth insights.
-          </p>
-
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Button
-                variant="primary"
-                onClick={() => navigate("/scheduler")}
-                className="flex items-center justify-center space-x-2"
-              >
-                <Calendar size={16} />
-                <span>Post on LinkedIn</span>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => navigate("/postgen")}
-                className="flex items-center justify-center space-x-2"
-              >
-                <Zap size={16} />
-                <span>Generate Content</span>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Quick Actions */}
-      <Card variant="glass" className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold flex items-center text-gray-900">
-            <Zap className="mr-2" size={20} />
-            Quick Actions
-          </h3>
-          <div className="text-sm text-gray-500">
-            Boost your LinkedIn presence
-          </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="w-full p-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl hover:from-indigo-600 hover:to-purple-600 transition-all shadow-lg hover:shadow-xl"
-            onClick={() => navigate("/analytics")}
-          >
-            <div className="flex items-center justify-center space-x-2">
-              <span className="text-2xl">📊</span>
-              <span className="font-semibold">View Profile Analytics</span>
-            </div>
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="w-full p-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all shadow-lg hover:shadow-xl"
-            onClick={() => navigate("/postpulse")}
-          >
-            <div className="flex items-center justify-center space-x-2">
-              <span className="text-2xl">📈</span>
-              <span className="font-semibold">View Your Posts</span>
-            </div>
-          </motion.button>
-        </div>
-      </Card>
-    </motion.div>
-  );
-};
-
-const EmptyActivityState = ({ dashboardData, onRefetch, isRefetching }) => {
-  const navigate = useNavigate();
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="space-y-6"
-    >
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Dashboard</h2>
-          <p className="text-gray-600 mt-1">
-            No recent activity (28 days). Showing snapshot totals.
-          </p>
-        </div>
-        <Button variant="outline" onClick={onRefetch} disabled={isRefetching}>
-          <RefreshCw
-            size={14}
-            className={`mr-1 ${isRefetching ? "animate-spin" : ""}`}
-          />
-          {isRefetching ? "Refreshing..." : "Refresh"}
-        </Button>
-      </div>
-
-      <Card
-        variant="glass"
-        className="p-12 text-center bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200"
-      >
-        <div className="max-w-2xl mx-auto">
-          <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-6">
-            <FileText size={32} className="text-white" />
-          </div>
-          <h3 className="text-2xl font-bold text-gray-900 mb-4">
-            No Recent LinkedIn Activity
-          </h3>
-          <p className="text-gray-700 mb-8 leading-relaxed">
-            We haven't detected any posts, comments, or network activity in the
-            last 28 days. Your dashboard will show meaningful insights once you
-            start engaging on LinkedIn.
-          </p>
-
-          {/* Show baseline metrics if available */}
-          {dashboardData && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              <div className="bg-white p-4 rounded-xl border border-blue-200">
-                <div className="text-2xl font-bold text-blue-600">
-                  {dashboardData.summary?.totalConnections || 0}
-                </div>
-                <div className="text-sm text-gray-600">Total Connections</div>
-              </div>
-              <div className="bg-white p-4 rounded-xl border border-blue-200">
-                <div className="text-2xl font-bold text-blue-600">
-                  {dashboardData.scores?.profileCompleteness || 0}/10
-                </div>
-                <div className="text-sm text-gray-600">
-                  Profile Completeness
-                </div>
-              </div>
-              <div className="bg-white p-4 rounded-xl border border-blue-200">
-                <div className="text-2xl font-bold text-blue-600">
-                  {dashboardData.scores?.professionalBrand || 0}/10
-                </div>
-                <div className="text-sm text-gray-600">Professional Brand</div>
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <h4 className="text-lg font-semibold text-gray-900">
-              Get Started with LinkedIn Growth
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Button
-                variant="primary"
-                onClick={() => navigate("/scheduler")}
-                className="flex items-center justify-center space-x-2"
-              >
-                <Calendar size={16} />
-                <span>Post on LinkedIn</span>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => navigate("/postgen")}
-                className="flex items-center justify-center space-x-2"
-              >
-                <Zap size={16} />
-                <span>Generate Content</span>
-              </Button>
-            </div>
-          </div>
         </div>
       </Card>
     </motion.div>

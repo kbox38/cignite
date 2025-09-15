@@ -91,11 +91,39 @@ export const useDashboardData = () => {
 
       const data = await response.json();
       
-      if (data.error) {
+      if (data.error && data.needsReconnect) {
         throw new Error(data.message || data.error);
       }
       
-      return data;
+      // Always return data, even if there are non-critical errors
+      return {
+        scores: data.scores || {
+          overall: 0,
+          profileCompleteness: 0,
+          postingActivity: 0,
+          engagementQuality: 0,
+          contentImpact: 0,
+          contentDiversity: 0,
+          postingConsistency: 0
+        },
+        analysis: data.analysis || {},
+        summary: data.summary || {
+          totalConnections: 0,
+          totalPosts: 0,
+          avgEngagementPerPost: 0,
+          postsPerWeek: 0
+        },
+        metadata: data.metadata || {
+          fetchTimeMs: 0,
+          dataSource: "unknown",
+          hasRecentActivity: true, // Always assume we have data to show
+          profileDataAvailable: true,
+          postsDataAvailable: true
+        },
+        lastUpdated: data.lastUpdated || new Date().toISOString(),
+        error: data.error,
+        needsReconnect: data.needsReconnect
+      };
     },
     enabled: !!dmaToken,
     staleTime: 10 * 60 * 1000, // 10 minutes

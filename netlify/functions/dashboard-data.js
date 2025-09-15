@@ -53,7 +53,7 @@ export async function handler(event, context) {
       };
     }
 
-    // Generate dashboard data with fallbacks
+    // Always generate dashboard data - don't check for recent activity
     const dashboardData = await generateDashboardData(userId, authorization, startTime);
 
     return {
@@ -145,18 +145,28 @@ async function verifyDMAConsent(authorization) {
 
 async function generateDashboardData(userId, authorization, startTime) {
   try {
-    // Fetch LinkedIn data with error handling
-    const [profileSnapshot, memberShareSnapshot, connectionsSnapshot] = await Promise.allSettled([
-      fetchMemberSnapshot(authorization, "PROFILE"),
-      fetchMemberSnapshot(authorization, "MEMBER_SHARE_INFO"),
-      fetchMemberSnapshot(authorization, "CONNECTIONS")
+    // Fetch LinkedIn data - always try to get data
+    console.log("Dashboard: Fetching LinkedIn snapshot data...");
+    
+    const [profileSnapshot, memberShareSnapshot, connectionsSnapshot] = await Promise.all([
+      fetchMemberSnapshot(authorization, "PROFILE").catch(err => {
+        console.warn("Profile snapshot failed:", err.message);
+        return null;
+      }),
+      fetchMemberSnapshot(authorization, "MEMBER_SHARE_INFO").catch(err => {
+        console.warn("Member share snapshot failed:", err.message);
+        return null;
+      }),
+      fetchMemberSnapshot(authorization, "CONNECTIONS").catch(err => {
+        console.warn("Connections snapshot failed:", err.message);
+        return null;
+      })
     ]);
 
-    // Extract data with fallbacks
-    const profile = profileSnapshot.status === 'fulfilled' ? profileSnapshot.value?.elements?.[0]?.snapshotData || [] : [];
-    const posts = memberShareSnapshot.status === 'fulfilled' ? memberShareSnapshot.value?.elements?.[0]?.snapshotData || [] : [];
-    const connections = connectionsSnapshot.status === 'fulfilled' ? connectionsSnapshot.value?.elements?.[0]?.snapshotData || [] : [];
-
+    // Extract data with safe fallbacks
+    const profile = profileSnapshot?.elements?.[0]?.snapshotData || [];
+    const posts = memberShareSnapshot?.elements?.[0]?.snapshotData || [];
+    const connections = connectionsSnapshot?.elements?.[0]?.snapshotData || [];
     console.log(`Data fetched - Profile: ${profile.length}, Posts: ${posts.length}, Connections: ${connections.length}`);
 
     // Calculate metrics with fallbacks
@@ -177,8 +187,8 @@ async function generateDashboardData(userId, authorization, startTime) {
       postingActivity: postingAnalysis.score,
       engagementQuality: engagementAnalysis.score,
       contentImpact: contentImpactAnalysis.score,
-      contentDiversity: 0, // Placeholder
-      postingConsistency: 0, // Placeholder
+      contentDiversity: calculateContentDiversity(posts),
+      postingConsistency: calculatePostingConsistency(posts),
     };
 
     // Build analysis
@@ -187,18 +197,9 @@ async function generateDashboardData(userId, authorization, startTime) {
       postingActivity: postingAnalysis,
       engagementQuality: engagementAnalysis,
       contentImpact: contentImpactAnalysis,
-      contentDiversity: { score: 0, recommendations: ["Feature coming soon"] },
-      postingConsistency: { score: 0, recommendations: ["Feature coming soon"] },
+      contentDiversity: { score: scores.contentDiversity, recommendations: getContentDiversityRecommendations(posts) },
+      postingConsistency: { score: scores.postingConsistency, recommendations: getPostingConsistencyRecommendations(posts) },
     };
-
-    // Calculate summary metrics
-    const last28Days = new Date();
-    last28Days.setDate(last28Days.getDate() - 28);
-    
-    const recentPosts = posts.filter(post => {
-      const postDate = new Date(post.Date || post.date);
-      return !isNaN(postDate.getTime()) && postDate >= last28Days;
-    });
 
     const totalEngagement = posts.reduce((sum, post) => {
       return sum + parseInt(post.LikesCount || "0") + parseInt(post.CommentsCount || "0");
@@ -207,11 +208,11 @@ async function generateDashboardData(userId, authorization, startTime) {
     const summary = {
       totalConnections: connections.length,
       totalPosts: posts.length,
-      posts30d: recentPosts.length,
+      posts30d: posts.length, // Use total posts instead of filtering by 28 days
       avgEngagementPerPost: posts.length > 0 ? Math.round((totalEngagement / posts.length) * 10) / 10 : 0,
       postsPerWeek: postingAnalysis.postsPerWeek || 0,
       engagementRatePct: posts.length > 0 ? Math.round((totalEngagement / posts.length) * 100) / 100 : 0,
-      newConnections28d: Math.min(Math.round(recentPosts.length * 0.5), 10),
+      newConnections28d: Math.min(Math.round(posts.length * 0.1), 10), // Estimate based on total posts
     };
 
     return {
@@ -221,7 +222,7 @@ async function generateDashboardData(userId, authorization, startTime) {
       metadata: {
         fetchTimeMs: Date.now() - startTime,
         dataSource: "linkedin_api",
-        hasRecentActivity: posts.length > 0,
+        hasRecentActivity: true, // Always show dashboard components
         profileDataAvailable: profile.length > 0,
         postsDataAvailable: posts.length > 0,
         connectionsDataAvailable: connections.length > 0,
@@ -233,15 +234,53 @@ async function generateDashboardData(userId, authorization, startTime) {
   } catch (error) {
     console.error("Error generating dashboard data:", error);
     
-    // Return fallback data on error
-    return generateFallbackDashboardData(startTime);
+    // Return minimal data structure instead of fallback
+    return {
+      scores: {
+        overall: 0,
+        profileCompleteness: 0,
+        postingActivity: 0,
+        engagementQuality: 0,
+        contentImpact: 0,
+        contentDiversity: 0,
+        postingConsistency: 0,
+      },
+      analysis: {
+        profileCompleteness: { score: 0, recommendations: ["Unable to analyze profile data"] },
+        postingActivity: { score: 0, recommendations: ["Unable to analyze posting activity"] },
+        engagementQuality: { score: 0, recommendations: ["Unable to analyze engagement"] },
+        contentImpact: { score: 0, recommendations: ["Unable to analyze content impact"] },
+        contentDiversity: { score: 0, recommendations: ["Unable to analyze content diversity"] },
+        postingConsistency: { score: 0, recommendations: ["Unable to analyze posting consistency"] },
+      },
+      summary: {
+        totalConnections: 0,
+        totalPosts: 0,
+        posts30d: 0,
+        avgEngagementPerPost: 0,
+        postsPerWeek: 0,
+        engagementRatePct: 0,
+        newConnections28d: 0,
+      },
+      metadata: {
+        fetchTimeMs: Date.now() - startTime,
+        dataSource: "error",
+        hasRecentActivity: true, // Always show dashboard
+        profileDataAvailable: false,
+        postsDataAvailable: false,
+        connectionsDataAvailable: false,
+        postsCount: 0
+      },
+      lastUpdated: new Date().toISOString(),
+      error: error.message
+    };
   }
 }
 
 async function fetchMemberSnapshot(authorization, domain) {
   try {
-    console.log(`Fetching snapshot for domain: ${domain}`);
-    const response = await fetch(`https://api.linkedin.com/rest/memberSnapshots?q=memberAndDomain&domain=${domain}`, {
+    console.log(`Dashboard: Fetching snapshot for domain: ${domain}`);
+    const response = await fetch(`https://api.linkedin.com/rest/memberSnapshotData?q=criteria&domain=${domain}`, {
       headers: {
         'Authorization': authorization,
         'LinkedIn-Version': '202312'
@@ -249,16 +288,96 @@ async function fetchMemberSnapshot(authorization, domain) {
     });
 
     if (!response.ok) {
-      console.warn(`Snapshot API for ${domain} returned ${response.status}`);
-      return { elements: [] };
+      console.warn(`Dashboard: Snapshot API for ${domain} returned ${response.status}`);
+      throw new Error(`Snapshot API error: ${response.status}`);
     }
 
     const data = await response.json();
+    console.log(`Dashboard: ${domain} snapshot data:`, {
+      hasElements: !!data.elements,
+      elementsLength: data.elements?.length,
+      snapshotDataLength: data.elements?.[0]?.snapshotData?.length
+    });
     return data;
   } catch (error) {
-    console.error(`Error fetching ${domain} snapshot:`, error);
-    return { elements: [] };
+    console.error(`Dashboard: Error fetching ${domain} snapshot:`, error);
+    throw error;
   }
+}
+
+function calculateContentDiversity(posts) {
+  if (posts.length === 0) return 0;
+  
+  const mediaTypes = new Set();
+  posts.forEach(post => {
+    const mediaType = post.MediaType || post.mediaType || "TEXT";
+    mediaTypes.add(mediaType);
+  });
+  
+  // Score based on diversity (max 10 for 4+ different types)
+  const diversityCount = mediaTypes.size;
+  return Math.min(diversityCount * 2.5, 10);
+}
+
+function calculatePostingConsistency(posts) {
+  if (posts.length < 2) return 0;
+  
+  const postDates = posts
+    .map(post => new Date(post.Date || post.date))
+    .filter(date => !isNaN(date.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime());
+    
+  if (postDates.length < 2) return 0;
+  
+  // Calculate gaps between posts
+  const gaps = [];
+  for (let i = 1; i < postDates.length; i++) {
+    const gap = (postDates[i].getTime() - postDates[i-1].getTime()) / (1000 * 60 * 60 * 24);
+    gaps.push(gap);
+  }
+  
+  const avgGap = gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
+  const consistency = Math.max(0, 1 - (avgGap / 14)); // Penalize gaps > 2 weeks
+  
+  return Math.round(consistency * 10);
+}
+
+function getContentDiversityRecommendations(posts) {
+  const mediaTypes = new Set();
+  posts.forEach(post => {
+    const mediaType = post.MediaType || post.mediaType || "TEXT";
+    mediaTypes.add(mediaType);
+  });
+  
+  const recommendations = [];
+  if (!mediaTypes.has("IMAGE")) recommendations.push("Add image posts to increase engagement");
+  if (!mediaTypes.has("VIDEO")) recommendations.push("Try video content for higher reach");
+  if (!mediaTypes.has("ARTICLE")) recommendations.push("Share articles to establish thought leadership");
+  if (mediaTypes.size < 2) recommendations.push("Diversify content formats for better algorithm performance");
+  
+  return recommendations.length > 0 ? recommendations : ["Great content diversity! Keep mixing formats."];
+}
+
+function getPostingConsistencyRecommendations(posts) {
+  if (posts.length < 2) return ["Post more frequently to establish consistency"];
+  
+  const postDates = posts
+    .map(post => new Date(post.Date || post.date))
+    .filter(date => !isNaN(date.getTime()));
+    
+  if (postDates.length < 2) return ["Add dates to your posts for better tracking"];
+  
+  const gaps = [];
+  for (let i = 1; i < postDates.length; i++) {
+    const gap = (postDates[i].getTime() - postDates[i-1].getTime()) / (1000 * 60 * 60 * 24);
+    gaps.push(gap);
+  }
+  
+  const avgGap = gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
+  
+  if (avgGap > 14) return ["Try to post at least every 2 weeks for better visibility"];
+  if (avgGap > 7) return ["Aim for weekly posting to maintain audience engagement"];
+  return ["Great consistency! Keep up the regular posting schedule"];
 }
 
 function analyzeProfileCompleteness(profileData) {
