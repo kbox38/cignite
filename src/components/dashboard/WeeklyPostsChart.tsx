@@ -146,7 +146,6 @@ export const WeeklyPostsChart = () => {
                 return null;
               }}
             />
-            <ReferenceLine y={7} stroke="#10B981" strokeDasharray="5 5" label="Target: 7 posts/week" />
             <Bar 
               dataKey="posts" 
               fill={(entry) => getBarColor(entry?.posts || 0)}
@@ -156,15 +155,6 @@ export const WeeklyPostsChart = () => {
         </ResponsiveContainer>
       </div>
 
-      {/* Target Info */}
-      <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
-        <div className="flex items-center space-x-2">
-          <Target size={16} className="text-green-600" />
-          <span className="text-sm text-green-800 font-medium">
-            Target: 7 posts per week for optimal LinkedIn algorithm performance
-          </span>
-        </div>
-      </div>
     </Card>
   );
 };

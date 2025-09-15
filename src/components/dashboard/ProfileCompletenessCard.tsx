@@ -20,9 +20,12 @@ interface ProfileCompletenessData {
 
 export const ProfileCompletenessCard = () => {
   const { data: profileSnapshot, isLoading, error } = useLinkedInSnapshot('PROFILE');
+  const { data: skillsSnapshot } = useLinkedInSnapshot('SKILLS');
+  const { data: positionsSnapshot } = useLinkedInSnapshot('POSITIONS');
+  const { data: educationSnapshot } = useLinkedInSnapshot('EDUCATION');
 
   const calculateProfileCompleteness = (): ProfileCompletenessData => {
-    if (!profileSnapshot?.elements?.[0]?.snapshotData?.[0]) {
+    if (!profileSnapshot?.elements?.[0]?.snapshotData) {
       return {
         score: 0,
         breakdown: { basicInfo: 0, headline: 0, summary: 0, experience: 0, skills: 0 },
@@ -30,7 +33,16 @@ export const ProfileCompletenessCard = () => {
       };
     }
 
-    const profile = profileSnapshot.elements[0].snapshotData[0];
+    const profileData = profileSnapshot.elements[0].snapshotData;
+    const skillsData = skillsSnapshot?.elements?.[0]?.snapshotData || [];
+    const positionsData = positionsSnapshot?.elements?.[0]?.snapshotData || [];
+    const educationData = educationSnapshot?.elements?.[0]?.snapshotData || [];
+    
+    // Find the main profile object
+    const profile = profileData.find(item => 
+      item['First Name'] || item['Last Name'] || item['Headline'] || item['Summary']
+    ) || profileData[0] || {};
+
     const breakdown: ProfileBreakdown = {
       basicInfo: 0,
       headline: 0,
@@ -62,12 +74,22 @@ export const ProfileCompletenessCard = () => {
       else breakdown.summary = 5;
     }
 
-    // Experience (20 points)
-    if (profile['Current Position'] || profile['Position']) breakdown.experience += 10;
-    if (profile['Company'] || profile['Current Company']) breakdown.experience += 10;
+    // Experience (20 points) - Use POSITIONS domain data
+    if (positionsData.length > 0) {
+      breakdown.experience += 10; // Has positions
+      if (positionsData.length >= 2) breakdown.experience += 5; // Multiple positions
+      if (positionsData.some(pos => pos['Current'] === 'true' || pos['Is Current'] === 'true')) {
+        breakdown.experience += 5; // Has current position
+      }
+    }
 
-    // Skills (20 points)
-    if (profile['Skills'] || profile['Top Skills']) breakdown.skills = 20;
+    // Skills (20 points) - Use SKILLS domain data
+    if (skillsData.length > 0) {
+      if (skillsData.length >= 10) breakdown.skills = 20;
+      else if (skillsData.length >= 5) breakdown.skills = 15;
+      else if (skillsData.length >= 3) breakdown.skills = 10;
+      else breakdown.skills = 5;
+    }
 
     const totalScore = Object.values(breakdown).reduce((sum, val) => sum + val, 0);
 
@@ -76,8 +98,8 @@ export const ProfileCompletenessCard = () => {
     if (breakdown.basicInfo < 15) recommendations.push('Complete your basic profile information (name, location, industry)');
     if (breakdown.headline < 15) recommendations.push('Improve your headline with specific skills and value proposition');
     if (breakdown.summary < 15) recommendations.push('Add a compelling summary that tells your professional story');
-    if (breakdown.experience < 15) recommendations.push('Complete your work experience section');
-    if (breakdown.skills < 15) recommendations.push('Add relevant skills to showcase your expertise');
+    if (breakdown.experience < 15) recommendations.push(`Add more work experience (currently ${positionsData.length} positions)`);
+    if (breakdown.skills < 15) recommendations.push(`Add more skills to your profile (currently ${skillsData.length} skills)`);
 
     if (recommendations.length === 0) {
       recommendations.push('Excellent profile! Your LinkedIn presence is well-optimized');

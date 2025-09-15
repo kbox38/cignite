@@ -19,9 +19,9 @@ export interface ProfileScore {
 
 export interface SummaryKPIs {
   totalConnections: number;
-  postsLast30Days: number;
-  engagementRate: string;
-  connectionsLast30Days: number;
+  totalPosts: number;
+  avgEngagementPerPost: number;
+  postsPerWeek: number;
 }
 
 export interface MiniTrend {

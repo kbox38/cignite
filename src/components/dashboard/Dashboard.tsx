@@ -301,7 +301,7 @@ export const Dashboard = () => {
       </div>
 
       {/* Quick Stats Overview - Always Show */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <QuickStatsCard
           title="Overall Score"
           value={`${dashboardData.scores?.overall || 0}/10`}
@@ -327,16 +327,6 @@ export const Dashboard = () => {
           icon={FileText}
           color="purple"
           trend={(dashboardData.summary?.totalPosts || 0) >= 5 ? "up" : "stable"}
-        />
-        <QuickStatsCard
-          title="Engagement Rate"
-          value={`${dashboardData.summary?.engagementRatePct || 0}%`}
-          change={
-            (dashboardData.summary?.engagementRatePct || 0) >= 3 ? "Strong" : "Growing"
-          }
-          icon={Heart}
-          color="orange"
-          trend={(dashboardData.summary?.engagementRatePct || 0) >= 3 ? "up" : "stable"}
         />
       </div>
 
