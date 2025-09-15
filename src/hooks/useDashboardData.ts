@@ -101,16 +101,12 @@ export const useDashboardData = () => {
           overall: 0,
           profileCompleteness: 0,
           postingActivity: 0,
-          engagementQuality: 0,
-          contentImpact: 0,
-          contentDiversity: 0,
           postingConsistency: 0
         },
         analysis: data.analysis || {},
         summary: data.summary || {
           totalConnections: 0,
           totalPosts: 0,
-          avgEngagementPerPost: 0,
           postsPerWeek: 0
         },
         metadata: data.metadata || {

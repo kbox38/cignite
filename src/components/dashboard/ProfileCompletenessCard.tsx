@@ -190,11 +190,11 @@ export const ProfileCompletenessCard = () => {
             <div className="flex items-center space-x-2">
               <div className="w-16 bg-gray-200 rounded-full h-2">
                 <div 
-                  className={`h-2 rounded-full bg-gradient-to-r ${getProgressColor(score)} transition-all duration-500`}
-                  style={{ width: `${score}%` }}
+                  className={`h-2 rounded-full bg-gradient-to-r ${getProgressColor((score/20)*100)} transition-all duration-500`}
+                  style={{ width: `${(score/20)*100}%` }}
                 />
               </div>
-              <span className="text-sm font-bold text-gray-900 w-8">{score}</span>
+              <span className="text-sm font-bold text-gray-900 w-12">{score}/20</span>
             </div>
           </motion.div>
         ))}

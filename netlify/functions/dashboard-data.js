@@ -67,18 +67,12 @@ export async function handler(event, context) {
     // Calculate comprehensive analytics
     const profileAnalysis = analyzeProfileCompleteness(profile, skills, positions, education);
     const postingAnalysis = analyzePostingActivity(posts);
-    const engagementAnalysis = analyzeEngagementQuality(posts);
-    const contentImpactAnalysis = analyzeContentImpact(posts);
-    const contentDiversityScore = calculateContentDiversity(posts);
     const consistencyScore = calculatePostingConsistency(posts);
 
     // Calculate overall score
     const validScores = [
       profileAnalysis.score,
       postingAnalysis.score,
-      engagementAnalysis.score,
-      contentImpactAnalysis.score,
-      contentDiversityScore,
       consistencyScore
     ].filter(score => score > 0);
 
@@ -92,20 +86,11 @@ export async function handler(event, context) {
         overall: overallScore,
         profileCompleteness: profileAnalysis.score,
         postingActivity: postingAnalysis.score,
-        engagementQuality: engagementAnalysis.score,
-        contentImpact: contentImpactAnalysis.score,
-        contentDiversity: contentDiversityScore,
         postingConsistency: consistencyScore,
       },
       analysis: {
         profileCompleteness: profileAnalysis,
         postingActivity: postingAnalysis,
-        engagementQuality: engagementAnalysis,
-        contentImpact: contentImpactAnalysis,
-        contentDiversity: { 
-          score: contentDiversityScore, 
-          recommendations: getContentDiversityRecommendations(posts) 
-        },
         postingConsistency: { 
           score: consistencyScore, 
           recommendations: getPostingConsistencyRecommendations(posts) 
@@ -114,7 +99,6 @@ export async function handler(event, context) {
       summary: {
         totalConnections: connections.length,
         totalPosts: posts.length,
-        avgEngagementPerPost: engagementAnalysis.avgEngagementPerPost,
         postsPerWeek: postingAnalysis.postsPerWeek,
         newConnections28d: calculateRecentConnections(connections),
       },
@@ -169,23 +153,16 @@ export async function handler(event, context) {
           overall: 0,
           profileCompleteness: 0,
           postingActivity: 0,
-          engagementQuality: 0,
-          contentImpact: 0,
-          contentDiversity: 0,
           postingConsistency: 0,
         },
         analysis: {
           profileCompleteness: { score: 0, recommendations: ["Error loading profile data"] },
           postingActivity: { score: 0, recommendations: ["Error loading posting data"] },
-          engagementQuality: { score: 0, recommendations: ["Error loading engagement data"] },
-          contentImpact: { score: 0, recommendations: ["Error loading content data"] },
-          contentDiversity: { score: 0, recommendations: ["Error loading diversity data"] },
           postingConsistency: { score: 0, recommendations: ["Error loading consistency data"] },
         },
         summary: {
           totalConnections: 0,
           totalPosts: 0,
-          avgEngagementPerPost: 0,
           postsPerWeek: 0,
           newConnections28d: 0,
         },

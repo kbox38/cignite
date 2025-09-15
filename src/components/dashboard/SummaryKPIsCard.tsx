@@ -6,7 +6,6 @@ interface SummaryKPIsCardProps {
   kpis: {
     totalConnections: number;
     totalPosts: number;
-    avgEngagementPerPost: number;
     postsPerWeek: number;
   };
 }
@@ -30,14 +29,6 @@ export const SummaryKPIsCard = ({ kpis }: SummaryKPIsCardProps) => {
       textColor: 'text-green-600'
     },
     {
-      label: 'Avg Engagement',
-      value: Math.round(kpis.avgEngagementPerPost * 10) / 10,
-      icon: Heart,
-      color: 'from-purple-500 to-purple-600',
-      bgColor: 'bg-purple-100',
-      textColor: 'text-purple-600'
-    },
-    {
       label: 'Posts per Week',
       value: Math.round(kpis.postsPerWeek * 10) / 10,
       icon: Calendar,
@@ -59,7 +50,7 @@ export const SummaryKPIsCard = ({ kpis }: SummaryKPIsCardProps) => {
         </div>
       </div>
       
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {kpiItems.map((item, index) => (
           <motion.div
             key={item.label}

@@ -60,9 +60,6 @@ export const ProfileEvaluationCard = ({
   const scoreItems = [
     { key: 'profileCompleteness', label: 'Profile Completeness', score: scores.profileCompleteness },
     { key: 'postingActivity', label: 'Posting Activity', score: scores.postingActivity },
-    { key: 'engagementQuality', label: 'Engagement Quality', score: scores.engagementQuality },
-    { key: 'contentImpact', label: 'Content Impact', score: scores.contentImpact },
-    { key: 'contentDiversity', label: 'Content Diversity', score: scores.contentDiversity },
     { key: 'postingConsistency', label: 'Posting Consistency', score: scores.postingConsistency },
   ];
 
