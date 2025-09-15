@@ -388,7 +388,7 @@ function getPostingConsistencyRecommendations(posts) {
   return ["Great consistency! Keep up the regular posting schedule"];
 }
 
-function analyzeProfileCompleteness(profileData, skillsData = [], positionsData = []) {
+function analyzeProfileCompleteness(profileData) {
   if (!profileData || profileData.length === 0) {
     return {
       score: 0,
@@ -405,38 +405,23 @@ function analyzeProfileCompleteness(profileData, skillsData = [], positionsData 
   const breakdown = {
     headline: profile.Headline ? 30 : 0,
     summary: profile.Summary ? 25 : 0,
-    experience: profile.Experience ? 25 : 0,
+    experience: 0,
     skills: 0
   };
-  
-  // Skills (20 points) - Use SKILLS domain data
-  if (skillsData.length > 0) {
-    if (skillsData.length >= 10) breakdown.skills = 20;
-    else if (skillsData.length >= 5) breakdown.skills = 15;
-    else if (skillsData.length >= 3) breakdown.skills = 10;
-    else breakdown.skills = 5;
-  } else {
-    // Fallback: check profile data for skills indicators
-    const hasSkills = profileData.some(item => 
-      item['Skills'] || item['Top Skills'] || item['Skill'] || 
-      Object.keys(item).some(key => key.toLowerCase().includes('skill'))
-    );
-    if (hasSkills) breakdown.skills = 10;
-  }
 
-  // Experience (20 points) - Use POSITIONS domain data
-  if (positionsData.length > 0) {
-    if (positionsData.length >= 3) breakdown.experience = 20;
-    else if (positionsData.length >= 2) breakdown.experience = 15;
-    else breakdown.experience = 10;
-  } else {
-    // Fallback: check profile data for experience indicators
-    const hasExperience = profileData.some(item => 
-      item['Position'] || item['Company'] || item['Current Position'] || 
-      item['Current Company'] || item['Job Title'] || item['Employer']
-    );
-    if (hasExperience) breakdown.experience = 10;
-  }
+  // Experience (20 points) - check for experience indicators in profile data
+  const hasExperience = profileData.some(item => 
+    item['Position'] || item['Company'] || item['Current Position'] || 
+    item['Current Company'] || item['Job Title'] || item['Employer']
+  );
+  if (hasExperience) breakdown.experience = 20;
+
+  // Skills (20 points) - check for skills indicators in profile data
+  const hasSkills = profileData.some(item => 
+    item['Skills'] || item['Top Skills'] || item['Skill'] || 
+    Object.keys(item).some(key => key.toLowerCase().includes('skill'))
+  );
+  if (hasSkills) breakdown.skills = 20;
 
   const finalScore = Object.values(breakdown).reduce((sum, val) => sum + val, 0) / 10;
 
@@ -444,8 +429,8 @@ function analyzeProfileCompleteness(profileData, skillsData = [], positionsData 
   if (breakdown.headline === 0) recommendations.push("Add a compelling headline");
   if (breakdown.summary === 0) recommendations.push("Write a professional summary");
   if (breakdown.experience === 0) recommendations.push("Add your work experience");
-  if (breakdown.experience < 15) recommendations.push(`Add more work experience (currently ${positionsData.length} positions)`);
-  if (breakdown.skills < 15) recommendations.push(`Add more skills to your profile (currently ${skillsData.length} skills)`);
+  if (breakdown.skills === 0) recommendations.push("List your key skills");
+  if (finalScore >= 8) recommendations.push("Great profile! Your LinkedIn presence is well-optimized");
 
   return {
     score: Math.round(finalScore * 10) / 10,
