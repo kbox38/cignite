@@ -172,12 +172,10 @@ function App() {
             </div>
           ) : (
             // Landing page for unauthenticated users
-            return (
               <Routes>
                 <Route path="/" element={<LandingPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
-            )
           )}
         </div>
       </BrowserRouter>
