@@ -1,24 +1,23 @@
+// netlify/functions/linkedin-oauth-start.js - Updated for DMA-only
 export async function handler(event, context) {
-  console.log('OAuth start called with:', event.queryStringParameters);
+  console.log('DMA OAuth start called with:', event.queryStringParameters);
   
-  const { type = 'basic' } = event.queryStringParameters || {};
-  
+  // Remove the type parameter - always use DMA
   const baseUrl = 'https://www.linkedin.com/oauth/v2/authorization';
   
-  let clientId, scope;
-  if (type === 'dma') {
-    clientId = process.env.LINKEDIN_DMA_CLIENT_ID;
-    scope = 'r_dma_portability_3rd_party';
-  } else {
-    clientId = process.env.LINKEDIN_CLIENT_ID;
-    scope = 'openid profile email w_member_social';
-  }
+  // Always use DMA credentials and scope
+  const clientId = process.env.LINKEDIN_DMA_CLIENT_ID;
+  const scope = 'r_dma_portability_3rd_party';
   
   if (!clientId) {
-    console.error('Missing client ID for type:', type);
+    console.error('Missing DMA client ID');
     return {
       statusCode: 400,
-      body: JSON.stringify({ error: 'Missing client configuration' })
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
+      body: JSON.stringify({ error: 'Missing DMA client configuration' })
     };
   }
   
@@ -29,10 +28,11 @@ export async function handler(event, context) {
     ? 'http://localhost:8888/.netlify/functions/linkedin-oauth-callback'
     : redirectUri;
     
-  console.log('Redirect URI:', actualRedirectUri);
+  console.log('DMA Redirect URI:', actualRedirectUri);
   
-  const authUrl = `${baseUrl}?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(actualRedirectUri)}&scope=${encodeURIComponent(scope)}&state=${type}`;
-  console.log('Generated auth URL:', authUrl);
+  // Always set state to 'dma' for consistency
+  const authUrl = `${baseUrl}?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(actualRedirectUri)}&scope=${encodeURIComponent(scope)}&state=dma`;
+  console.log('Generated DMA auth URL:', authUrl);
   
   return {
     statusCode: 302,
