@@ -299,23 +299,48 @@ async function getBasicProfileInfo(accessToken) {
   console.log('🔄 getBasicProfileInfo: Starting profile extraction...');
   
   try {
-    const response = await fetch('https://api.linkedin.com/rest/people/me?projection=(id,firstName,lastName,emailAddress,profilePicture(displayImage~digitalmediaAsset:playableStreams))', {
+    // Get basic profile info
+    console.log('🔄 Fetching basic profile...');
+    const profileResponse = await fetch('https://api.linkedin.com/v2/people/~?projection=(id,firstName,lastName,profilePicture(displayImage~:playableStreams))', {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
-        'LinkedIn-Version': '202312'
+        'cache-control': 'no-cache',
+        'X-Restli-Protocol-Version': '2.0.0'
       }
     });
 
-    console.log('🔍 DEBUG: Profile API response status:', response.status);
+    console.log('🔍 DEBUG: Profile API response status:', profileResponse.status);
 
-    if (!response.ok) {
-      const errorText = await response.text();
+    if (!profileResponse.ok) {
+      const errorText = await profileResponse.text();
       console.log('❌ Profile fetch failed:', errorText);
       return null;
     }
 
-    const profileData = await response.json();
+    const profileData = await profileResponse.json();
     console.log('🔍 DEBUG: Raw profile data:', JSON.stringify(profileData, null, 2));
+
+    // Get email address separately
+    console.log('🔄 Fetching email address...');
+    const emailResponse = await fetch('https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'cache-control': 'no-cache',
+        'X-Restli-Protocol-Version': '2.0.0'
+      }
+    });
+
+    console.log('🔍 DEBUG: Email API response status:', emailResponse.status);
+
+    let email = null;
+    if (emailResponse.ok) {
+      const emailData = await emailResponse.json();
+      console.log('🔍 DEBUG: Raw email data:', JSON.stringify(emailData, null, 2));
+      email = emailData.elements?.[0]?.['handle~']?.emailAddress;
+    } else {
+      const emailError = await emailResponse.text();
+      console.log('⚠️  Email fetch failed (may be expected):', emailError);
+    }
 
     const profileInfo = {
       linkedinId: profileData.id,
@@ -323,7 +348,7 @@ async function getBasicProfileInfo(accessToken) {
       name: `${profileData.firstName?.localized?.en_US || ''} ${profileData.lastName?.localized?.en_US || ''}`.trim(),
       given_name: profileData.firstName?.localized?.en_US,
       family_name: profileData.lastName?.localized?.en_US,
-      email: profileData.emailAddress,
+      email: email,
       picture: profileData.profilePicture?.displayImage?.elements?.[0]?.identifiers?.[0]?.identifier
     };
 
