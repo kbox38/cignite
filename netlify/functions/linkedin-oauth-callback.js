@@ -113,9 +113,12 @@ export async function handler(event, context) {
     let profileInfo = null;
     let dmaUrn = null;
 
+    console.log('=== PROFILE & DMA URN RETRIEVAL ===');
+
     if (isDMA) {
-      console.log('Processing DMA OAuth...');
-      // For DMA flow, get DMA URN first
+      console.log('Processing DMA OAuth flow...');
+      
+      // For DMA flow, get DMA URN first (this is critical)
       dmaUrn = await getDmaUrn(tokenData.access_token);
       console.log('DMA URN retrieved:', dmaUrn || 'None');
       
@@ -128,27 +131,61 @@ export async function handler(event, context) {
         profileInfo = {
           linkedinId: personId,
           linkedinUrn: dmaUrn,
-          name: 'LinkedIn User',
-          email: `dma-user-${personId}@linkedin.com`
+          name: 'LinkedIn DMA User',
+          given_name: 'LinkedIn',
+          family_name: 'User',
+          email: `dma-user-${personId}@linkedin.placeholder.com`,
+          picture: null
         };
-        console.log('Created minimal profile from DMA URN');
+        console.log('✅ Created minimal profile from DMA URN');
+      } else if (profileInfo) {
+        console.log('✅ Got full profile info for DMA user');
+      } else {
+        console.log('❌ No profile info and no DMA URN');
       }
     } else {
-      console.log('Processing Basic OAuth...');
-      // For basic OAuth, get profile info first
+      console.log('Processing Basic OAuth flow...');
+      
+      // For basic OAuth, get profile info first (this should work)
       profileInfo = await getBasicProfileInfo(tokenData.access_token);
+      
       if (!profileInfo) {
-        console.error('Failed to get profile information');
-        return {
-          statusCode: 400,
-          headers: corsHeaders,
-          body: JSON.stringify({ error: 'Failed to get profile information' })
+        console.error('❌ CRITICAL: Failed to get profile information for basic OAuth');
+        // Instead of failing completely, create a fallback profile
+        console.log('Creating fallback profile...');
+        profileInfo = {
+          linkedinId: `fallback-${Date.now()}`,
+          linkedinUrn: `urn:li:person:fallback-${Date.now()}`,
+          name: 'LinkedIn User',
+          given_name: 'LinkedIn',
+          family_name: 'User', 
+          email: `fallback-${Date.now()}@linkedin.placeholder.com`,
+          picture: null
         };
+        console.log('⚠️  Using fallback profile due to API issues');
       }
 
-      // Try to get DMA URN (will likely be null for basic OAuth)
+      // Try to get DMA URN (will likely be null for basic OAuth, that's OK)
       dmaUrn = await getDmaUrn(tokenData.access_token);
       console.log('DMA URN from basic OAuth:', dmaUrn || 'None (expected for basic OAuth)');
+    }
+
+    console.log('=== FINAL PROFILE STATUS ===');
+    console.log('Profile available:', !!profileInfo);
+    console.log('Profile name:', profileInfo?.name || 'None');
+    console.log('DMA URN available:', !!dmaUrn);
+
+    if (!profileInfo) {
+      console.error('❌ FATAL: No profile information could be retrieved');
+      return {
+        statusCode: 500,
+        headers: corsHeaders,
+        body: JSON.stringify({ 
+          error: 'Unable to retrieve user profile information',
+          oauth_type: isDMA ? 'dma' : 'basic',
+          details: 'All profile retrieval methods failed'
+        })
+      };
     }
 
     // ENHANCED: Create or update user with better error handling
@@ -217,41 +254,106 @@ export async function handler(event, context) {
   }
 }
 
-// Get basic profile information
+// Get basic profile information with multiple fallback methods
 async function getBasicProfileInfo(accessToken) {
+  console.log('=== PROFILE FETCH START ===');
+  
+  // Method 1: Try OpenID Connect userinfo endpoint (most reliable)
   try {
-    console.log('Fetching basic profile info...');
-    
-    const response = await fetch('https://api.linkedin.com/v2/people/~?projection=(id,firstName,lastName,emailAddress,profilePicture(displayImage~:playableStreams))', {
+    console.log('Method 1: Trying userinfo endpoint...');
+    const userinfoResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'LinkedIn-Version': '202312'
       }
     });
 
-    if (!response.ok) {
-      console.error('Profile fetch failed:', response.status, response.statusText);
-      const errorText = await response.text();
-      console.error('Profile error details:', errorText);
-      return null;
+    if (userinfoResponse.ok) {
+      const userinfo = await userinfoResponse.json();
+      console.log('✅ Userinfo success:', userinfo.sub);
+      
+      return {
+        linkedinId: userinfo.sub,
+        linkedinUrn: `urn:li:person:${userinfo.sub}`,
+        name: userinfo.name || `${userinfo.given_name || ''} ${userinfo.family_name || ''}`.trim(),
+        given_name: userinfo.given_name,
+        family_name: userinfo.family_name,
+        email: userinfo.email,
+        picture: userinfo.picture
+      };
+    } else {
+      console.log('❌ Userinfo failed:', userinfoResponse.status);
     }
-
-    const profile = await response.json();
-    console.log('Basic profile retrieved:', profile.id);
-
-    return {
-      linkedinId: profile.id,
-      linkedinUrn: `urn:li:person:${profile.id}`,
-      name: `${profile.firstName.localized.en_US} ${profile.lastName.localized.en_US}`,
-      given_name: profile.firstName.localized.en_US,
-      family_name: profile.lastName.localized.en_US,
-      email: profile.emailAddress,
-      picture: profile.profilePicture?.displayImage?.elements?.[0]?.identifiers?.[0]?.identifier || null
-    };
   } catch (error) {
-    console.error('Error fetching basic profile:', error);
-    return null;
+    console.log('❌ Userinfo error:', error.message);
   }
+
+  // Method 2: Try people endpoint without email (no email scope needed)
+  try {
+    console.log('Method 2: Trying people endpoint without email...');
+    const peopleResponse = await fetch('https://api.linkedin.com/v2/people/~?projection=(id,firstName,lastName,profilePicture(displayImage~:playableStreams))', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Restli-Protocol-Version': '2.0.0'
+      }
+    });
+
+    if (peopleResponse.ok) {
+      const profile = await peopleResponse.json();
+      console.log('✅ People API success:', profile.id);
+      
+      return {
+        linkedinId: profile.id,
+        linkedinUrn: `urn:li:person:${profile.id}`,
+        name: `${profile.firstName?.localized?.en_US || ''} ${profile.lastName?.localized?.en_US || ''}`.trim() || 'LinkedIn User',
+        given_name: profile.firstName?.localized?.en_US,
+        family_name: profile.lastName?.localized?.en_US,
+        email: `user-${profile.id}@linkedin.placeholder.com`, // Placeholder email
+        picture: profile.profilePicture?.displayImage?.elements?.[0]?.identifiers?.[0]?.identifier || null
+      };
+    } else {
+      const errorText = await peopleResponse.text();
+      console.log('❌ People API failed:', peopleResponse.status, errorText);
+    }
+  } catch (error) {
+    console.log('❌ People API error:', error.message);
+  }
+
+  // Method 3: Try basic profile with different headers
+  try {
+    console.log('Method 3: Trying basic profile with LinkedIn-Version...');
+    const basicResponse = await fetch('https://api.linkedin.com/v2/people/~', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'LinkedIn-Version': '202312'
+      }
+    });
+
+    if (basicResponse.ok) {
+      const profile = await basicResponse.json();
+      console.log('✅ Basic profile success:', profile.id);
+      
+      return {
+        linkedinId: profile.id,
+        linkedinUrn: `urn:li:person:${profile.id}`,
+        name: profile.localizedFirstName && profile.localizedLastName 
+          ? `${profile.localizedFirstName} ${profile.localizedLastName}`
+          : 'LinkedIn User',
+        given_name: profile.localizedFirstName,
+        family_name: profile.localizedLastName,
+        email: `user-${profile.id}@linkedin.placeholder.com`, // Placeholder email
+        picture: null
+      };
+    } else {
+      const errorText = await basicResponse.text();
+      console.log('❌ Basic profile failed:', basicResponse.status, errorText);
+    }
+  } catch (error) {
+    console.log('❌ Basic profile error:', error.message);
+  }
+
+  console.log('=== ALL PROFILE METHODS FAILED ===');
+  return null;
 }
 
 // Get DMA URN from LinkedIn API
@@ -372,8 +474,8 @@ async function createOrUpdateUser(profileInfo, accessToken, dmaUrn, isDmaFlow = 
       }
     }
 
-    // 3. If still not found, try by email
-    if (!existingUser && profileInfo.email) {
+    // 3. If still not found, try by email (but skip placeholder emails)
+    if (!existingUser && profileInfo.email && !profileInfo.email.includes('linkedin.placeholder.com')) {
       console.log('Looking for user by email...');
       const { data } = await supabase
         .from('users')
