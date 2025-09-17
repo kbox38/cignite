@@ -181,6 +181,8 @@ export const AuthFlow = () => {
   );
 
   return (
+    <div className="min-h-screen overflow-y-auto bg-gradient-to-br from-blue-50 via-white to-cyan-50">
+      <div className="container mx-auto px-4 py-8 max-w-2xl"></div>
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="max-w-2xl w-full">
         {/* Header */}
@@ -217,7 +219,7 @@ export const AuthFlow = () => {
         </div>
 
         {/* Footer actions */}
-        <div className="text-center space-y-4">
+        <div className="text-center space-y-4 pb-8">
           {(isBasicAuthenticated || dmaToken) && (
             <button
               onClick={handleStartOver}
@@ -249,6 +251,7 @@ export const AuthFlow = () => {
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 };
