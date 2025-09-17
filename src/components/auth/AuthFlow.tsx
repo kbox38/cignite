@@ -35,7 +35,7 @@ export const AuthFlow = () => {
       permissions: [
         'Profile information',
         'Email address',
-        'Connection count',
+        'Basic profile data',
         'Basic posting capabilities'
       ],
       completed: isBasicAuthenticated
@@ -45,10 +45,10 @@ export const AuthFlow = () => {
       title: 'Advanced Analytics (DMA)',
       description: 'Unlock detailed analytics and insights about your LinkedIn performance',
       permissions: [
-        'Profile view metrics',
+        'Historical post data',
         'Post engagement data',
         'Connection analytics',
-        'Search appearance metrics'
+        'Advanced insights'
       ],
       completed: !!dmaToken
     }

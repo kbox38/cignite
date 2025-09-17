@@ -1,24 +1,30 @@
-// netlify/functions/linkedin-oauth-start.js - DMA-only OAuth flow
+// netlify/functions/linkedin-oauth-start.js - Two-step OAuth flow
 export async function handler(event, context) {
-  console.log('=== DMA-ONLY OAUTH START ===');
+  console.log('=== OAUTH START ===');
   console.log('Query parameters:', event.queryStringParameters);
   
-  // Always use DMA OAuth - no type parameter needed
-  const clientId = process.env.LINKEDIN_DMA_CLIENT_ID;
-  const scope = 'r_dma_portability_3rd_party';
+  const { type = 'basic' } = event.queryStringParameters || {};
   
-  console.log('🔍 DEBUG: DMA Client ID exists:', !!clientId);
-  console.log('🔍 DEBUG: Using DMA scope:', scope);
+  console.log('🔍 DEBUG: OAuth type requested:', type);
+  
+  // Determine which OAuth flow to use
+  const isBasic = type === 'basic';
+  const clientId = isBasic ? process.env.LINKEDIN_CLIENT_ID : process.env.LINKEDIN_DMA_CLIENT_ID;
+  const scope = isBasic ? 'openid profile email w_member_social' : 'r_dma_portability_3rd_party';
+  
+  console.log('🔍 DEBUG: Using client ID exists:', !!clientId);
+  console.log('🔍 DEBUG: Using scope:', scope);
+  console.log('🔍 DEBUG: OAuth flow type:', isBasic ? 'Basic' : 'DMA');
   
   if (!clientId) {
-    console.error('❌ Missing DMA client ID');
+    console.error(`❌ Missing ${isBasic ? 'basic' : 'DMA'} client ID`);
     return {
       statusCode: 400,
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*'
       },
-      body: JSON.stringify({ error: 'Missing DMA OAuth configuration' })
+      body: JSON.stringify({ error: `Missing ${isBasic ? 'basic' : 'DMA'} OAuth configuration` })
     };
   }
   
@@ -30,10 +36,11 @@ export async function handler(event, context) {
     
   console.log('🔍 DEBUG: Redirect URI:', redirectUri);
   
-  // Always use DMA state
-  const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=dma`;
+  // Generate OAuth URL with appropriate state
+  const state = isBasic ? 'basic' : 'dma';
+  const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}`;
   
-  console.log('✅ Generated DMA OAuth URL');
+  console.log('✅ Generated OAuth URL for', isBasic ? 'Basic' : 'DMA');
   console.log('🔍 DEBUG: Auth URL preview:', authUrl.substring(0, 100) + '...');
   
   return {

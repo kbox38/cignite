@@ -131,7 +131,7 @@ async function getPartnerLinkedInUrn(partnerUserId) {
 
     const { data: user, error } = await supabase
       .from('users')
-      .select('linkedin_dma_member_urn, name')
+      .select('linkedin_dma_member_urn, linkedin_member_urn, name')
       .eq('id', partnerUserId)
       .single();
 
@@ -141,7 +141,8 @@ async function getPartnerLinkedInUrn(partnerUserId) {
     }
 
     console.log("Found LinkedIn URN for user:", user.name);
-    return user.linkedin_dma_member_urn;
+    // Use DMA URN if available, fallback to regular URN
+    return user.linkedin_dma_member_urn || user.linkedin_member_urn;
   } catch (error) {
     console.error('Error getting partner LinkedIn URN:', error);
     return null;
@@ -198,7 +199,7 @@ async function getCachedPosts(partnerUserId, limit) {
 
 function isCacheStale(fetchedAt, ttlMinutes = 30) {
   if (!fetchedAt) return true;
-  const cacheAge = Date.now() - new Date(fetchedAt).getTime();
+    .slice(0, 5) // EXACTLY 5 most recent posts for synergy
   return cacheAge > (ttlMinutes * 60 * 1000);
 }
 
@@ -208,7 +209,7 @@ async function fetchPartnerPostsFromDMA(authorization, partnerUrn, limit = 10) {
 
     // Use Member Snapshot API to get latest posts
     const response = await fetch(`https://api.linkedin.com/rest/memberSnapshotData?q=criteria&domain=MEMBER_SHARE_INFO`, {
-      headers: {
+        textPreview: textContent.substring(0, 300), // Limit preview length
         'Authorization': authorization,
         'LinkedIn-Version': '202312',
         'X-Restli-Protocol-Version': '2.0.0'

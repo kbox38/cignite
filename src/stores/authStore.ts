@@ -32,12 +32,12 @@ export const useAuthStore = create<AuthState>()(
           dmaToken: dmaToken ? 'present' : 'null'
         });
 
-        // RESTORED: Original two-step authentication logic
+        // Two-step authentication: Basic OAuth first, then DMA OAuth
         set({
           accessToken,
           dmaToken,
           isBasicAuthenticated: !!accessToken,
-          isFullyAuthenticated: !!(accessToken && dmaToken), // Need BOTH tokens for full auth
+          isFullyAuthenticated: !!(accessToken && dmaToken), // Need BOTH tokens for full access
         });
       },
       setUserId: (userId) => {

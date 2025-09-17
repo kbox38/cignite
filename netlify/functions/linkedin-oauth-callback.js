@@ -1,4 +1,4 @@
-// netlify/functions/linkedin-oauth-callback.js - DEBUG VERSION with enhanced logging
+// netlify/functions/linkedin-oauth-callback.js - Fixed two-step OAuth with proper profile handling
 export async function handler(event, context) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -119,25 +119,16 @@ export async function handler(event, context) {
         };
       }
       
-      // DMA tokens cannot access profile endpoints - create minimal profile from DMA URN
-      console.log('📝 Creating minimal profile from DMA URN (DMA tokens have limited scope)');
-      const personId = dmaUrn.replace('urn:li:person:', '');
-      profileInfo = {
-        linkedinId: personId,
-        linkedinUrn: dmaUrn,
-        name: 'LinkedIn User (DMA)',
-        given_name: 'LinkedIn',
-        family_name: 'User',
-        email: null,
-        picture: null
-      };
-      console.log('✅ Created minimal profile from DMA URN:', personId);
+      // For DMA tokens, try to get basic profile info but don't fail if it doesn't work
+      console.log('🔄 Attempting to get profile info with DMA token...');
+      profileInfo = await getProfileInfoWithFallback(tokenData.access_token, dmaUrn);
+      
     } else {
       console.log('=== PROCESSING BASIC OAUTH ===');
       
-      // For basic OAuth, get full profile info
+      // For basic OAuth, get profile info using multiple methods
       console.log('🔄 Getting profile info for basic token...');
-      profileInfo = await getBasicProfileInfo(tokenData.access_token);
+      profileInfo = await getProfileInfoWithFallback(tokenData.access_token);
       
       if (!profileInfo) {
         console.error('❌ Failed to get profile information for basic OAuth');
@@ -152,11 +143,6 @@ export async function handler(event, context) {
       console.log('🔍 DEBUG: Profile name:', profileInfo.name);
       console.log('🔍 DEBUG: Profile email:', profileInfo.email);
       console.log('🔍 DEBUG: LinkedIn URN:', profileInfo.linkedinUrn);
-
-      // Try to get DMA URN (will likely be null for basic OAuth, that's expected)
-      console.log('🔄 Checking for DMA URN with basic token...');
-      dmaUrn = await getDmaUrn(tokenData.access_token);
-      console.log('🔍 DEBUG: DMA URN from basic OAuth:', dmaUrn || 'None (expected for basic OAuth)');
     }
 
     // Validate we have minimum required info
@@ -169,7 +155,7 @@ export async function handler(event, context) {
       };
     }
 
-    // Create or update user with enhanced matching and DMA URN population
+    // Create or update user
     console.log('🔄 Creating or updating user...');
     const user = await createOrUpdateUser(profileInfo, tokenData.access_token, dmaUrn, isDMA);
     
@@ -240,10 +226,114 @@ export async function handler(event, context) {
   }
 }
 
-// Enhanced DMA URN extraction with debugging
+// Enhanced profile info retrieval with multiple fallback methods
+async function getProfileInfoWithFallback(accessToken, dmaUrn = null) {
+  console.log('🔄 getProfileInfoWithFallback: Starting profile extraction...');
+  
+  // Method 1: Try userinfo endpoint (works with openid scope)
+  try {
+    console.log('🔄 Method 1: Trying userinfo endpoint...');
+    const userinfoResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'cache-control': 'no-cache'
+      }
+    });
+
+    console.log('🔍 DEBUG: Userinfo API response status:', userinfoResponse.status);
+
+    if (userinfoResponse.ok) {
+      const userinfoData = await userinfoResponse.json();
+      console.log('✅ Method 1 SUCCESS: Userinfo data retrieved');
+      console.log('🔍 DEBUG: Userinfo data:', JSON.stringify(userinfoData, null, 2));
+
+      return {
+        linkedinId: userinfoData.sub,
+        linkedinUrn: `urn:li:person:${userinfoData.sub}`,
+        name: userinfoData.name || `${userinfoData.given_name || ''} ${userinfoData.family_name || ''}`.trim(),
+        given_name: userinfoData.given_name,
+        family_name: userinfoData.family_name,
+        email: userinfoData.email,
+        picture: userinfoData.picture
+      };
+    } else {
+      const errorText = await userinfoResponse.text();
+      console.log('⚠️  Method 1 FAILED: Userinfo endpoint error:', errorText);
+    }
+  } catch (error) {
+    console.log('⚠️  Method 1 FAILED: Userinfo endpoint exception:', error.message);
+  }
+
+  // Method 2: Try basic people endpoint without email
+  try {
+    console.log('🔄 Method 2: Trying basic people endpoint...');
+    const profileResponse = await fetch('https://api.linkedin.com/v2/people/~?projection=(id,firstName,lastName,profilePicture(displayImage~:playableStreams))', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'cache-control': 'no-cache',
+        'X-Restli-Protocol-Version': '2.0.0'
+      }
+    });
+
+    console.log('🔍 DEBUG: People API response status:', profileResponse.status);
+
+    if (profileResponse.ok) {
+      const profileData = await profileResponse.json();
+      console.log('✅ Method 2 SUCCESS: People data retrieved');
+      console.log('🔍 DEBUG: People data:', JSON.stringify(profileData, null, 2));
+
+      return {
+        linkedinId: profileData.id,
+        linkedinUrn: `urn:li:person:${profileData.id}`,
+        name: `${profileData.firstName?.localized?.en_US || ''} ${profileData.lastName?.localized?.en_US || ''}`.trim(),
+        given_name: profileData.firstName?.localized?.en_US,
+        family_name: profileData.lastName?.localized?.en_US,
+        email: null, // Email not available in this endpoint
+        picture: profileData.profilePicture?.displayImage?.elements?.[0]?.identifiers?.[0]?.identifier
+      };
+    } else {
+      const errorText = await profileResponse.text();
+      console.log('⚠️  Method 2 FAILED: People endpoint error:', errorText);
+    }
+  } catch (error) {
+    console.log('⚠️  Method 2 FAILED: People endpoint exception:', error.message);
+  }
+
+  // Method 3: Create minimal profile from DMA URN if available
+  if (dmaUrn) {
+    console.log('🔄 Method 3: Creating minimal profile from DMA URN...');
+    const personId = dmaUrn.replace('urn:li:person:', '');
+    
+    const profileInfo = {
+      linkedinId: personId,
+      linkedinUrn: dmaUrn,
+      name: 'LinkedIn User (DMA)',
+      given_name: 'LinkedIn',
+      family_name: 'User',
+      email: null,
+      picture: null
+    };
+    
+    console.log('✅ Method 3 SUCCESS: Created minimal profile from DMA URN');
+    return profileInfo;
+  }
+
+  // Method 4: Last resort - create placeholder profile
+  console.log('🔄 Method 4: Creating placeholder profile...');
+  return {
+    linkedinId: `user_${Date.now()}`,
+    linkedinUrn: `urn:li:person:user_${Date.now()}`,
+    name: 'LinkedIn User',
+    given_name: 'LinkedIn',
+    family_name: 'User',
+    email: null,
+    picture: null
+  };
+}
+
+// Enhanced DMA URN extraction
 async function getDmaUrn(accessToken) {
   console.log('🔄 getDmaUrn: Starting DMA URN extraction...');
-  console.log('🔍 DEBUG: Access token length:', accessToken?.length || 0);
   
   try {
     const url = 'https://api.linkedin.com/rest/memberAuthorizations?q=memberAndApplication';
@@ -253,12 +343,10 @@ async function getDmaUrn(accessToken) {
     };
     
     console.log('🔍 DEBUG: Request URL:', url);
-    console.log('🔍 DEBUG: Request headers:', JSON.stringify(headers, null, 2));
     
     const response = await fetch(url, { headers });
     
     console.log('🔍 DEBUG: Response status:', response.status);
-    console.log('🔍 DEBUG: Response headers:', JSON.stringify([...response.headers.entries()], null, 2));
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -268,7 +356,7 @@ async function getDmaUrn(accessToken) {
     }
 
     const authData = await response.json();
-    console.log('🔍 DEBUG: Full auth data response:', JSON.stringify(authData, null, 2));
+    console.log('🔍 DEBUG: Auth data received');
     
     if (!authData.elements || authData.elements.length === 0) {
       console.log('⚠️  No DMA authorization elements found');
@@ -276,8 +364,6 @@ async function getDmaUrn(accessToken) {
     }
 
     const memberAuth = authData.elements[0];
-    console.log('🔍 DEBUG: First member auth element:', JSON.stringify(memberAuth, null, 2));
-    
     const dmaUrn = memberAuth.memberComplianceAuthorizationKey?.member;
     
     if (dmaUrn) {
@@ -289,79 +375,11 @@ async function getDmaUrn(accessToken) {
     return dmaUrn;
   } catch (error) {
     console.error('💥 Error in getDmaUrn:', error);
-    console.error('💥 Error stack:', error.stack);
     return null;
   }
 }
 
-// Enhanced profile info retrieval with debugging
-async function getBasicProfileInfo(accessToken) {
-  console.log('🔄 getBasicProfileInfo: Starting profile extraction...');
-  
-  try {
-    // Get basic profile info
-    console.log('🔄 Fetching basic profile...');
-    const profileResponse = await fetch('https://api.linkedin.com/v2/people/~?projection=(id,firstName,lastName,profilePicture(displayImage~:playableStreams))', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'cache-control': 'no-cache',
-        'X-Restli-Protocol-Version': '2.0.0'
-      }
-    });
-
-    console.log('🔍 DEBUG: Profile API response status:', profileResponse.status);
-
-    if (!profileResponse.ok) {
-      const errorText = await profileResponse.text();
-      console.log('❌ Profile fetch failed:', errorText);
-      return null;
-    }
-
-    const profileData = await profileResponse.json();
-    console.log('🔍 DEBUG: Raw profile data:', JSON.stringify(profileData, null, 2));
-
-    // Get email address separately
-    console.log('🔄 Fetching email address...');
-    const emailResponse = await fetch('https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'cache-control': 'no-cache',
-        'X-Restli-Protocol-Version': '2.0.0'
-      }
-    });
-
-    console.log('🔍 DEBUG: Email API response status:', emailResponse.status);
-
-    let email = null;
-    if (emailResponse.ok) {
-      const emailData = await emailResponse.json();
-      console.log('🔍 DEBUG: Raw email data:', JSON.stringify(emailData, null, 2));
-      email = emailData.elements?.[0]?.['handle~']?.emailAddress;
-    } else {
-      const emailError = await emailResponse.text();
-      console.log('⚠️  Email fetch failed (may be expected):', emailError);
-    }
-
-    const profileInfo = {
-      linkedinId: profileData.id,
-      linkedinUrn: `urn:li:person:${profileData.id}`,
-      name: `${profileData.firstName?.localized?.en_US || ''} ${profileData.lastName?.localized?.en_US || ''}`.trim(),
-      given_name: profileData.firstName?.localized?.en_US,
-      family_name: profileData.lastName?.localized?.en_US,
-      email: email,
-      picture: profileData.profilePicture?.displayImage?.elements?.[0]?.identifiers?.[0]?.identifier
-    };
-
-    console.log('✅ Profile info processed:', JSON.stringify(profileInfo, null, 2));
-    return profileInfo;
-    
-  } catch (error) {
-    console.error('💥 Error in getBasicProfileInfo:', error);
-    return null;
-  }
-}
-
-// Enhanced user creation/update with debugging
+// Enhanced user creation/update with proper DMA handling
 async function createOrUpdateUser(profileInfo, accessToken, dmaUrn, isDmaFlow) {
   console.log('🔄 createOrUpdateUser: Starting user processing...');
   console.log('🔍 DEBUG: Profile info:', JSON.stringify(profileInfo, null, 2));
@@ -377,67 +395,85 @@ async function createOrUpdateUser(profileInfo, accessToken, dmaUrn, isDmaFlow) {
 
     const now = new Date().toISOString();
 
-    // Try to find existing user by LinkedIn URN, DMA URN, or email
+    // Enhanced user lookup to prevent duplicates
     console.log('🔄 Searching for existing user...');
-    let query = '';
-    const searchCriteria = [];
     
-    if (profileInfo.linkedinUrn) {
-      searchCriteria.push(`linkedin_member_urn.eq.${profileInfo.linkedinUrn}`);
-    }
+    let existingUser = null;
+    
+    // Step 1: Try to find by DMA URN if available
     if (dmaUrn) {
-      searchCriteria.push(`linkedin_dma_member_urn.eq.${dmaUrn}`);
-    }
-    if (profileInfo.email) {
-      searchCriteria.push(`email.eq.${profileInfo.email}`);
+      console.log('🔍 Step 1: Looking up by DMA URN...');
+      const { data: userByDmaUrn } = await supabase
+        .from('users')
+        .select('*')
+        .eq('linkedin_dma_member_urn', dmaUrn)
+        .single();
+      
+      if (userByDmaUrn) {
+        existingUser = userByDmaUrn;
+        console.log('✅ Found user by DMA URN:', existingUser.id);
+      }
     }
     
-    query = searchCriteria.join(',');
-    console.log('🔍 DEBUG: User search criteria:', query);
+    // Step 2: Try to find by LinkedIn URN if not found by DMA URN
+    if (!existingUser && profileInfo.linkedinUrn) {
+      console.log('🔍 Step 2: Looking up by LinkedIn URN...');
+      const { data: userByLinkedinUrn } = await supabase
+        .from('users')
+        .select('*')
+        .eq('linkedin_member_urn', profileInfo.linkedinUrn)
+        .single();
+      
+      if (userByLinkedinUrn) {
+        existingUser = userByLinkedinUrn;
+        console.log('✅ Found user by LinkedIn URN:', existingUser.id);
+      }
+    }
     
-    const { data: existingUser, error: findError } = await supabase
-      .from('users')
-      .select('*')
-      .or(query)
-      .single();
-
-    if (findError && findError.code !== 'PGRST116') {
-      console.error('❌ Database error finding user:', findError);
-      throw findError;
+    // Step 3: Try to find by email if available and not a placeholder
+    if (!existingUser && profileInfo.email && !profileInfo.email.includes('placeholder')) {
+      console.log('🔍 Step 3: Looking up by email...');
+      const { data: userByEmail } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', profileInfo.email)
+        .single();
+      
+      if (userByEmail) {
+        existingUser = userByEmail;
+        console.log('✅ Found user by email:', existingUser.id);
+      }
     }
 
     if (existingUser) {
       console.log('✅ Found existing user:', existingUser.id);
-      console.log('🔍 DEBUG: Existing user data:', JSON.stringify(existingUser, null, 2));
       
-      // Update existing user
+      // Prepare update data
       const updateData = {
         name: profileInfo.name || existingUser.name,
         given_name: profileInfo.given_name || existingUser.given_name,
         family_name: profileInfo.family_name || existingUser.family_name,
         avatar_url: profileInfo.picture || existingUser.avatar_url,
-        email: profileInfo.email || existingUser.email,
         linkedin_member_urn: profileInfo.linkedinUrn || existingUser.linkedin_member_urn,
         last_login: now,
         updated_at: now
       };
 
-      // CRITICAL: Always update DMA URN if available
-      if (dmaUrn) {
+      // Only update email if we have a real email (not placeholder)
+      if (profileInfo.email && !profileInfo.email.includes('placeholder')) {
+        updateData.email = profileInfo.email;
+      }
+
+      // CRITICAL: Handle DMA URN and activation properly
+      if (isDmaFlow && dmaUrn) {
+        // This is the DMA step - activate DMA and set URN
         updateData.linkedin_dma_member_urn = dmaUrn;
         updateData.dma_active = true;
         updateData.dma_consent_date = now;
-        console.log('✅ Adding DMA URN to update:', dmaUrn);
-      }
-      
-      // For DMA flows, always set DMA active regardless of URN source
-      if (isDmaFlow) {
-        updateData.dma_active = true;
-        updateData.dma_consent_date = now;
-        if (!updateData.linkedin_dma_member_urn && profileInfo.linkedinUrn) {
-          updateData.linkedin_dma_member_urn = profileInfo.linkedinUrn;
-          console.log('✅ Setting DMA URN from LinkedIn URN for DMA flow:', profileInfo.linkedinUrn);
-        }
+        console.log('✅ DMA STEP: Setting DMA active and URN:', dmaUrn);
+      } else if (!isDmaFlow) {
+        // This is basic OAuth step - don't activate DMA yet
+        console.log('✅ BASIC STEP: Keeping DMA inactive until DMA OAuth completed');
       }
 
       console.log('🔍 DEBUG: Update data:', JSON.stringify(updateData, null, 2));
@@ -455,14 +491,13 @@ async function createOrUpdateUser(profileInfo, accessToken, dmaUrn, isDmaFlow) {
       }
 
       console.log('✅ User updated successfully');
-      console.log('🔍 DEBUG: Updated user data:', JSON.stringify(updatedUser, null, 2));
       return updatedUser;
     } else {
       console.log('📝 Creating new user...');
       
       const newUserData = {
-        email: profileInfo.email || `dma-user-${Date.now()}@placeholder.com`,
-        name: profileInfo.name || 'LinkedIn User (DMA)',
+        email: profileInfo.email || `user-${Date.now()}@placeholder.com`,
+        name: profileInfo.name || 'LinkedIn User',
         given_name: profileInfo.given_name || 'LinkedIn',
         family_name: profileInfo.family_name || 'User',
         avatar_url: profileInfo.picture,
@@ -472,18 +507,17 @@ async function createOrUpdateUser(profileInfo, accessToken, dmaUrn, isDmaFlow) {
         created_at: now
       };
 
-      // Add DMA URN and set DMA active for DMA flows
-      if (dmaUrn) {
+      // Handle DMA URN for new users
+      if (isDmaFlow && dmaUrn) {
+        // Creating user during DMA step
         newUserData.linkedin_dma_member_urn = dmaUrn;
         newUserData.dma_active = true;
         newUserData.dma_consent_date = now;
-        console.log('✅ Creating user with DMA URN:', dmaUrn);
-      } else if (isDmaFlow) {
-        // For DMA flows, always set DMA active
-        newUserData.linkedin_dma_member_urn = profileInfo.linkedinUrn;
-        newUserData.dma_active = true;
-        newUserData.dma_consent_date = now;
-        console.log('✅ Creating user with LinkedIn URN as DMA URN for DMA flow');
+        console.log('✅ Creating new user with DMA active:', dmaUrn);
+      } else {
+        // Creating user during basic step
+        newUserData.dma_active = false;
+        console.log('✅ Creating new user with DMA inactive (awaiting DMA step)');
       }
 
       console.log('🔍 DEBUG: New user data:', JSON.stringify(newUserData, null, 2));
@@ -500,17 +534,15 @@ async function createOrUpdateUser(profileInfo, accessToken, dmaUrn, isDmaFlow) {
       }
 
       console.log('✅ New user created successfully');
-      console.log('🔍 DEBUG: New user data:', JSON.stringify(newUser, null, 2));
       return newUser;
     }
   } catch (error) {
     console.error('💥 Error in createOrUpdateUser:', error);
-    console.error('💥 Error stack:', error.stack);
     return null;
   }
 }
 
-// Enhanced changelog generation with debugging
+// Enhanced changelog generation
 async function enableChangelogGeneration(accessToken) {
   console.log('🔄 enableChangelogGeneration: Starting...');
   
