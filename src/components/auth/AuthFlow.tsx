@@ -69,23 +69,15 @@ export const AuthFlow = () => {
     }
   }, [isFullyAuthenticated]);
 
-  const handleOAuthStart = async (type: 'basic' | 'dma') => {
+  const handleOAuthStart = (type: 'basic' | 'dma') => {
     setIsAuthenticating(true);
     setError(null);
     
     try {
       console.log(`AuthFlow: Starting ${type} OAuth flow`);
       
-      // Call the appropriate OAuth start function
-      const response = await fetch(`/.netlify/functions/linkedin-oauth-start?type=${type}`);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to start ${type} OAuth flow`);
-      }
-      
-      // The function returns a 302 redirect, so we need to follow it
-      window.location.href = response.url;
+      // Direct navigation to OAuth start endpoint (avoids CORS issues)
+      window.location.href = `/.netlify/functions/linkedin-oauth-start?type=${type}`;
       
     } catch (err) {
       console.error(`AuthFlow: ${type} OAuth start failed:`, err);
