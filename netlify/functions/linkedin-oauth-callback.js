@@ -302,7 +302,7 @@ async function getBasicProfileInfo(accessToken) {
     const response = await fetch('https://api.linkedin.com/rest/people/me?projection=(id,firstName,lastName,emailAddress,profilePicture(displayImage~digitalmediaAsset:playableStreams))', {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
-        'LinkedIn-Version': '202212'
+        'LinkedIn-Version': '202312'
       }
     });
 
