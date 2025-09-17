@@ -462,7 +462,6 @@ async function createOrUpdateUserEnhanced(profileInfo, accessToken, dmaUrn, isDm
   console.log('🔍 DEBUG: DMA URN:', dmaUrn);
   console.log('🔍 DEBUG: Is DMA flow:', isDmaFlow);
 
-  // Add debug layer on top of existing working logic
   await debugDatabaseConnection();
 
   try {
@@ -473,75 +472,99 @@ async function createOrUpdateUserEnhanced(profileInfo, accessToken, dmaUrn, isDm
     );
 
     const now = new Date().toISOString();
-
-    // Enhanced user lookup to prevent duplicates
-    console.log('🔄 Searching for existing user...');
-    
     let existingUser = null;
-    
-    // Step 1: Try to find by DMA URN if available
-    if (dmaUrn) {
-      console.log('🔍 Step 1: Looking up by DMA URN...');
-      const { data: userByDmaUrn, error: dmaLookupError } = await supabase
+
+    if (isDmaFlow) {
+      console.log('🔍 DMA FLOW: Looking for existing user to link DMA data to...');
+      
+      // FOR DMA FLOW: Try to find the most recently active user first
+      // This ensures we link DMA to the user who just completed basic OAuth
+      console.log('🔍 Step 1: Looking for most recent active user...');
+      const { data: recentUsers, error: recentError } = await supabase
         .from('users')
         .select('*')
-        .eq('linkedin_dma_member_urn', dmaUrn)
-        .single();
+        .order('last_login', { ascending: false })
+        .limit(5);
+
+      console.log('🔍 DEBUG: Recent users found:', recentUsers?.length || 0);
       
-      console.log('🔍 DEBUG: DMA lookup result:', userByDmaUrn);
-      console.log('🔍 DEBUG: DMA lookup error:', dmaLookupError);
-      
-      if (dmaLookupError && dmaLookupError.code !== 'PGRST116') {
-        console.error('Error looking up by DMA URN:', dmaLookupError);
+      if (recentUsers && recentUsers.length > 0) {
+        // Look for a user without DMA data who logged in recently (last 10 minutes)
+        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+        const candidateUser = recentUsers.find(user => 
+          !user.dma_active && 
+          !user.linkedin_dma_member_urn && 
+          user.last_login > tenMinutesAgo
+        );
+        
+        if (candidateUser) {
+          existingUser = candidateUser;
+          console.log('✅ Found recent user to link DMA to:', existingUser.id, existingUser.name);
+        }
       }
       
-      if (userByDmaUrn) {
-        existingUser = userByDmaUrn;
-        console.log('✅ Found user by DMA URN:', existingUser.id);
-      }
-    }
-    
-    // Step 2: Try to find by LinkedIn URN if not found by DMA URN
-    if (!existingUser && profileInfo.linkedinUrn) {
-      console.log('🔍 Step 2: Looking up by LinkedIn URN...');
-      const { data: userByLinkedinUrn, error: linkedinLookupError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('linkedin_member_urn', profileInfo.linkedinUrn)
-        .single();
-      
-      console.log('🔍 DEBUG: LinkedIn URN lookup result:', userByLinkedinUrn);
-      console.log('🔍 DEBUG: LinkedIn URN lookup error:', linkedinLookupError);
-      
-      if (linkedinLookupError && linkedinLookupError.code !== 'PGRST116') {
-        console.error('Error looking up by LinkedIn URN:', linkedinLookupError);
+      // Step 2: Fallback - look by DMA URN if no recent user found
+      if (!existingUser && dmaUrn) {
+        console.log('🔍 Step 2: Looking up by DMA URN...');
+        const { data: userByDmaUrn, error: dmaLookupError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('linkedin_dma_member_urn', dmaUrn)
+          .single();
+        
+        if (userByDmaUrn) {
+          existingUser = userByDmaUrn;
+          console.log('✅ Found user by DMA URN:', existingUser.id);
+        }
       }
       
-      if (userByLinkedinUrn) {
-        existingUser = userByLinkedinUrn;
-        console.log('✅ Found user by LinkedIn URN:', existingUser.id);
-      }
-    }
-    
-    // Step 3: Try to find by email if available and not a placeholder
-    if (!existingUser && profileInfo.email && !profileInfo.email.includes('linkedin-growth.app')) {
-      console.log('🔍 Step 3: Looking up by email...');
-      const { data: userByEmail, error: emailLookupError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', profileInfo.email)
-        .single();
-      
-      console.log('🔍 DEBUG: Email lookup result:', userByEmail);
-      console.log('🔍 DEBUG: Email lookup error:', emailLookupError);
-      
-      if (emailLookupError && emailLookupError.code !== 'PGRST116') {
-        console.error('Error looking up by email:', emailLookupError);
+      // Step 3: Look by LinkedIn URN if we have it
+      if (!existingUser && profileInfo.linkedinUrn) {
+        console.log('🔍 Step 3: Looking up by LinkedIn URN...');
+        const { data: userByLinkedinUrn, error: linkedinLookupError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('linkedin_member_urn', profileInfo.linkedinUrn)
+          .single();
+        
+        if (userByLinkedinUrn) {
+          existingUser = userByLinkedinUrn;
+          console.log('✅ Found user by LinkedIn URN:', existingUser.id);
+        }
       }
       
-      if (userByEmail) {
-        existingUser = userByEmail;
-        console.log('✅ Found user by email:', existingUser.id);
+    } else {
+      console.log('🔍 BASIC FLOW: Standard user lookup...');
+      
+      // FOR BASIC FLOW: Standard lookup order
+      // Step 1: Try to find by LinkedIn URN
+      if (profileInfo.linkedinUrn) {
+        console.log('🔍 Step 1: Looking up by LinkedIn URN...');
+        const { data: userByLinkedinUrn, error: linkedinLookupError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('linkedin_member_urn', profileInfo.linkedinUrn)
+          .single();
+        
+        if (userByLinkedinUrn) {
+          existingUser = userByLinkedinUrn;
+          console.log('✅ Found user by LinkedIn URN:', existingUser.id);
+        }
+      }
+      
+      // Step 2: Try to find by email
+      if (!existingUser && profileInfo.email && !profileInfo.email.includes('linkedin-growth.app')) {
+        console.log('🔍 Step 2: Looking up by email...');
+        const { data: userByEmail, error: emailLookupError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', profileInfo.email)
+          .single();
+        
+        if (userByEmail) {
+          existingUser = userByEmail;
+          console.log('✅ Found user by email:', existingUser.id);
+        }
       }
     }
 
@@ -552,14 +575,26 @@ async function createOrUpdateUserEnhanced(profileInfo, accessToken, dmaUrn, isDm
       
       // Prepare update data
       const updateData = {
-        name: profileInfo.name || existingUser.name,
-        given_name: profileInfo.given_name || existingUser.given_name,
-        family_name: profileInfo.family_name || existingUser.family_name,
-        avatar_url: profileInfo.picture || existingUser.avatar_url,
-        linkedin_member_urn: profileInfo.linkedinUrn || existingUser.linkedin_member_urn,
         last_login: now,
         updated_at: now
       };
+
+      // Update profile info if we have better data
+      if (profileInfo.name && profileInfo.name !== 'LinkedIn User (DMA)') {
+        updateData.name = profileInfo.name;
+      }
+      if (profileInfo.given_name && profileInfo.given_name !== 'LinkedIn') {
+        updateData.given_name = profileInfo.given_name;
+      }
+      if (profileInfo.family_name && profileInfo.family_name !== 'User') {
+        updateData.family_name = profileInfo.family_name;
+      }
+      if (profileInfo.picture) {
+        updateData.avatar_url = profileInfo.picture;
+      }
+      if (profileInfo.linkedinUrn && !isDmaFlow) {
+        updateData.linkedin_member_urn = profileInfo.linkedinUrn;
+      }
 
       // Only update email if we have a real email (not placeholder)
       if (profileInfo.email && !profileInfo.email.includes('linkedin-growth.app')) {
@@ -572,7 +607,7 @@ async function createOrUpdateUserEnhanced(profileInfo, accessToken, dmaUrn, isDm
         updateData.linkedin_dma_member_urn = dmaUrn;
         updateData.dma_active = true;
         updateData.dma_consent_date = now;
-        console.log('✅ DMA STEP: Setting DMA active and URN:', dmaUrn);
+        console.log('✅ DMA STEP: Setting DMA active and URN on existing user:', dmaUrn);
       } else if (!isDmaFlow) {
         // This is basic OAuth step - don't activate DMA yet
         console.log('✅ BASIC STEP: Keeping DMA inactive until DMA OAuth completed');
@@ -581,9 +616,6 @@ async function createOrUpdateUserEnhanced(profileInfo, accessToken, dmaUrn, isDm
       console.log('🔍 DEBUG: Final update data:', JSON.stringify(updateData, null, 2));
       console.log('🔍 DEBUG: Updating user ID:', existingUser.id);
 
-      // CRITICAL DEBUG: Test the exact update query
-      console.log('🔄 Executing database update...');
-      
       const updateResult = await supabase
         .from('users')
         .update(updateData)
@@ -591,10 +623,6 @@ async function createOrUpdateUserEnhanced(profileInfo, accessToken, dmaUrn, isDm
         .select('*');
 
       console.log('🔍 DEBUG: Raw update result:', JSON.stringify(updateResult, null, 2));
-      console.log('🔍 DEBUG: Update data returned:', updateResult.data);
-      console.log('🔍 DEBUG: Update error:', updateResult.error);
-      console.log('🔍 DEBUG: Update status:', updateResult.status);
-      console.log('🔍 DEBUG: Update statusText:', updateResult.statusText);
 
       if (updateResult.error) {
         console.error('❌ Error updating user:', updateResult.error);
@@ -611,23 +639,17 @@ async function createOrUpdateUserEnhanced(profileInfo, accessToken, dmaUrn, isDm
       console.log('🔍 DEBUG: Updated user DMA status:', updatedUser.dma_active);
       console.log('🔍 DEBUG: Updated user DMA URN:', updatedUser.linkedin_dma_member_urn);
       
-      // VERIFICATION: Double-check the update worked
-      const { data: verificationUser, error: verifyError } = await supabase
-        .from('users')
-        .select('dma_active, linkedin_dma_member_urn')
-        .eq('id', existingUser.id)
-        .single();
-      
-      if (verifyError) {
-        console.error('❌ Verification query failed:', verifyError);
-      } else {
-        console.log('🔍 VERIFICATION: DB shows dma_active =', verificationUser.dma_active);
-        console.log('🔍 VERIFICATION: DB shows linkedin_dma_member_urn =', verificationUser.linkedin_dma_member_urn);
-      }
-      
       return updatedUser;
+      
     } else {
-      console.log('📝 Creating new user...');
+      console.log('📝 No existing user found - creating new user...');
+      
+      // Only create new users for Basic OAuth flow
+      // DMA flow should always link to existing user
+      if (isDmaFlow) {
+        console.error('❌ DMA flow should not create new users - should link to existing account');
+        throw new Error('DMA flow failed to find existing user to link to');
+      }
       
       const newUserData = {
         email: profileInfo.email || `user-${Date.now()}@linkedin-growth.app`,
@@ -638,21 +660,9 @@ async function createOrUpdateUserEnhanced(profileInfo, accessToken, dmaUrn, isDm
         linkedin_member_urn: profileInfo.linkedinUrn,
         account_status: 'active',
         last_login: now,
-        created_at: now
+        created_at: now,
+        dma_active: false  // New users start with DMA inactive
       };
-
-      // Handle DMA URN for new users
-      if (isDmaFlow && dmaUrn) {
-        // Creating user during DMA step
-        newUserData.linkedin_dma_member_urn = dmaUrn;
-        newUserData.dma_active = true;
-        newUserData.dma_consent_date = now;
-        console.log('✅ Creating new user with DMA active:', dmaUrn);
-      } else {
-        // Creating user during basic step
-        newUserData.dma_active = false;
-        console.log('✅ Creating new user with DMA inactive (awaiting DMA step)');
-      }
 
       console.log('🔍 DEBUG: New user data:', JSON.stringify(newUserData, null, 2));
 
@@ -668,10 +678,9 @@ async function createOrUpdateUserEnhanced(profileInfo, accessToken, dmaUrn, isDm
       }
 
       console.log('✅ New user created successfully');
-      console.log('🔍 DEBUG: New user DMA status:', newUser.dma_active);
-      console.log('🔍 DEBUG: New user DMA URN:', newUser.linkedin_dma_member_urn);
       return newUser;
     }
+    
   } catch (error) {
     console.error('💥 Error in createOrUpdateUserEnhanced:', error);
     console.error('💥 Error stack:', error.stack);
