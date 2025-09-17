@@ -4,7 +4,6 @@ import { persist } from "zustand/middleware";
 import { LinkedInProfile } from "../types/linkedin";
 
 interface AuthState {
-  // Keep both for backward compatibility, but DMA token is primary now
   accessToken: string | null;
   dmaToken: string | null;
   userId: string | null;
@@ -32,23 +31,18 @@ export const useAuthStore = create<AuthState>()(
           dmaToken: dmaToken ? 'present' : 'null'
         });
 
-        // For DMA-only OAuth:
-        // - If we get a dmaToken, treat it as both access and DMA token
-        // - If we get an accessToken but no dmaToken, it's legacy basic auth
-        const finalDmaToken = dmaToken || accessToken; // Use accessToken as DMA if no explicit DMA token
-        const finalAccessToken = accessToken || dmaToken; // Use DMA token as access if no explicit access token
+        // DMA-only OAuth: Use DMA token as primary, fallback to access token
+        const primaryToken = dmaToken || accessToken;
 
         console.log('AuthStore: Final tokens:', {
-          finalAccessToken: finalAccessToken ? 'present' : 'null',
-          finalDmaToken: finalDmaToken ? 'present' : 'null'
+          primaryToken: primaryToken ? 'present' : 'null'
         });
 
         set({
-          accessToken: finalAccessToken,
-          dmaToken: finalDmaToken,
-          // For DMA-only flow, we're authenticated if we have any token
-          isBasicAuthenticated: !!(finalAccessToken || finalDmaToken),
-          isFullyAuthenticated: !!(finalDmaToken), // Full auth requires DMA token
+          accessToken: primaryToken,
+          dmaToken: primaryToken,
+          isBasicAuthenticated: !!primaryToken,
+          isFullyAuthenticated: !!primaryToken, // DMA-only: any token means fully authenticated
         });
       },
       setUserId: (userId) => {

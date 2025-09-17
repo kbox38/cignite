@@ -1,11 +1,9 @@
-// App.tsx - Updated for DMA-only OAuth
 import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { useAppStore } from './stores/appStore';
 import { useDmaAuth } from './hooks/useDmaAuth';
-import { AuthFlow } from './components/auth/AuthFlow';
 import { LandingPage } from './components/landing/LandingPage';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
@@ -31,11 +29,11 @@ const queryClient = new QueryClient({
 });
 
 function App() {
-  const { isBasicAuthenticated, isFullyAuthenticated, dmaToken, setTokens, setUserId } = useAuthStore();
+  const { isFullyAuthenticated, dmaToken, setTokens, setUserId } = useAuthStore();
   const { sidebarCollapsed } = useAppStore();
-  const darkMode = false; // Force bright mode always
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
   const [hasProcessedUrlParams, setHasProcessedUrlParams] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   
   // Use DMA auth hook to handle userId extraction
   useDmaAuth();
@@ -45,64 +43,96 @@ function App() {
     document.documentElement.classList.remove('dark');
   }, []);
 
-  // Check for OAuth callback parameters only once on initial load
+  // Process OAuth callback parameters and errors
   useEffect(() => {
     if (hasProcessedUrlParams) return;
 
     const urlParams = new URLSearchParams(window.location.search);
-    const accessTokenParam = urlParams.get('access_token'); // Legacy support
-    const dmaTokenParam = urlParams.get('dma_token'); // Primary token
+    const dmaTokenParam = urlParams.get('dma_token');
     const userIdParam = urlParams.get('user_id');
+    const errorParam = urlParams.get('error');
     
     console.log('App: URL parameters detected:', {
-      accessToken: accessTokenParam ? 'present' : 'missing',
       dmaToken: dmaTokenParam ? 'present' : 'missing',
-      userId: userIdParam ? 'present' : 'missing'
+      userId: userIdParam ? 'present' : 'missing',
+      error: errorParam || 'none'
     });
 
-    // Process tokens if any are present
-    if (accessTokenParam || dmaTokenParam) {
-      console.log('App: Processing OAuth callback tokens');
+    // Handle OAuth errors
+    if (errorParam) {
+      console.error('App: OAuth error received:', errorParam);
+      setAuthError(errorParam);
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setHasProcessedUrlParams(true);
+      setAuthCheckComplete(true);
+      return;
+    }
+
+    // Process DMA token if present
+    if (dmaTokenParam) {
+      console.log('App: Processing DMA OAuth callback token');
       
-      // For DMA-only OAuth, prioritize DMA token
-      const primaryToken = dmaTokenParam || accessTokenParam;
+      console.log('App: Setting DMA token');
+      setTokens(dmaTokenParam, dmaTokenParam);
       
-      console.log('App: Setting tokens - DMA-only flow');
-      useAuthStore.getState().setTokens(primaryToken, primaryToken);
-      
-      // Process userId from URL if available
       if (userIdParam) {
         console.log('App: Setting userId from URL:', userIdParam);
         setUserId(userIdParam);
       }
       
-      // Clean up URL parameters
+      // Clean up URL
       const cleanUrl = window.location.pathname;
       window.history.replaceState({}, document.title, cleanUrl);
-      console.log('App: URL cleaned, tokens processed');
+      console.log('App: URL cleaned, DMA token processed');
     }
     
     setHasProcessedUrlParams(true);
     setAuthCheckComplete(true);
-  }, [hasProcessedUrlParams, setUserId]);
+  }, [hasProcessedUrlParams, setTokens, setUserId]);
 
   // Debug logging
   useEffect(() => {
     if (authCheckComplete) {
       console.log('App: Authentication status:', {
-        isBasicAuthenticated,
         isFullyAuthenticated,
         hasDmaToken: !!dmaToken,
-        authCheckComplete
+        authCheckComplete,
+        authError
       });
     }
-  }, [isBasicAuthenticated, isFullyAuthenticated, dmaToken, authCheckComplete]);
+  }, [isFullyAuthenticated, dmaToken, authCheckComplete, authError]);
 
   // Don't render anything until auth check is complete
   if (!authCheckComplete) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state if OAuth failed
+  if (authError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-md w-full p-6 bg-white rounded-lg shadow-lg text-center">
+          <div className="text-red-500 text-4xl mb-4">⚠️</div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Authentication Error</h2>
+          <p className="text-gray-600 mb-4">{authError}</p>
+          <button
+            onClick={() => {
+              setAuthError(null);
+              window.location.href = '/';
+            }}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }
@@ -111,50 +141,42 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <div className="min-h-screen bg-gray-50">
-          {(() => {
-            console.log('App: Rendering decision - isFullyAuthenticated:', isFullyAuthenticated);
-            
-            // Show authenticated app if user has DMA token
-            if (isFullyAuthenticated) {
-              return (
-                <div className="flex h-screen">
-                  <Sidebar />
-                  <div
-                    className={clsx(
-                      'flex-1 flex flex-col transition-all duration-300',
-                      sidebarCollapsed ? 'ml-20' : 'ml-64'
-                    )}
-                  >
-                    <Header />
-                    <main className="flex-1 overflow-auto bg-gray-50">
-                      <Routes>
-                        <Route path="/" element={<Dashboard />} />
-                        <Route path="/analytics" element={<Analytics />} />
-                        <Route path="/synergy" element={<Synergy />} />
-                        <Route path="/post-pulse" element={<PostPulse />} />
-                        <Route path="/post-gen" element={<PostGen />} />
-                        <Route path="/scheduler" element={<Scheduler />} />
-                        <Route path="/creation-engine" element={<CreationEngine />} />
-                        <Route path="/the-algo" element={<TheAlgo />} />
-                        <Route path="/settings" element={<Settings />} />
-                        <Route path="/dma-test" element={<DMATestPage />} />
-                        <Route path="*" element={<Navigate to="/" replace />} />
-                      </Routes>
-                    </main>
-                  </div>
-                </div>
-              );
-            }
-            
-            // Show landing page for unauthenticated users
-            return (
+          {isFullyAuthenticated ? (
+            // Authenticated app with dashboard
+            <div className="flex h-screen">
+              <Sidebar />
+              <div
+                className={clsx(
+                  'flex-1 flex flex-col transition-all duration-300',
+                  sidebarCollapsed ? 'ml-20' : 'ml-64'
+                )}
+              >
+                <Header />
+                <main className="flex-1 overflow-auto bg-gray-50">
+                  <Routes>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/analytics" element={<Analytics />} />
+                    <Route path="/synergy" element={<Synergy />} />
+                    <Route path="/postpulse" element={<PostPulse />} />
+                    <Route path="/postgen" element={<PostGen />} />
+                    <Route path="/scheduler" element={<Scheduler />} />
+                    <Route path="/creation-engine" element={<CreationEngine />} />
+                    <Route path="/algo" element={<TheAlgo />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/dma-test" element={<DMATestPage />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </main>
+              </div>
+            </div>
+          ) : (
+            // Landing page for unauthenticated users
               <Routes>
                 <Route path="/" element={<LandingPage />} />
-                <Route path="/auth" element={<AuthFlow />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
-            );
-          })()}
+          )}
         </div>
       </BrowserRouter>
     </QueryClientProvider>

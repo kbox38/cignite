@@ -9,8 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { NotificationDropdown } from './NotificationDropdown';
 
 export const Header = () => {
-  const { darkMode, setDarkMode } = useAppStore();
-  const { profile, logout, setTokens, setProfile } = useAuthStore();
+  const { profile, logout, setTokens, setProfile, dmaToken } = useAuthStore();
   const { data: linkedInProfile } = useLinkedInProfile();
 
 
@@ -20,9 +19,11 @@ export const Header = () => {
   const { data: notificationsData } = useQuery({
     queryKey: ['pending-invitations'],
     queryFn: async () => {
+      if (!dmaToken) return { pendingInvitations: [] };
+      
       const response = await fetch('/.netlify/functions/synergy-partners', {
         headers: {
-          'Authorization': `Bearer ${useAuthStore.getState().dmaToken}`,
+          'Authorization': `Bearer ${dmaToken}`,
           'Content-Type': 'application/json',
         },
       });
@@ -37,12 +38,13 @@ export const Header = () => {
         partners: Array.isArray(data?.partners) ? data.partners : []
       };
     },
-    enabled: !!useAuthStore.getState().dmaToken,
+    enabled: !!dmaToken,
     staleTime: 30 * 1000,
     refetchInterval: 30 * 1000,
   });
 
   const pendingCount = Array.isArray(notificationsData?.pendingInvitations) ? notificationsData.pendingInvitations.length : 0;
+  
   const handleLogout = () => {
     // Clear all auth data
     setTokens(null, null);
@@ -67,7 +69,7 @@ export const Header = () => {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.1 }}
           >
-            Welcome back, {displayProfile?.given_name || 'User'}!
+            Welcome back, {displayProfile?.given_name || displayProfile?.name || 'User'}!
           </motion.h2>
         </div>
 

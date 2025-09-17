@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
-import { initiateLinkedInAuth } from '../../services/linkedin';
 
 interface NavigationProps {
   activeSection: string;
@@ -84,9 +83,9 @@ const Navigation = ({ activeSection, onNavigate, isDark, toggleTheme, onStartGro
             
             <Button
               onClick={onStartGrowing}
-              className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white font-semibold"
+              className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white font-semibold px-6 py-2"
             >
-              Start Growing
+              Sign in with LinkedIn
             </Button>
           </div>
         </div>
@@ -658,12 +657,10 @@ export const LandingPage = () => {
   };
 
   const handleStartGrowing = () => {
-    setShowSignIn(true);
+    // Direct to DMA OAuth instead of showing sign-in page
+    console.log('Starting LinkedIn DMA OAuth...');
+    window.location.href = '/.netlify/functions/linkedin-oauth-start';
   };
-
-  if (showSignIn) {
-    return <SignInPage isDark={isDark} toggleTheme={toggleTheme} onBack={() => setShowSignIn(false)} />;
-  }
 
   return (
     <div className={`min-h-screen transition-colors ${isDark ? 'bg-black' : 'bg-white'}`}>
@@ -711,114 +708,6 @@ export const LandingPage = () => {
           </div>
         </div>
       </footer>
-    </div>
-  );
-};
-
-const SignInPage = ({ isDark, toggleTheme, onBack }: { isDark: boolean; toggleTheme: () => void; onBack: () => void }) => {
-  const [step, setStep] = useState<'signin' | 'basic-auth' | 'dma-auth' | 'complete'>('signin');
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleBasicAuth = async () => {
-    setIsLoading(true);
-    setStep('basic-auth');
-    // Simulate auth process
-    setTimeout(() => {
-      initiateLinkedInAuth('basic');
-    }, 1000);
-  };
-
-  const handleDMAAuth = async () => {
-    setIsLoading(true);
-    setStep('dma-auth');
-    // Simulate auth process
-    setTimeout(() => {
-      initiateLinkedInAuth('dma');
-    }, 1000);
-  };
-
-  return (
-    <div className={`min-h-screen transition-colors ${isDark ? 'bg-black' : 'bg-gradient-to-br from-gray-50 to-blue-50'}`}>
-      {/* Navigation */}
-      <nav className={`backdrop-blur-xl border-b transition-colors ${
-        isDark 
-          ? 'bg-black/80 border-gray-800' 
-          : 'bg-white/80 border-gray-200'
-      }`}>
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={onBack}
-              className={`flex items-center space-x-2 transition-colors ${
-                isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <ArrowRight size={20} className="rotate-180" />
-              <span>Back to Home</span>
-            </button>
-            
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-lg flex items-center justify-center">
-                <Linkedin size={20} className="text-white" />
-              </div>
-              <span className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>LinkedinGrowth</span>
-            </div>
-
-            <button
-              onClick={toggleTheme}
-              className={`p-2 rounded-lg transition-colors ${
-                isDark 
-                  ? 'hover:bg-gray-700 text-gray-300' 
-                  : 'hover:bg-gray-100 text-gray-600'
-              }`}
-            >
-              {isDark ? <Sun size={20} /> : <Moon size={20} />}
-            </button>
-          </div>
-        </div>
-      </nav>
-
-      {/* Sign In Content */}
-      <div className="flex items-center justify-center min-h-[calc(100vh-80px)] p-6">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full"
-        >
-          <div className={`p-8 rounded-2xl border transition-all duration-300 ${
-            isDark 
-              ? 'bg-gray-800/90 border-gray-700 shadow-2xl' 
-              : 'bg-white border-gray-200 shadow-2xl'
-          }`}>
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Linkedin size={32} className="text-white" />
-              </div>
-              <h2 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Sign in with LinkedIn
-              </h2>
-              <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Connect your LinkedIn account to start growing your professional presence
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <Button
-                onClick={handleBasicAuth}
-                disabled={isLoading}
-                className="w-full bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white font-semibold py-3"
-              >
-                <Linkedin size={20} className="mr-2" />
-                {isLoading ? 'Connecting...' : 'Continue with LinkedIn'}
-              </Button>
-              
-              <p className={`text-xs text-center ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                By continuing, you agree to our Terms of Service and Privacy Policy
-              </p>
-            </div>
-          </div>
-        </motion.div>
-      </div>
     </div>
   );
 };
