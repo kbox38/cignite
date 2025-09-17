@@ -231,10 +231,29 @@ export async function handler(event, context) {
     console.log('OAuth Type:', isDMA ? 'DMA' : 'Basic');
     console.log('DMA URN:', user.linkedin_dma_member_urn || 'None');
 
+    // FIXED: Instead of returning JSON, redirect back to the app with tokens
+    const appBaseUrl = process.env.NODE_ENV === 'development' 
+      ? 'http://localhost:5173' 
+      : process.env.URL.replace('/.netlify/functions/linkedin-oauth-callback', '');
+
+    let redirectUrl;
+    
+    if (isDMA) {
+      // For DMA OAuth, redirect with DMA token and user ID
+      redirectUrl = `${appBaseUrl}?dma_token=${encodeURIComponent(tokenData.access_token)}&user_id=${encodeURIComponent(user.id)}`;
+    } else {
+      // For basic OAuth, redirect with access token and user ID
+      redirectUrl = `${appBaseUrl}?access_token=${encodeURIComponent(tokenData.access_token)}&user_id=${encodeURIComponent(user.id)}`;
+    }
+
+    console.log('Redirecting to:', redirectUrl);
+
     return {
-      statusCode: 200,
-      headers: corsHeaders,
-      body: JSON.stringify(response)
+      statusCode: 302,
+      headers: {
+        ...corsHeaders,
+        Location: redirectUrl
+      }
     };
 
   } catch (error) {
@@ -495,6 +514,7 @@ async function createOrUpdateUser(profileInfo, accessToken, dmaUrn, isDmaFlow = 
       // Update existing user
       console.log('Updating existing user:', existingUser.id);
       
+      // FIXED: Only set dma_active to true if we actually have a DMA URN
       const updateData = {
         name: profileInfo.name,
         given_name: profileInfo.given_name,
@@ -505,12 +525,30 @@ async function createOrUpdateUser(profileInfo, accessToken, dmaUrn, isDmaFlow = 
         updated_at: now
       };
 
-      // FIXED: Always update DMA URN if available and different from current
-      if (dmaUrn && dmaUrn !== existingUser.linkedin_dma_member_urn) {
-        updateData.linkedin_dma_member_urn = dmaUrn;
-        updateData.dma_active = true;
-        updateData.dma_consent_date = now;
-        console.log('Adding/updating DMA URN for existing user');
+      // FIXED: Always update DMA URN if available, and handle DMA flow properly
+      if (dmaUrn) {
+        // For DMA flow, always update DMA URN regardless of current value
+        if (isDmaFlow || dmaUrn !== existingUser.linkedin_dma_member_urn) {
+          updateData.linkedin_dma_member_urn = dmaUrn;
+          updateData.dma_active = true;
+          updateData.dma_consent_date = now;
+          console.log('Adding/updating DMA URN for existing user');
+        }
+      } else if (isDmaFlow) {
+        // If this is a DMA flow but we don't have DMA URN, derive it from LinkedIn URN
+        if (profileInfo.linkedinUrn && profileInfo.linkedinUrn !== existingUser.linkedin_dma_member_urn) {
+          updateData.linkedin_dma_member_urn = profileInfo.linkedinUrn;
+          updateData.dma_active = true;
+          updateData.dma_consent_date = now;
+          console.log('Deriving DMA URN from LinkedIn URN for existing user');
+        }
+      } else {
+        // For basic OAuth, don't change DMA status unless we have new info
+        // Only update dma_active to false if it was incorrectly set to true without DMA URN
+        if (existingUser.dma_active && !existingUser.linkedin_dma_member_urn) {
+          updateData.dma_active = false;
+          console.log('Correcting dma_active flag - was true but no DMA URN');
+        }
       }
 
       const { data: updatedUser, error } = await supabase
@@ -543,12 +581,18 @@ async function createOrUpdateUser(profileInfo, accessToken, dmaUrn, isDmaFlow = 
         created_at: now
       };
 
-      // Add DMA URN if available
+      // Add DMA URN if available, or derive from LinkedIn URN for DMA flows
       if (dmaUrn) {
         newUserData.linkedin_dma_member_urn = dmaUrn;
         newUserData.dma_active = true;
         newUserData.dma_consent_date = now;
         console.log('Creating new user with DMA URN');
+      } else if (isDmaFlow && profileInfo.linkedinUrn) {
+        // For DMA flows without explicit DMA URN, derive from LinkedIn URN
+        newUserData.linkedin_dma_member_urn = profileInfo.linkedinUrn;
+        newUserData.dma_active = true;
+        newUserData.dma_consent_date = now;
+        console.log('Creating new user with derived DMA URN from LinkedIn URN');
       }
 
       const { data: newUser, error } = await supabase
