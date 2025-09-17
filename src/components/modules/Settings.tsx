@@ -202,6 +202,16 @@ export const Settings = () => {
               Open Test
             </Button>
           </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">DMA Debug Page</p>
+              <p className="text-sm text-gray-600">Debug DMA setup and database issues</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => navigate('/dma-debug')}>
+              <Database size={16} className="mr-1" />
+              Debug DMA
+            </Button>
+          </div>
         </div>
       </Card>
 

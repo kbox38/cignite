@@ -1,4 +1,4 @@
-// netlify/functions/linkedin-oauth-callback.js - Fixed two-step OAuth with enhanced fallbacks
+// netlify/functions/linkedin-oauth-callback.js - Fixed DMA URN extraction and database updates
 export async function handler(event, context) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -105,9 +105,9 @@ export async function handler(event, context) {
     if (isDMA) {
       console.log('=== PROCESSING DMA OAUTH ===');
       
-      // For DMA flow, get DMA URN first
+      // For DMA flow, get DMA URN first - ENHANCED EXTRACTION
       console.log('🔄 Attempting to get DMA URN...');
-      dmaUrn = await getDmaUrn(tokenData.access_token);
+      dmaUrn = await getDmaUrnEnhanced(tokenData.access_token);
       console.log('🔍 DEBUG: DMA URN result:', dmaUrn || 'NULL');
       
       if (!dmaUrn) {
@@ -155,9 +155,9 @@ export async function handler(event, context) {
       };
     }
 
-    // Create or update user
+    // Create or update user - ENHANCED DATABASE LOGIC
     console.log('🔄 Creating or updating user...');
-    const user = await createOrUpdateUser(profileInfo, tokenData.access_token, dmaUrn, isDMA);
+    const user = await createOrUpdateUserEnhanced(profileInfo, tokenData.access_token, dmaUrn, isDMA);
     
     if (!user) {
       console.error('❌ Failed to create or update user');
@@ -369,32 +369,34 @@ async function getProfileInfoWithFallback(accessToken, dmaUrn = null) {
   };
 }
 
-// Enhanced DMA URN extraction
-async function getDmaUrn(accessToken) {
-  console.log('🔄 getDmaUrn: Starting DMA URN extraction...');
+// ENHANCED DMA URN extraction with better error handling
+async function getDmaUrnEnhanced(accessToken) {
+  console.log('🔄 getDmaUrnEnhanced: Starting DMA URN extraction...');
   
   try {
     const url = 'https://api.linkedin.com/rest/memberAuthorizations?q=memberAndApplication';
     const headers = {
       'Authorization': `Bearer ${accessToken}`,
-      'LinkedIn-Version': '202312'
+      'LinkedIn-Version': '202312',
+      'X-Restli-Protocol-Version': '2.0.0'
     };
     
     console.log('🔍 DEBUG: Request URL:', url);
+    console.log('🔍 DEBUG: Request headers:', headers);
     
     const response = await fetch(url, { headers });
     
     console.log('🔍 DEBUG: Response status:', response.status);
+    console.log('🔍 DEBUG: Response headers:', Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.log('⚠️  DMA URN fetch failed (may be expected for basic OAuth)');
-      console.log('🔍 DEBUG: Error response:', errorText);
+      console.log('⚠️  DMA URN fetch failed:', response.status, errorText);
       return null;
     }
 
     const authData = await response.json();
-    console.log('🔍 DEBUG: Auth data received');
+    console.log('🔍 DEBUG: Auth data received:', JSON.stringify(authData, null, 2));
     
     if (!authData.elements || authData.elements.length === 0) {
       console.log('⚠️  No DMA authorization elements found');
@@ -402,24 +404,28 @@ async function getDmaUrn(accessToken) {
     }
 
     const memberAuth = authData.elements[0];
+    console.log('🔍 DEBUG: Member auth structure:', JSON.stringify(memberAuth, null, 2));
+    
     const dmaUrn = memberAuth.memberComplianceAuthorizationKey?.member;
     
     if (dmaUrn) {
       console.log('✅ DMA URN successfully extracted:', dmaUrn);
     } else {
       console.log('❌ DMA URN extraction failed - memberComplianceAuthorizationKey.member not found');
+      console.log('🔍 DEBUG: Available keys in memberAuth:', Object.keys(memberAuth));
     }
     
     return dmaUrn;
   } catch (error) {
-    console.error('💥 Error in getDmaUrn:', error);
+    console.error('💥 Error in getDmaUrnEnhanced:', error);
+    console.error('💥 Error stack:', error.stack);
     return null;
   }
 }
 
-// Enhanced user creation/update with proper DMA handling
-async function createOrUpdateUser(profileInfo, accessToken, dmaUrn, isDmaFlow) {
-  console.log('🔄 createOrUpdateUser: Starting user processing...');
+// ENHANCED user creation/update with proper DMA handling
+async function createOrUpdateUserEnhanced(profileInfo, accessToken, dmaUrn, isDmaFlow) {
+  console.log('🔄 createOrUpdateUserEnhanced: Starting user processing...');
   console.log('🔍 DEBUG: Profile info:', JSON.stringify(profileInfo, null, 2));
   console.log('🔍 DEBUG: DMA URN:', dmaUrn);
   console.log('🔍 DEBUG: Is DMA flow:', isDmaFlow);
@@ -441,11 +447,15 @@ async function createOrUpdateUser(profileInfo, accessToken, dmaUrn, isDmaFlow) {
     // Step 1: Try to find by DMA URN if available
     if (dmaUrn) {
       console.log('🔍 Step 1: Looking up by DMA URN...');
-      const { data: userByDmaUrn } = await supabase
+      const { data: userByDmaUrn, error: dmaLookupError } = await supabase
         .from('users')
         .select('*')
         .eq('linkedin_dma_member_urn', dmaUrn)
         .single();
+      
+      if (dmaLookupError && dmaLookupError.code !== 'PGRST116') {
+        console.error('Error looking up by DMA URN:', dmaLookupError);
+      }
       
       if (userByDmaUrn) {
         existingUser = userByDmaUrn;
@@ -456,11 +466,15 @@ async function createOrUpdateUser(profileInfo, accessToken, dmaUrn, isDmaFlow) {
     // Step 2: Try to find by LinkedIn URN if not found by DMA URN
     if (!existingUser && profileInfo.linkedinUrn) {
       console.log('🔍 Step 2: Looking up by LinkedIn URN...');
-      const { data: userByLinkedinUrn } = await supabase
+      const { data: userByLinkedinUrn, error: linkedinLookupError } = await supabase
         .from('users')
         .select('*')
         .eq('linkedin_member_urn', profileInfo.linkedinUrn)
         .single();
+      
+      if (linkedinLookupError && linkedinLookupError.code !== 'PGRST116') {
+        console.error('Error looking up by LinkedIn URN:', linkedinLookupError);
+      }
       
       if (userByLinkedinUrn) {
         existingUser = userByLinkedinUrn;
@@ -471,11 +485,15 @@ async function createOrUpdateUser(profileInfo, accessToken, dmaUrn, isDmaFlow) {
     // Step 3: Try to find by email if available and not a placeholder
     if (!existingUser && profileInfo.email && !profileInfo.email.includes('linkedin-growth.app')) {
       console.log('🔍 Step 3: Looking up by email...');
-      const { data: userByEmail } = await supabase
+      const { data: userByEmail, error: emailLookupError } = await supabase
         .from('users')
         .select('*')
         .eq('email', profileInfo.email)
         .single();
+      
+      if (emailLookupError && emailLookupError.code !== 'PGRST116') {
+        console.error('Error looking up by email:', emailLookupError);
+      }
       
       if (userByEmail) {
         existingUser = userByEmail;
@@ -529,6 +547,8 @@ async function createOrUpdateUser(profileInfo, accessToken, dmaUrn, isDmaFlow) {
       }
 
       console.log('✅ User updated successfully');
+      console.log('🔍 DEBUG: Updated user DMA status:', updatedUser.dma_active);
+      console.log('🔍 DEBUG: Updated user DMA URN:', updatedUser.linkedin_dma_member_urn);
       return updatedUser;
     } else {
       console.log('📝 Creating new user...');
@@ -572,10 +592,13 @@ async function createOrUpdateUser(profileInfo, accessToken, dmaUrn, isDmaFlow) {
       }
 
       console.log('✅ New user created successfully');
+      console.log('🔍 DEBUG: New user DMA status:', newUser.dma_active);
+      console.log('🔍 DEBUG: New user DMA URN:', newUser.linkedin_dma_member_urn);
       return newUser;
     }
   } catch (error) {
-    console.error('💥 Error in createOrUpdateUser:', error);
+    console.error('💥 Error in createOrUpdateUserEnhanced:', error);
+    console.error('💥 Error stack:', error.stack);
     return null;
   }
 }
