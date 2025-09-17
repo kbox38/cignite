@@ -4,6 +4,7 @@ import { persist } from "zustand/middleware";
 import { LinkedInProfile } from "../types/linkedin";
 
 interface AuthState {
+  // Keep both for backward compatibility, but DMA token is primary now
   accessToken: string | null;
   dmaToken: string | null;
   userId: string | null;
@@ -31,18 +32,12 @@ export const useAuthStore = create<AuthState>()(
           dmaToken: dmaToken ? 'present' : 'null'
         });
 
-        // DMA-only OAuth: Use DMA token as primary, fallback to access token
-        const primaryToken = dmaToken || accessToken;
-
-        console.log('AuthStore: Final tokens:', {
-          primaryToken: primaryToken ? 'present' : 'null'
-        });
-
+        // RESTORED: Original two-step authentication logic
         set({
-          accessToken: primaryToken,
-          dmaToken: primaryToken,
-          isBasicAuthenticated: !!primaryToken,
-          isFullyAuthenticated: !!primaryToken, // DMA-only: any token means fully authenticated
+          accessToken,
+          dmaToken,
+          isBasicAuthenticated: !!accessToken,
+          isFullyAuthenticated: !!(accessToken && dmaToken), // Need BOTH tokens for full auth
         });
       },
       setUserId: (userId) => {
@@ -75,17 +70,13 @@ export const useAuthStore = create<AuthState>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
-          // For DMA-only flow, recalculate auth states
-          const hasDmaToken = !!state.dmaToken;
-          const hasAccessToken = !!state.accessToken;
-          
-          // If we have either token, we're authenticated
-          state.isBasicAuthenticated = !!(hasAccessToken || hasDmaToken);
-          state.isFullyAuthenticated = !!(hasDmaToken); // Full auth requires DMA token
+          // RESTORED: Original two-step authentication logic
+          state.isBasicAuthenticated = !!state.accessToken;
+          state.isFullyAuthenticated = !!(state.accessToken && state.dmaToken);
           
           console.log("Auth store rehydrated:", {
-            hasAccessToken: hasAccessToken,
-            hasDmaToken: hasDmaToken,
+            hasAccessToken: !!state.accessToken,
+            hasDmaToken: !!state.dmaToken,
             hasUserId: !!state.userId,
             isBasicAuthenticated: state.isBasicAuthenticated,
             isFullyAuthenticated: state.isFullyAuthenticated,

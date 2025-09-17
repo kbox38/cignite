@@ -1,3 +1,4 @@
+// src/services/linkedin.ts - Clean DMA-only OAuth version
 const API_BASE = import.meta.env.DEV ? 'http://localhost:8888/.netlify/functions' : '/.netlify/functions';
 
 export interface LinkedInProfile {
@@ -37,13 +38,19 @@ export interface LinkedInAnalytics {
   topPerformingPosts: LinkedInPost[];
 }
 
-// DMA-only OAuth - single authentication flow
-export const initiateLinkedInAuth = () => {
-  const authUrl = `${API_BASE}/linkedin-oauth-start`;
-  console.log("Initiating LinkedIn DMA OAuth:", authUrl);
+// RESTORED: Two-step OAuth process
+export const initiateLinkedInAuth = (type: "basic" | "dma" = "basic") => {
+  const authUrl = `${API_BASE}/linkedin-oauth-start?type=${type}`;
+  console.log("Redirecting to LinkedIn OAuth:", authUrl, "Type:", type);
   window.location.href = authUrl;
 };
 
+// Separate DMA auth function
+export const initiateLinkedInDMAAuth = () => {
+  const authUrl = `${API_BASE}/linkedin-oauth-start?type=dma`;
+  console.log("Redirecting to LinkedIn DMA OAuth:", authUrl);
+  window.location.href = authUrl;
+};
 
 export const fetchLinkedInProfile = async (token: string): Promise<LinkedInProfile> => {
   const response = await fetch(`${API_BASE}/linkedin-profile`, {

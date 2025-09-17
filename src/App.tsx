@@ -1,9 +1,11 @@
+// src/App.tsx - Complete restored version without syntax errors
 import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { useAppStore } from './stores/appStore';
 import { useDmaAuth } from './hooks/useDmaAuth';
+import { AuthFlow } from './components/auth/AuthFlow';
 import { LandingPage } from './components/landing/LandingPage';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
@@ -29,11 +31,11 @@ const queryClient = new QueryClient({
 });
 
 function App() {
-  const { isFullyAuthenticated, dmaToken, setTokens, setUserId } = useAuthStore();
+  const { isBasicAuthenticated, isFullyAuthenticated, accessToken, dmaToken, setUserId } = useAuthStore();
   const { sidebarCollapsed } = useAppStore();
+  const darkMode = false; // Force bright mode always
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
   const [hasProcessedUrlParams, setHasProcessedUrlParams] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
   
   // Use DMA auth hook to handle userId extraction
   useDmaAuth();
@@ -43,96 +45,71 @@ function App() {
     document.documentElement.classList.remove('dark');
   }, []);
 
-  // Process OAuth callback parameters and errors
+  // Check for OAuth callback parameters only once on initial load
   useEffect(() => {
     if (hasProcessedUrlParams) return;
 
     const urlParams = new URLSearchParams(window.location.search);
+    const accessTokenParam = urlParams.get('access_token');
     const dmaTokenParam = urlParams.get('dma_token');
     const userIdParam = urlParams.get('user_id');
-    const errorParam = urlParams.get('error');
+    const hasAuthParams = accessTokenParam || dmaTokenParam;
     
-    console.log('App: URL parameters detected:', {
-      dmaToken: dmaTokenParam ? 'present' : 'missing',
-      userId: userIdParam ? 'present' : 'missing',
-      error: errorParam || 'none'
-    });
+    // RESTORED: Process tokens separately to maintain two-step flow
+    if (accessTokenParam || dmaTokenParam) {
+      console.log('App: Processing tokens from URL', {
+        accessToken: accessTokenParam ? 'found' : 'missing',
+        dmaToken: dmaTokenParam ? 'found' : 'missing'
+      });
+      
+      // Preserve existing tokens when adding new ones
+      const finalAccessToken = accessTokenParam || accessToken;
+      const finalDmaToken = dmaTokenParam || dmaToken;
+      
+      console.log('App: About to call setTokens with:', {
+        finalAccessToken: finalAccessToken ? 'present' : 'null',
+        finalDmaToken: finalDmaToken ? 'present' : 'null',
+        currentAccessToken: accessToken ? 'present' : 'null',
+        currentDmaToken: dmaToken ? 'present' : 'null'
+      });
 
-    // Handle OAuth errors
-    if (errorParam) {
-      console.error('App: OAuth error received:', errorParam);
-      setAuthError(errorParam);
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-      setHasProcessedUrlParams(true);
-      setAuthCheckComplete(true);
-      return;
+      useAuthStore.getState().setTokens(finalAccessToken, finalDmaToken);
     }
-
-    // Process DMA token if present
-    if (dmaTokenParam) {
-      console.log('App: Processing DMA OAuth callback token');
-      
-      console.log('App: Setting DMA token');
-      setTokens(dmaTokenParam, dmaTokenParam);
-      
-      if (userIdParam) {
-        console.log('App: Setting userId from URL:', userIdParam);
-        setUserId(userIdParam);
-      }
-      
-      // Clean up URL
+    
+    // Process userId from URL if available
+    if (userIdParam) {
+      console.log('App: Setting userId from URL:', userIdParam);
+      setUserId(userIdParam);
+    }
+    
+    // Clean up URL parameters after processing
+    if (hasAuthParams) {
       const cleanUrl = window.location.pathname;
       window.history.replaceState({}, document.title, cleanUrl);
-      console.log('App: URL cleaned, DMA token processed');
     }
     
     setHasProcessedUrlParams(true);
     setAuthCheckComplete(true);
-  }, [hasProcessedUrlParams, setTokens, setUserId]);
+  }, [hasProcessedUrlParams, isBasicAuthenticated, isFullyAuthenticated, accessToken, dmaToken, setUserId]);
 
   // Debug logging
   useEffect(() => {
     if (authCheckComplete) {
       console.log('App: Authentication status:', {
+        isBasicAuthenticated,
         isFullyAuthenticated,
+        hasAccessToken: !!accessToken,
         hasDmaToken: !!dmaToken,
-        authCheckComplete,
-        authError
+        authCheckComplete
       });
     }
-  }, [isFullyAuthenticated, dmaToken, authCheckComplete, authError]);
+  }, [isBasicAuthenticated, isFullyAuthenticated, accessToken, dmaToken, authCheckComplete]);
 
   // Don't render anything until auth check is complete
   if (!authCheckComplete) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show error state if OAuth failed
-  if (authError) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-md w-full p-6 bg-white rounded-lg shadow-lg text-center">
-          <div className="text-red-500 text-4xl mb-4">⚠️</div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Authentication Error</h2>
-          <p className="text-gray-600 mb-4">{authError}</p>
-          <button
-            onClick={() => {
-              setAuthError(null);
-              window.location.href = '/';
-            }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Try Again
-          </button>
-        </div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     );
   }
@@ -141,42 +118,61 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <div className="min-h-screen bg-gray-50">
-          {isFullyAuthenticated ? (
-            // Authenticated app with dashboard
-            <div className="flex h-screen">
-              <Sidebar />
-              <div
-                className={clsx(
-                  'flex-1 flex flex-col transition-all duration-300',
-                  sidebarCollapsed ? 'ml-20' : 'ml-64'
-                )}
-              >
-                <Header />
-                <main className="flex-1 overflow-auto bg-gray-50">
-                  <Routes>
-                    <Route path="/" element={<Dashboard />} />
-                    <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/analytics" element={<Analytics />} />
-                    <Route path="/synergy" element={<Synergy />} />
-                    <Route path="/postpulse" element={<PostPulse />} />
-                    <Route path="/postgen" element={<PostGen />} />
-                    <Route path="/scheduler" element={<Scheduler />} />
-                    <Route path="/creation-engine" element={<CreationEngine />} />
-                    <Route path="/algo" element={<TheAlgo />} />
-                    <Route path="/settings" element={<Settings />} />
-                    <Route path="/dma-test" element={<DMATestPage />} />
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                  </Routes>
-                </main>
-              </div>
-            </div>
-          ) : (
-            // Landing page for unauthenticated users
+          {(() => {
+            console.log('App: Rendering decision - isFullyAuthenticated:', isFullyAuthenticated);
+            
+            // RESTORED: Show authenticated app only when FULLY authenticated (both tokens)
+            if (isFullyAuthenticated) {
+              return (
+                <div className="flex h-screen">
+                  <Sidebar />
+                  <div
+                    className={clsx(
+                      'flex-1 flex flex-col transition-all duration-300',
+                      sidebarCollapsed ? 'ml-20' : 'ml-64'
+                    )}
+                  >
+                    <Header />
+                    <main className="flex-1 overflow-auto bg-gray-50">
+                      <Routes>
+                        <Route path="/" element={<Dashboard />} />
+                        <Route path="/analytics" element={<Analytics />} />
+                        <Route path="/synergy" element={<Synergy />} />
+                        <Route path="/post-pulse" element={<PostPulse />} />
+                        <Route path="/post-gen" element={<PostGen />} />
+                        <Route path="/scheduler" element={<Scheduler />} />
+                        <Route path="/creation-engine" element={<CreationEngine />} />
+                        <Route path="/the-algo" element={<TheAlgo />} />
+                        <Route path="/settings" element={<Settings />} />
+                        <Route path="/dma-test" element={<DMATestPage />} />
+                        <Route path="*" element={<Navigate to="/" replace />} />
+                      </Routes>
+                    </main>
+                  </div>
+                </div>
+              );
+            }
+            
+            // RESTORED: Show AuthFlow for basic authenticated users (need DMA step)
+            if (isBasicAuthenticated && !isFullyAuthenticated) {
+              return (
+                <Routes>
+                  <Route path="/" element={<AuthFlow />} />
+                  <Route path="/auth" element={<AuthFlow />} />
+                  <Route path="*" element={<Navigate to="/auth" replace />} />
+                </Routes>
+              );
+            }
+            
+            // Show landing page for unauthenticated users
+            return (
               <Routes>
                 <Route path="/" element={<LandingPage />} />
+                <Route path="/auth" element={<AuthFlow />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
-          )}
+            );
+          })()}
         </div>
       </BrowserRouter>
     </QueryClientProvider>
