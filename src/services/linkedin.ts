@@ -1,4 +1,4 @@
-// src/services/linkedin.ts - Complete DMA-only OAuth version
+// src/services/linkedin.ts - Clean DMA-only OAuth version
 const API_BASE = import.meta.env.DEV ? 'http://localhost:8888/.netlify/functions' : '/.netlify/functions';
 
 export interface LinkedInProfile {
@@ -66,6 +66,79 @@ export const fetchLinkedInProfile = async (token: string): Promise<LinkedInProfi
   return response.json();
 };
 
+export const fetchLinkedInChangelog = async (
+  token: string,
+  count: number = 50
+) => {
+  console.log(`Fetching LinkedIn changelog with count: ${count}`);
+
+  const response = await fetch(
+    `${API_BASE}/linkedin-changelog?count=${count}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "LinkedIn-Version": "202312",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    console.error(`LinkedIn changelog API error: ${response.status} ${response.statusText}`);
+    throw new Error("Failed to fetch LinkedIn changelog");
+  }
+
+  const data = await response.json();
+  console.log('LinkedIn changelog response:', {
+    hasElements: !!data.elements,
+    elementsCount: data.elements?.length,
+    resourceNames: data.elements?.map((e: any) => e.resourceName).slice(0, 10)
+  });
+  
+  return data;
+};
+
+export const fetchLinkedInSnapshot = async (
+  token: string,
+  domain?: string,
+  start?: number,
+  count?: number
+) => {
+  const params = new URLSearchParams();
+  if (domain) {
+    params.append("domain", domain);
+  }
+  if (start !== undefined) {
+    params.append("start", start.toString());
+  }
+  if (count !== undefined) {
+    params.append("count", count.toString());
+  }
+
+  console.log(`Fetching LinkedIn snapshot for domain: ${domain}`);
+
+  const response = await fetch(`${API_BASE}/linkedin-snapshot?${params}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "LinkedIn-Version": "202312",
+    },
+  });
+
+  if (!response.ok) {
+    console.error(`LinkedIn snapshot API error: ${response.status} ${response.statusText}`);
+    throw new Error("Failed to fetch LinkedIn snapshot");
+  }
+
+  const data = await response.json();
+  console.log(`LinkedIn snapshot response for ${domain}:`, {
+    hasElements: !!data.elements,
+    elementsCount: data.elements?.length,
+    firstElementKeys: data.elements?.[0] ? Object.keys(data.elements[0]) : [],
+    snapshotDataCount: data.elements?.[0]?.snapshotData?.length || 0
+  });
+  
+  return data;
+};
+
 export const fetchLinkedInAnalytics = async (token: string): Promise<LinkedInAnalytics> => {
   const response = await fetch(`${API_BASE}/linkedin-analytics`, {
     headers: {
@@ -100,6 +173,36 @@ export const fetchLinkedInPosts = async (
 
   if (!response.ok) {
     throw new Error("Failed to fetch LinkedIn posts");
+  }
+
+  return response.json();
+};
+
+export const fetchLinkedInHistoricalPosts = async (
+  token: string,
+  daysBack: number = 90,
+  start: number = 0,
+  count: number = 10
+) => {
+  const params = new URLSearchParams({
+    domain: "MEMBER_SHARE_INFO",
+    start: start.toString(),
+    count: count.toString(),
+    daysBack: daysBack.toString(),
+  });
+
+  const response = await fetch(
+    `${API_BASE}/linkedin-historical-posts?${params}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "LinkedIn-Version": "202312",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch LinkedIn historical posts");
   }
 
   return response.json();
@@ -212,36 +315,6 @@ export const fetchDMAData = async (token: string, domain?: string) => {
   return data;
 };
 
-export const fetchLinkedInHistoricalPosts = async (
-  token: string,
-  daysBack: number = 90,
-  start: number = 0,
-  count: number = 10
-) => {
-  const params = new URLSearchParams({
-    domain: "MEMBER_SHARE_INFO",
-    start: start.toString(),
-    count: count.toString(),
-    daysBack: daysBack.toString(),
-  });
-
-  const response = await fetch(
-    `${API_BASE}/linkedin-historical-posts?${params}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "LinkedIn-Version": "202312",
-      },
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch LinkedIn historical posts");
-  }
-
-  return response.json();
-};
-
 export const createLinkedInPost = async (
   token: string,
   content: string,
@@ -293,7 +366,6 @@ const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
-// DMA-specific functions
 export const testDMAConnection = async (token: string) => {
   try {
     console.log('Testing DMA connection...');
