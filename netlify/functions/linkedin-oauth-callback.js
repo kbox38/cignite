@@ -1,5 +1,4 @@
-// netlify/functions/linkedin-oauth-callback.js - COMPLETE DEBUG VERSION
-// Fixed DMA URN extraction and database updates with full debugging
+// netlify/functions/linkedin-oauth-callback.js - Working version with debug layer added
 
 // Add debug function at the top
 async function debugDatabaseConnection() {
@@ -18,10 +17,10 @@ async function debugDatabaseConnection() {
   console.log('🔍 DEBUG: Service role key prefix:', process.env.SUPABASE_SERVICE_ROLE_KEY?.substring(0, 20) + '...');
   
   try {
-    // Test basic query
+    // Test basic query - fixed the syntax issue
     const { data: testData, error: testError } = await supabaseService
       .from('users')
-      .select('count(*)')
+      .select('id')
       .limit(1);
     
     console.log('🔍 DEBUG: Test query result:', testData);
@@ -31,6 +30,7 @@ async function debugDatabaseConnection() {
   }
 }
 
+// Fixed DMA URN extraction and database updates
 export async function handler(event, context) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -92,74 +92,104 @@ export async function handler(event, context) {
 
     console.log('🔍 DEBUG: Redirect URI:', redirectUri);
 
-    // Exchange authorization code for access token
+    // Exchange code for access token
     console.log('🔄 Exchanging code for access token...');
     const tokenResponse = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json'
+      },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
-        code,
+        code: code,
         redirect_uri: redirectUri,
         client_id: clientId,
         client_secret: clientSecret,
       }),
     });
 
+    console.log('🔍 DEBUG: Token response status:', tokenResponse.status);
+
     if (!tokenResponse.ok) {
-      const tokenError = await tokenResponse.text();
-      console.error('❌ Token exchange failed:', tokenError);
+      const errorText = await tokenResponse.text();
+      console.error('❌ Token exchange failed:', errorText);
       return {
         statusCode: 400,
         headers: corsHeaders,
-        body: JSON.stringify({ error: 'Failed to exchange code for token', details: tokenError })
+        body: JSON.stringify({ 
+          error: 'Failed to exchange authorization code',
+          details: errorText
+        })
       };
     }
 
     const tokenData = await tokenResponse.json();
-    const accessToken = tokenData.access_token;
-    console.log('✅ Access token obtained');
+    console.log('✅ Token exchange successful for', isDMA ? 'DMA' : 'Basic');
+    console.log('🔍 DEBUG: Token type:', tokenData.token_type);
+    console.log('🔍 DEBUG: Access token length:', tokenData.access_token?.length || 0);
+    console.log('🔍 DEBUG: Scope:', tokenData.scope);
 
+    // Get profile info and DMA URN based on OAuth type
     let profileInfo = null;
     let dmaUrn = null;
 
-    // Get profile info and handle DMA URN extraction
     if (isDMA) {
-      console.log('🔄 DMA flow: Getting DMA URN and profile info...');
+      console.log('=== PROCESSING DMA OAUTH ===');
       
-      // Extract DMA URN first
-      dmaUrn = await getDmaUrn(accessToken);
+      // For DMA flow, get DMA URN first - ENHANCED EXTRACTION
+      console.log('🔄 Attempting to get DMA URN...');
+      dmaUrn = await getDmaUrnEnhanced(tokenData.access_token);
+      console.log('🔍 DEBUG: DMA URN result:', dmaUrn || 'NULL');
+      
       if (!dmaUrn) {
-        console.error('❌ Failed to extract DMA URN');
+        console.error('❌ DMA URN extraction failed - this is critical for DMA flow');
         return {
           statusCode: 400,
           headers: corsHeaders,
-          body: JSON.stringify({ error: 'Failed to extract DMA URN' })
+          body: JSON.stringify({ error: 'Failed to extract DMA URN from LinkedIn' })
         };
       }
-      console.log('✅ DMA URN successfully extracted:', dmaUrn);
-
-      // Get profile info with DMA token
-      profileInfo = await getProfileInfoWithFallback(accessToken, null, dmaUrn);
+      
+      // For DMA tokens, try to get basic profile info but don't fail if it doesn't work
+      console.log('🔄 Attempting to get profile info with DMA token...');
+      profileInfo = await getProfileInfoWithFallback(tokenData.access_token, dmaUrn);
+      
     } else {
-      console.log('🔄 Basic flow: Getting profile info...');
-      profileInfo = await getProfileInfoWithFallback(null, accessToken, null);
+      console.log('=== PROCESSING BASIC OAUTH ===');
+      
+      // For basic OAuth, get profile info using multiple methods
+      console.log('🔄 Getting profile info for basic token...');
+      profileInfo = await getBasicProfileInfo(tokenData.access_token);
+      
+      if (!profileInfo) {
+        console.error('❌ Failed to get profile information for basic OAuth');
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ error: 'Failed to get profile information' })
+        };
+      }
+      
+      console.log('✅ Profile info retrieved for basic OAuth');
+      console.log('🔍 DEBUG: Profile name:', profileInfo.name);
+      console.log('🔍 DEBUG: Profile email:', profileInfo.email);
+      console.log('🔍 DEBUG: LinkedIn URN:', profileInfo.linkedinUrn);
     }
 
+    // Validate we have minimum required info
     if (!profileInfo) {
-      console.error('❌ Failed to get profile information');
+      console.error('❌ No profile information available');
       return {
         statusCode: 400,
         headers: corsHeaders,
-        body: JSON.stringify({ error: 'Failed to get profile information' })
+        body: JSON.stringify({ error: 'Unable to retrieve profile information' })
       };
     }
 
-    console.log('✅ Profile info obtained');
-
-    // Create or update user
+    // Create or update user - ENHANCED DATABASE LOGIC
     console.log('🔄 Creating or updating user...');
-    const user = await createOrUpdateUserEnhanced(profileInfo, dmaUrn, isDMA);
+    const user = await createOrUpdateUserEnhanced(profileInfo, tokenData.access_token, dmaUrn, isDMA);
     
     if (!user) {
       console.error('❌ Failed to create or update user');
@@ -175,17 +205,17 @@ export async function handler(event, context) {
     console.log('🔍 DEBUG: User name:', user.name);
     console.log('🔍 DEBUG: User email:', user.email);
     console.log('🔍 DEBUG: LinkedIn URN:', user.linkedin_member_urn);
-    console.log('🔍 DEBUG: DMA URN:', user.linkedin_dma_member_urn);
+    console.log('🔍 DEBUG: DMA URN:', user.linkedin_dma_member_urn || 'None');
     console.log('🔍 DEBUG: DMA Active:', user.dma_active);
 
     // Enable changelog generation for DMA users
-    if (isDMA && accessToken) {
+    if (dmaUrn) {
       console.log('🔄 Enabling changelog generation...');
-      await enableChangelogGeneration(accessToken);
+      await enableChangelogGeneration(tokenData.access_token);
       console.log('✅ Changelog generation enabled');
     }
 
-    // Generate redirect URL using the same logic as the original
+    // Redirect back to app with appropriate token
     const appBaseUrl = process.env.NODE_ENV === 'development' 
       ? 'http://localhost:5173' 
       : process.env.URL.replace('/.netlify/functions/linkedin-oauth-callback', '');
@@ -228,20 +258,215 @@ export async function handler(event, context) {
   }
 }
 
-// MODIFIED: Enhanced user creation/update function with extensive debugging
-async function createOrUpdateUserEnhanced(profileInfo, dmaUrn, isDmaFlow) {
+// Enhanced basic profile info retrieval with multiple fallback methods
+async function getBasicProfileInfo(accessToken) {
+  console.log('🔄 getBasicProfileInfo: Starting profile extraction...');
+  
+  // Method 1: Try userinfo endpoint (works with openid scope)
+  try {
+    console.log('🔄 Method 1: Trying userinfo endpoint...');
+    const userinfoResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'cache-control': 'no-cache'
+      }
+    });
+
+    console.log('🔍 DEBUG: Userinfo API response status:', userinfoResponse.status);
+
+    if (userinfoResponse.ok) {
+      const userinfoData = await userinfoResponse.json();
+      console.log('✅ Method 1 SUCCESS: Userinfo data retrieved');
+      console.log('🔍 DEBUG: Userinfo data:', JSON.stringify(userinfoData, null, 2));
+
+      return {
+        linkedinId: userinfoData.sub,
+        linkedinUrn: `urn:li:person:${userinfoData.sub}`,
+        name: userinfoData.name || `${userinfoData.given_name || ''} ${userinfoData.family_name || ''}`.trim(),
+        given_name: userinfoData.given_name,
+        family_name: userinfoData.family_name,
+        email: userinfoData.email,
+        picture: userinfoData.picture
+      };
+    } else {
+      const errorText = await userinfoResponse.text();
+      console.log('⚠️  Method 1 FAILED: Userinfo endpoint error:', errorText);
+    }
+  } catch (error) {
+    console.log('⚠️  Method 1 FAILED: Userinfo endpoint exception:', error.message);
+  }
+
+  // Method 2: Try basic people endpoint without email
+  try {
+    console.log('🔄 Method 2: Trying basic people endpoint...');
+    const profileResponse = await fetch('https://api.linkedin.com/v2/people/~?projection=(id,firstName,lastName,profilePicture(displayImage~:playableStreams))', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'cache-control': 'no-cache',
+        'X-Restli-Protocol-Version': '2.0.0'
+      }
+    });
+
+    console.log('🔍 DEBUG: People API response status:', profileResponse.status);
+
+    if (profileResponse.ok) {
+      const profileData = await profileResponse.json();
+      console.log('✅ Method 2 SUCCESS: People data retrieved');
+      console.log('🔍 DEBUG: People data:', JSON.stringify(profileData, null, 2));
+
+      return {
+        linkedinId: profileData.id,
+        linkedinUrn: `urn:li:person:${profileData.id}`,
+        name: `${profileData.firstName?.localized?.en_US || ''} ${profileData.lastName?.localized?.en_US || ''}`.trim(),
+        given_name: profileData.firstName?.localized?.en_US,
+        family_name: profileData.lastName?.localized?.en_US,
+        email: null, // Email not available in this endpoint
+        picture: profileData.profilePicture?.displayImage?.elements?.[0]?.identifiers?.[0]?.identifier
+      };
+    } else {
+      const errorText = await profileResponse.text();
+      console.log('⚠️  Method 2 FAILED: People endpoint error:', errorText);
+    }
+  } catch (error) {
+    console.log('⚠️  Method 2 FAILED: People endpoint exception:', error.message);
+  }
+
+  // Method 3: Try lite profile endpoint
+  try {
+    console.log('🔄 Method 3: Trying lite profile endpoint...');
+    const liteResponse = await fetch('https://api.linkedin.com/v2/people/~:(id,firstName,lastName)', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Restli-Protocol-Version': '2.0.0'
+      }
+    });
+
+    console.log('🔍 DEBUG: Lite profile response status:', liteResponse.status);
+
+    if (liteResponse.ok) {
+      const liteData = await liteResponse.json();
+      console.log('✅ Method 3 SUCCESS: Lite profile data retrieved');
+
+      return {
+        linkedinId: liteData.id,
+        linkedinUrn: `urn:li:person:${liteData.id}`,
+        name: `${liteData.firstName?.localized?.en_US || ''} ${liteData.lastName?.localized?.en_US || ''}`.trim(),
+        given_name: liteData.firstName?.localized?.en_US,
+        family_name: liteData.lastName?.localized?.en_US,
+        email: null,
+        picture: null
+      };
+    }
+  } catch (error) {
+    console.log('⚠️  Method 3 FAILED: Lite profile exception:', error.message);
+  }
+
+  console.log('❌ All basic profile methods failed');
+  return null;
+}
+
+// Enhanced profile info retrieval with multiple fallback methods for DMA
+async function getProfileInfoWithFallback(accessToken, dmaUrn = null) {
+  console.log('🔄 getProfileInfoWithFallback: Starting profile extraction...');
+  
+  // For DMA tokens, create minimal profile from DMA URN
+  if (dmaUrn) {
+    console.log('🔄 Creating profile from DMA URN...');
+    const personId = dmaUrn.replace('urn:li:person:', '');
+    
+    const profileInfo = {
+      linkedinId: personId,
+      linkedinUrn: dmaUrn,
+      name: 'LinkedIn User (DMA)',
+      given_name: 'LinkedIn',
+      family_name: 'User',
+      email: `dma-user-${personId}@linkedin-growth.app`,
+      picture: null
+    };
+    
+    console.log('✅ Created profile from DMA URN');
+    return profileInfo;
+  }
+
+  // Fallback: create placeholder profile
+  console.log('🔄 Creating placeholder profile...');
+  return {
+    linkedinId: `user_${Date.now()}`,
+    linkedinUrn: `urn:li:person:user_${Date.now()}`,
+    name: 'LinkedIn User',
+    given_name: 'LinkedIn',
+    family_name: 'User',
+    email: `user-${Date.now()}@linkedin-growth.app`,
+    picture: null
+  };
+}
+
+// ENHANCED DMA URN extraction with better error handling
+async function getDmaUrnEnhanced(accessToken) {
+  console.log('🔄 getDmaUrnEnhanced: Starting DMA URN extraction...');
+  
+  try {
+    const url = 'https://api.linkedin.com/rest/memberAuthorizations?q=memberAndApplication';
+    const headers = {
+      'Authorization': `Bearer ${accessToken}`,
+      'LinkedIn-Version': '202312',
+      'X-Restli-Protocol-Version': '2.0.0'
+    };
+    
+    console.log('🔍 DEBUG: Request URL:', url);
+    console.log('🔍 DEBUG: Request headers:', headers);
+    
+    const response = await fetch(url, { headers });
+    
+    console.log('🔍 DEBUG: Response status:', response.status);
+    console.log('🔍 DEBUG: Response headers:', Object.fromEntries(response.headers.entries()));
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.log('⚠️  DMA URN fetch failed:', response.status, errorText);
+      return null;
+    }
+
+    const authData = await response.json();
+    console.log('🔍 DEBUG: Auth data received:', JSON.stringify(authData, null, 2));
+    
+    if (!authData.elements || authData.elements.length === 0) {
+      console.log('⚠️  No DMA authorization elements found');
+      return null;
+    }
+
+    const memberAuth = authData.elements[0];
+    console.log('🔍 DEBUG: Member auth structure:', JSON.stringify(memberAuth, null, 2));
+    
+    const dmaUrn = memberAuth.memberComplianceAuthorizationKey?.member;
+    
+    if (dmaUrn) {
+      console.log('✅ DMA URN successfully extracted:', dmaUrn);
+    } else {
+      console.log('❌ DMA URN extraction failed - memberComplianceAuthorizationKey.member not found');
+      console.log('🔍 DEBUG: Available keys in memberAuth:', Object.keys(memberAuth));
+    }
+    
+    return dmaUrn;
+  } catch (error) {
+    console.error('💥 Error in getDmaUrnEnhanced:', error);
+    console.error('💥 Error stack:', error.stack);
+    return null;
+  }
+}
+
+// ENHANCED user creation/update with proper DMA handling and debug layer
+async function createOrUpdateUserEnhanced(profileInfo, accessToken, dmaUrn, isDmaFlow) {
   console.log('🔄 createOrUpdateUserEnhanced: Starting user processing...');
   console.log('🔍 DEBUG: Profile info:', JSON.stringify(profileInfo, null, 2));
   console.log('🔍 DEBUG: DMA URN:', dmaUrn);
   console.log('🔍 DEBUG: Is DMA flow:', isDmaFlow);
 
-  // Test database connection first
+  // Add debug layer on top of existing working logic
   await debugDatabaseConnection();
 
   try {
     const { createClient } = await import('@supabase/supabase-js');
-    
-    // CRITICAL: Use SERVICE_ROLE_KEY to bypass RLS policies
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -256,7 +481,7 @@ async function createOrUpdateUserEnhanced(profileInfo, dmaUrn, isDmaFlow) {
     
     // Step 1: Try to find by DMA URN if available
     if (dmaUrn) {
-      console.log('🔍 Step 1: Looking up by DMA URN:', dmaUrn);
+      console.log('🔍 Step 1: Looking up by DMA URN...');
       const { data: userByDmaUrn, error: dmaLookupError } = await supabase
         .from('users')
         .select('*')
@@ -267,7 +492,7 @@ async function createOrUpdateUserEnhanced(profileInfo, dmaUrn, isDmaFlow) {
       console.log('🔍 DEBUG: DMA lookup error:', dmaLookupError);
       
       if (dmaLookupError && dmaLookupError.code !== 'PGRST116') {
-        console.error('❌ Error looking up by DMA URN:', dmaLookupError);
+        console.error('Error looking up by DMA URN:', dmaLookupError);
       }
       
       if (userByDmaUrn) {
@@ -278,7 +503,7 @@ async function createOrUpdateUserEnhanced(profileInfo, dmaUrn, isDmaFlow) {
     
     // Step 2: Try to find by LinkedIn URN if not found by DMA URN
     if (!existingUser && profileInfo.linkedinUrn) {
-      console.log('🔍 Step 2: Looking up by LinkedIn URN:', profileInfo.linkedinUrn);
+      console.log('🔍 Step 2: Looking up by LinkedIn URN...');
       const { data: userByLinkedinUrn, error: linkedinLookupError } = await supabase
         .from('users')
         .select('*')
@@ -289,7 +514,7 @@ async function createOrUpdateUserEnhanced(profileInfo, dmaUrn, isDmaFlow) {
       console.log('🔍 DEBUG: LinkedIn URN lookup error:', linkedinLookupError);
       
       if (linkedinLookupError && linkedinLookupError.code !== 'PGRST116') {
-        console.error('❌ Error looking up by LinkedIn URN:', linkedinLookupError);
+        console.error('Error looking up by LinkedIn URN:', linkedinLookupError);
       }
       
       if (userByLinkedinUrn) {
@@ -300,7 +525,7 @@ async function createOrUpdateUserEnhanced(profileInfo, dmaUrn, isDmaFlow) {
     
     // Step 3: Try to find by email if available and not a placeholder
     if (!existingUser && profileInfo.email && !profileInfo.email.includes('linkedin-growth.app')) {
-      console.log('🔍 Step 3: Looking up by email:', profileInfo.email);
+      console.log('🔍 Step 3: Looking up by email...');
       const { data: userByEmail, error: emailLookupError } = await supabase
         .from('users')
         .select('*')
@@ -311,7 +536,7 @@ async function createOrUpdateUserEnhanced(profileInfo, dmaUrn, isDmaFlow) {
       console.log('🔍 DEBUG: Email lookup error:', emailLookupError);
       
       if (emailLookupError && emailLookupError.code !== 'PGRST116') {
-        console.error('❌ Error looking up by email:', emailLookupError);
+        console.error('Error looking up by email:', emailLookupError);
       }
       
       if (userByEmail) {
@@ -372,29 +597,13 @@ async function createOrUpdateUserEnhanced(profileInfo, dmaUrn, isDmaFlow) {
       console.log('🔍 DEBUG: Update statusText:', updateResult.statusText);
 
       if (updateResult.error) {
-        console.error('❌ CRITICAL: Database update failed with error:', updateResult.error);
-        console.error('❌ Error code:', updateResult.error.code);
-        console.error('❌ Error message:', updateResult.error.message);
-        console.error('❌ Error details:', updateResult.error.details);
-        console.error('❌ Error hint:', updateResult.error.hint);
-        throw new Error(`Database update failed: ${JSON.stringify(updateResult.error)}`);
+        console.error('❌ Error updating user:', updateResult.error);
+        throw updateResult.error;
       }
 
       if (!updateResult.data || updateResult.data.length === 0) {
         console.error('❌ CRITICAL: Update returned no data');
-        console.error('❌ This suggests RLS is still blocking the update');
-        
-        // Test if we can read the user after update attempt
-        const { data: readTest, error: readError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', existingUser.id)
-          .single();
-        
-        console.log('🔍 DEBUG: Post-update read test:', readTest);
-        console.log('🔍 DEBUG: Post-update read error:', readError);
-        
-        throw new Error('Update operation returned no data - possible RLS or permission issue');
+        throw new Error('Update operation returned no data');
       }
 
       const updatedUser = updateResult.data[0];
@@ -454,10 +663,8 @@ async function createOrUpdateUserEnhanced(profileInfo, dmaUrn, isDmaFlow) {
         .single();
 
       if (createError) {
-        console.error('❌ CRITICAL ERROR: User creation failed:', createError);
-        console.error('❌ Creation error details:', JSON.stringify(createError, null, 2));
-        console.error('❌ Attempted user data:', JSON.stringify(newUserData, null, 2));
-        throw new Error(`User creation failed: ${createError.message}`);
+        console.error('❌ Error creating user:', createError);
+        throw createError;
       }
 
       console.log('✅ New user created successfully');
@@ -466,180 +673,10 @@ async function createOrUpdateUserEnhanced(profileInfo, dmaUrn, isDmaFlow) {
       return newUser;
     }
   } catch (error) {
-    console.error('💥 FATAL ERROR in createOrUpdateUserEnhanced:', error);
-    console.error('💥 Error name:', error.name);
-    console.error('💥 Error message:', error.message);
+    console.error('💥 Error in createOrUpdateUserEnhanced:', error);
     console.error('💥 Error stack:', error.stack);
     return null;
   }
-}
-
-// Enhanced DMA URN extraction
-async function getDmaUrn(accessToken) {
-  console.log('🔄 getDmaUrn: Starting DMA URN extraction...');
-  
-  try {
-    const response = await fetch('https://api.linkedin.com/rest/memberCompliance?q=member', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'LinkedIn-Version': '202312',
-        'X-RestLi-Protocol-Version': '2.0.0'
-      }
-    });
-
-    console.log('🔍 DEBUG: Response status:', response.status);
-    console.log('🔍 DEBUG: Response headers:', Object.fromEntries(response.headers.entries()));
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ DMA URN request failed:', response.status, errorText);
-      return null;
-    }
-
-    const authData = await response.json();
-    console.log('🔍 DEBUG: Auth data received:', JSON.stringify(authData, null, 2));
-
-    if (!authData.elements || authData.elements.length === 0) {
-      console.error('❌ No member authorization found');
-      return null;
-    }
-
-    const memberAuth = authData.elements[0];
-    console.log('🔍 DEBUG: Member auth structure:', JSON.stringify(memberAuth, null, 2));
-    
-    const personUrn = memberAuth.memberComplianceAuthorizationKey?.member;
-    if (!personUrn) {
-      console.error('❌ No person URN found in member authorization');
-      return null;
-    }
-
-    console.log('✅ DMA URN successfully extracted:', personUrn);
-    console.log('🔍 DEBUG: DMA URN result:', personUrn);
-    return personUrn;
-  } catch (error) {
-    console.error('💥 Error extracting DMA URN:', error);
-    return null;
-  }
-}
-
-// Enhanced profile info extraction with fallback
-async function getProfileInfoWithFallback(dmaToken, basicToken, dmaUrn) {
-  console.log('🔄 getProfileInfoWithFallback: Starting profile extraction...');
-  
-  try {
-    let profileInfo = null;
-
-    if (dmaToken) {
-      console.log('🔄 Attempting to get profile info with DMA token...');
-      profileInfo = await getBasicProfileInfo(dmaToken);
-    } else if (basicToken) {
-      console.log('🔄 Attempting to get profile info with basic token...');  
-      profileInfo = await getBasicProfileInfo(basicToken);
-    }
-
-    if (!profileInfo && dmaUrn) {
-      console.log('🔄 Creating profile from DMA URN...');
-      profileInfo = createProfileFromDmaUrn(dmaUrn);
-      console.log('✅ Created profile from DMA URN');
-    }
-
-    return profileInfo;
-  } catch (error) {
-    console.error('💥 Error in getProfileInfoWithFallback:', error);
-    return null;
-  }
-}
-
-// Enhanced basic profile info retrieval with multiple fallback methods
-async function getBasicProfileInfo(accessToken) {
-  console.log('🔄 getBasicProfileInfo: Starting profile extraction...');
-  
-  // Method 1: Try userinfo endpoint (works with openid scope)
-  try {
-    console.log('🔄 Method 1: Trying userinfo endpoint...');
-    const userinfoResponse = await fetch('https://api.linkedin.com/v2/userinfo', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'cache-control': 'no-cache'
-      }
-    });
-
-    console.log('🔍 DEBUG: Userinfo API response status:', userinfoResponse.status);
-
-    if (userinfoResponse.ok) {
-      const userinfoData = await userinfoResponse.json();
-      console.log('✅ Method 1 SUCCESS: Userinfo data retrieved');
-      console.log('🔍 DEBUG: Userinfo data:', JSON.stringify(userinfoData, null, 2));
-
-      return {
-        linkedinId: userinfoData.sub,
-        linkedinUrn: `urn:li:person:${userinfoData.sub}`,
-        name: userinfoData.name || `${userinfoData.given_name || ''} ${userinfoData.family_name || ''}`.trim(),
-        given_name: userinfoData.given_name,
-        family_name: userinfoData.family_name,
-        email: userinfoData.email,
-        picture: userinfoData.picture
-      };
-    } else {
-      const errorText = await userinfoResponse.text();
-      console.log('⚠️  Method 1 FAILED: Userinfo endpoint error:', errorText);
-    }
-  } catch (error) {
-    console.log('⚠️  Method 1 ERROR:', error.message);
-  }
-
-  // Method 2: Try v2/people endpoint with profile projection
-  try {
-    console.log('🔄 Method 2: Trying people endpoint...');
-    const peopleResponse = await fetch('https://api.linkedin.com/v2/people/~?(projection=(id,firstName,lastName,emailAddress,profilePicture(displayImage~:playableStreams)))', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'LinkedIn-Version': '202312'
-      }
-    });
-
-    console.log('🔍 DEBUG: People API response status:', peopleResponse.status);
-
-    if (peopleResponse.ok) {
-      const peopleData = await peopleResponse.json();
-      console.log('✅ Method 2 SUCCESS: People data retrieved');
-      console.log('🔍 DEBUG: People data:', JSON.stringify(peopleData, null, 2));
-
-      return {
-        linkedinId: peopleData.id,
-        linkedinUrn: `urn:li:person:${peopleData.id}`,
-        name: `${peopleData.firstName?.localized?.en_US || ''} ${peopleData.lastName?.localized?.en_US || ''}`.trim(),
-        given_name: peopleData.firstName?.localized?.en_US || '',
-        family_name: peopleData.lastName?.localized?.en_US || '',
-        email: peopleData.emailAddress,
-        picture: peopleData.profilePicture?.displayImage?.elements?.[0]?.identifiers?.[0]?.identifier
-      };
-    } else {
-      const errorText = await peopleResponse.text();
-      console.log('⚠️  Method 2 FAILED: People endpoint error:', errorText);
-    }
-  } catch (error) {
-    console.log('⚠️  Method 2 ERROR:', error.message);
-  }
-
-  console.log('❌ All profile methods failed');
-  return null;
-}
-
-// Create minimal profile info from DMA URN
-function createProfileFromDmaUrn(dmaUrn) {
-  console.log('🔄 Creating minimal profile from DMA URN...');
-  
-  const linkedinId = dmaUrn.replace('urn:li:person:', '');
-  return {
-    linkedinId,
-    linkedinUrn: dmaUrn,
-    name: 'LinkedIn User (DMA)',
-    given_name: 'LinkedIn',
-    family_name: 'User',
-    email: `dma-user-${linkedinId}@linkedin-growth.app`,
-    picture: null
-  };
 }
 
 // Enhanced changelog generation
