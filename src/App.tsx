@@ -19,7 +19,7 @@ import { CreationEngine } from './components/modules/CreationEngine';
 import { TheAlgo } from './components/modules/TheAlgo';
 import { Settings } from './components/modules/Settings';
 import { DMATestPage } from './components/modules/DMATestPage';
-import clsx from 'clsx';
+      // Process tokens separately to maintain two-step flow
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -121,7 +121,7 @@ function App() {
           {(() => {
             console.log('App: Rendering decision - isFullyAuthenticated:', isFullyAuthenticated);
             
-            // RESTORED: Show authenticated app only when FULLY authenticated (both tokens)
+            // Show authenticated app only when FULLY authenticated (both tokens)
             if (isFullyAuthenticated) {
               return (
                 <div className="flex h-screen">
@@ -153,7 +153,7 @@ function App() {
               );
             }
             
-            // RESTORED: Show AuthFlow for basic authenticated users (need DMA step)
+            // Show AuthFlow for basic authenticated users (need DMA step)
             if (isBasicAuthenticated && !isFullyAuthenticated) {
               return (
                 <Routes>

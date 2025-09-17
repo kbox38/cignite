@@ -4,7 +4,7 @@ import { persist } from "zustand/middleware";
 import { LinkedInProfile } from "../types/linkedin";
 
 interface AuthState {
-  // Keep both for backward compatibility, but DMA token is primary now
+  // Two-step authentication: basic token for profile, DMA token for data
   accessToken: string | null;
   dmaToken: string | null;
   userId: string | null;
@@ -32,12 +32,12 @@ export const useAuthStore = create<AuthState>()(
           dmaToken: dmaToken ? 'present' : 'null'
         });
 
-        // Two-step authentication: Basic OAuth first, then DMA OAuth
+        // RESTORED: Two-step authentication logic
         set({
           accessToken,
           dmaToken,
-          isBasicAuthenticated: !!accessToken,
-          isFullyAuthenticated: !!(accessToken && dmaToken), // Need BOTH tokens for full access
+          isBasicAuthenticated: !!accessToken, // Has basic LinkedIn access
+          isFullyAuthenticated: !!(accessToken && dmaToken), // Has both basic + DMA access
         });
       },
       setUserId: (userId) => {

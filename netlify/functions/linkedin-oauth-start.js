@@ -1,4 +1,4 @@
-// netlify/functions/linkedin-oauth-start.js - Two-step OAuth flow
+// netlify/functions/linkedin-oauth-start.js - Restored two-step OAuth flow
 export async function handler(event, context) {
   console.log('=== OAUTH START ===');
   console.log('Query parameters:', event.queryStringParameters);

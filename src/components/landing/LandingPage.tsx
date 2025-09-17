@@ -657,9 +657,9 @@ export const LandingPage = () => {
   };
 
   const handleStartGrowing = () => {
-    // Direct to DMA OAuth instead of showing sign-in page
-    console.log('Starting LinkedIn DMA OAuth...');
-    window.location.href = '/.netlify/functions/linkedin-oauth-start';
+    // Start with basic OAuth (step 1 of 2)
+    console.log('Starting LinkedIn Basic OAuth (Step 1)...');
+    window.location.href = '/.netlify/functions/linkedin-oauth-start?type=basic';
   };
 
   return (

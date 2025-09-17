@@ -1,4 +1,4 @@
-// netlify/functions/linkedin-oauth-callback.js - Fixed two-step OAuth with proper profile handling
+// netlify/functions/linkedin-oauth-callback.js - Fixed two-step OAuth with enhanced fallbacks
 export async function handler(event, context) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -128,7 +128,7 @@ export async function handler(event, context) {
       
       // For basic OAuth, get profile info using multiple methods
       console.log('🔄 Getting profile info for basic token...');
-      profileInfo = await getProfileInfoWithFallback(tokenData.access_token);
+      profileInfo = await getBasicProfileInfo(tokenData.access_token);
       
       if (!profileInfo) {
         console.error('❌ Failed to get profile information for basic OAuth');
@@ -226,9 +226,9 @@ export async function handler(event, context) {
   }
 }
 
-// Enhanced profile info retrieval with multiple fallback methods
-async function getProfileInfoWithFallback(accessToken, dmaUrn = null) {
-  console.log('🔄 getProfileInfoWithFallback: Starting profile extraction...');
+// Enhanced basic profile info retrieval with multiple fallback methods
+async function getBasicProfileInfo(accessToken) {
+  console.log('🔄 getBasicProfileInfo: Starting profile extraction...');
   
   // Method 1: Try userinfo endpoint (works with openid scope)
   try {
@@ -299,9 +299,47 @@ async function getProfileInfoWithFallback(accessToken, dmaUrn = null) {
     console.log('⚠️  Method 2 FAILED: People endpoint exception:', error.message);
   }
 
-  // Method 3: Create minimal profile from DMA URN if available
+  // Method 3: Try lite profile endpoint
+  try {
+    console.log('🔄 Method 3: Trying lite profile endpoint...');
+    const liteResponse = await fetch('https://api.linkedin.com/v2/people/~:(id,firstName,lastName)', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Restli-Protocol-Version': '2.0.0'
+      }
+    });
+
+    console.log('🔍 DEBUG: Lite profile response status:', liteResponse.status);
+
+    if (liteResponse.ok) {
+      const liteData = await liteResponse.json();
+      console.log('✅ Method 3 SUCCESS: Lite profile data retrieved');
+
+      return {
+        linkedinId: liteData.id,
+        linkedinUrn: `urn:li:person:${liteData.id}`,
+        name: `${liteData.firstName?.localized?.en_US || ''} ${liteData.lastName?.localized?.en_US || ''}`.trim(),
+        given_name: liteData.firstName?.localized?.en_US,
+        family_name: liteData.lastName?.localized?.en_US,
+        email: null,
+        picture: null
+      };
+    }
+  } catch (error) {
+    console.log('⚠️  Method 3 FAILED: Lite profile exception:', error.message);
+  }
+
+  console.log('❌ All basic profile methods failed');
+  return null;
+}
+
+// Enhanced profile info retrieval with multiple fallback methods for DMA
+async function getProfileInfoWithFallback(accessToken, dmaUrn = null) {
+  console.log('🔄 getProfileInfoWithFallback: Starting profile extraction...');
+  
+  // For DMA tokens, create minimal profile from DMA URN
   if (dmaUrn) {
-    console.log('🔄 Method 3: Creating minimal profile from DMA URN...');
+    console.log('🔄 Creating profile from DMA URN...');
     const personId = dmaUrn.replace('urn:li:person:', '');
     
     const profileInfo = {
@@ -310,23 +348,23 @@ async function getProfileInfoWithFallback(accessToken, dmaUrn = null) {
       name: 'LinkedIn User (DMA)',
       given_name: 'LinkedIn',
       family_name: 'User',
-      email: null,
+      email: `dma-user-${personId}@linkedin-growth.app`,
       picture: null
     };
     
-    console.log('✅ Method 3 SUCCESS: Created minimal profile from DMA URN');
+    console.log('✅ Created profile from DMA URN');
     return profileInfo;
   }
 
-  // Method 4: Last resort - create placeholder profile
-  console.log('🔄 Method 4: Creating placeholder profile...');
+  // Fallback: create placeholder profile
+  console.log('🔄 Creating placeholder profile...');
   return {
     linkedinId: `user_${Date.now()}`,
     linkedinUrn: `urn:li:person:user_${Date.now()}`,
     name: 'LinkedIn User',
     given_name: 'LinkedIn',
     family_name: 'User',
-    email: null,
+    email: `user-${Date.now()}@linkedin-growth.app`,
     picture: null
   };
 }
@@ -431,7 +469,7 @@ async function createOrUpdateUser(profileInfo, accessToken, dmaUrn, isDmaFlow) {
     }
     
     // Step 3: Try to find by email if available and not a placeholder
-    if (!existingUser && profileInfo.email && !profileInfo.email.includes('placeholder')) {
+    if (!existingUser && profileInfo.email && !profileInfo.email.includes('linkedin-growth.app')) {
       console.log('🔍 Step 3: Looking up by email...');
       const { data: userByEmail } = await supabase
         .from('users')
@@ -460,7 +498,7 @@ async function createOrUpdateUser(profileInfo, accessToken, dmaUrn, isDmaFlow) {
       };
 
       // Only update email if we have a real email (not placeholder)
-      if (profileInfo.email && !profileInfo.email.includes('placeholder')) {
+      if (profileInfo.email && !profileInfo.email.includes('linkedin-growth.app')) {
         updateData.email = profileInfo.email;
       }
 
@@ -496,7 +534,7 @@ async function createOrUpdateUser(profileInfo, accessToken, dmaUrn, isDmaFlow) {
       console.log('📝 Creating new user...');
       
       const newUserData = {
-        email: profileInfo.email || `user-${Date.now()}@placeholder.com`,
+        email: profileInfo.email || `user-${Date.now()}@linkedin-growth.app`,
         name: profileInfo.name || 'LinkedIn User',
         given_name: profileInfo.given_name || 'LinkedIn',
         family_name: profileInfo.family_name || 'User',

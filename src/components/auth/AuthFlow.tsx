@@ -1,4 +1,4 @@
-// src/components/auth/AuthFlow.tsx
+// src/components/auth/AuthFlow.tsx - Restored two-step authentication
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { Button } from '../ui/Button';
