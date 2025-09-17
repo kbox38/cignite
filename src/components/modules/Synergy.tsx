@@ -697,7 +697,7 @@ export const Synergy = () => {
                     )}
                   </Card>
                 ) : partnerPostsData && partnerPostsData.posts.length > 0 ? (
-                  <div className="space-y-6 max-h-[600px] overflow-y-auto">
+                  <div className="space-y-6 max-h-[700px] overflow-y-auto">
                     {partnerPostsData.posts.map((post, index) => (
                       <motion.div
                         key={post.postUrn}
@@ -767,12 +767,12 @@ export const Synergy = () => {
                           <div className="border-t pt-4">
                             <h5 className="font-medium text-gray-900 mb-3 flex items-center">
                               <Sparkles size={16} className="mr-2" />
-                              AI Comment Suggestions (5 Approaches)
+                              AI Comment Suggestions (5 Professional Approaches)
                             </h5>
 
                             {suggestions[post.postUrn] ? (
                               <div className="space-y-3">
-                                {/* Display all 5 suggestions */}
+                                {/* Display exactly 5 suggestions */}
                                 <div className="grid grid-cols-1 gap-3">
                                   {Array.isArray(suggestions[post.postUrn]) ? 
                                     suggestions[post.postUrn].map((suggestion, suggestionIndex) => (
@@ -837,7 +837,7 @@ export const Synergy = () => {
                                     className="w-full"
                                   >
                                     <RefreshCw size={14} className="mr-1" />
-                                    Regenerate All 5 Suggestions
+                                    Regenerate 5 Professional Comments
                                   </Button>
                                 </div>
                               </div>
@@ -845,7 +845,7 @@ export const Synergy = () => {
                               <div className="space-y-3">
                                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                                   <p className="text-sm text-gray-600">
-                                    Generate 5 AI comment suggestions to engage with this post.
+                                    Generate 5 professional AI comment suggestions to engage with this post.
                                   </p>
                                 </div>
 
@@ -872,7 +872,7 @@ export const Synergy = () => {
                                   ) : (
                                     <>
                                       <Sparkles size={16} className="mr-2" />
-                                      Generate 5 Comment Suggestions
+                                      Generate 5 Professional Comments
                                     </>
                                   )}
                                 </Button>
@@ -891,8 +891,7 @@ export const Synergy = () => {
                     />
                     <p className="text-gray-500 mb-2">No recent posts</p>
                     <p className="text-sm text-gray-400">
-                      This partner hasn't published posts in their
-                      MEMBER_SHARE_INFO snapshot.
+                      This partner hasn't published posts recently in their LinkedIn data.
                     </p>
                   </Card>
                 )}
@@ -909,8 +908,7 @@ export const Synergy = () => {
                   Select a Partner
                 </h3>
                 <p className="text-gray-500">
-                  Choose a synergy partner from the list to view their latest
-                  posts from Snapshot data.
+                  Choose a synergy partner to view their latest 5 posts and generate professional comment suggestions.
                 </p>
               </div>
             </Card>

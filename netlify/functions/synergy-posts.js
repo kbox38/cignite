@@ -202,11 +202,11 @@ function isCacheStale(fetchedAt, ttlMinutes = 30) {
   return cacheAge > (ttlMinutes * 60 * 1000);
 }
 
-async function fetchPartnerPostsFromDMA(authorization, partnerUrn, limit = 5) {
+async function fetchPartnerPostsFromDMA(authorization, partnerUrn, limit = 10) {
   try {
     console.log("Fetching posts from LinkedIn DMA API for:", partnerUrn);
 
-    // FIXED: Use correct Member Snapshot API endpoint
+    // Use Member Snapshot API to get latest posts
     const response = await fetch(`https://api.linkedin.com/rest/memberSnapshotData?q=criteria&domain=MEMBER_SHARE_INFO`, {
       headers: {
         'Authorization': authorization,
@@ -224,7 +224,7 @@ async function fetchPartnerPostsFromDMA(authorization, partnerUrn, limit = 5) {
     const data = await response.json();
     console.log("LinkedIn DMA API response received");
 
-    // FIXED: Extract posts from correct response structure
+    // Extract posts from Member Snapshot response
     const memberShareInfo = data.elements?.[0];
 
     if (!memberShareInfo || !memberShareInfo.snapshotData) {
@@ -235,7 +235,7 @@ async function fetchPartnerPostsFromDMA(authorization, partnerUrn, limit = 5) {
     const rawPosts = memberShareInfo.snapshotData;
     console.log(`Found ${rawPosts.length} raw posts`);
 
-    // Process and format posts (limit to 5 most recent)
+    // Process and format posts (limit to latest 5 for synergy)
     const posts = rawPosts
       .sort((a, b) => {
         // Sort by creation time descending (most recent first)
@@ -243,7 +243,7 @@ async function fetchPartnerPostsFromDMA(authorization, partnerUrn, limit = 5) {
         const timeB = new Date(b.Date || b.date || 0).getTime();
         return timeB - timeA;
       })
-      .slice(0, limit)
+      .slice(0, 5) // Always limit to 5 most recent posts for synergy
       .map(post => {
         // Extract essential post data only (no engagement metrics)
         const createdAtMs = new Date(post.Date || post.date || Date.now()).getTime();
