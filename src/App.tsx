@@ -1,4 +1,4 @@
-// src/App.tsx - Complete restored version without syntax errors
+// src/App.tsx - Fixed layout positioning
 import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
@@ -21,7 +21,6 @@ import { TheAlgo } from './components/modules/TheAlgo';
 import { Settings } from './components/modules/Settings';
 import { DMATestPage } from './components/modules/DMATestPage';
 import { DMADebugPage } from './components/modules/DMADebugPage';
-      // Process tokens separately to maintain two-step flow
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,125 +56,108 @@ function App() {
     const userIdParam = urlParams.get('user_id');
     const hasAuthParams = accessTokenParam || dmaTokenParam;
     
-    // RESTORED: Process tokens separately to maintain two-step flow
+    // Process tokens separately to maintain two-step flow
     if (accessTokenParam || dmaTokenParam) {
       console.log('App: Processing tokens from URL', {
         accessToken: accessTokenParam ? 'found' : 'missing',
-        dmaToken: dmaTokenParam ? 'found' : 'missing'
-      });
-      
-      // Preserve existing tokens when adding new ones
-      const finalAccessToken = accessTokenParam || accessToken;
-      const finalDmaToken = dmaTokenParam || dmaToken;
-      
-      console.log('App: About to call setTokens with:', {
-        finalAccessToken: finalAccessToken ? 'present' : 'null',
-        finalDmaToken: finalDmaToken ? 'present' : 'null',
-        currentAccessToken: accessToken ? 'present' : 'null',
-        currentDmaToken: dmaToken ? 'present' : 'null'
+        dmaToken: dmaTokenParam ? 'found' : 'missing',
+        userId: userIdParam ? 'found' : 'missing'
       });
 
-      useAuthStore.getState().setTokens(finalAccessToken, finalDmaToken);
-    }
-    
-    // Process userId from URL if available
-    if (userIdParam) {
-      console.log('App: Setting userId from URL:', userIdParam);
-      setUserId(userIdParam);
-    }
-    
-    // Clean up URL parameters after processing
-    if (hasAuthParams) {
-      const cleanUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, cleanUrl);
+      // Set userId if provided
+      if (userIdParam) {
+        setUserId(userIdParam);
+      }
+
+      // Clear URL parameters after processing to prevent reprocessing
+      const newUrl = new URL(window.location.href);
+      newUrl.search = '';
+      window.history.replaceState({}, '', newUrl.toString());
     }
     
     setHasProcessedUrlParams(true);
-    setAuthCheckComplete(true);
-  }, [hasProcessedUrlParams, isBasicAuthenticated, isFullyAuthenticated, accessToken, dmaToken, setUserId]);
+    
+    // Set auth check as complete after processing
+    setTimeout(() => {
+      setAuthCheckComplete(true);
+    }, 500);
+  }, [hasProcessedUrlParams, setUserId]);
 
-  // Debug logging
-  useEffect(() => {
-    if (authCheckComplete) {
-      console.log('App: Authentication status:', {
-        isBasicAuthenticated,
-        isFullyAuthenticated,
-        hasAccessToken: !!accessToken,
-        hasDmaToken: !!dmaToken,
-        authCheckComplete
-      });
-    }
-  }, [isBasicAuthenticated, isFullyAuthenticated, accessToken, dmaToken, authCheckComplete]);
-
-  // Don't render anything until auth check is complete
+  // Return loading state while checking auth
   if (!authCheckComplete) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading...</p>
+        </div>
       </div>
     );
   }
 
+  // Show landing page if not authenticated
+  if (!isBasicAuthenticated) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <LandingPage />
+        </BrowserRouter>
+      </QueryClientProvider>
+    );
+  }
+
+  // Show auth flow if basic auth but not fully authenticated
+  if (isBasicAuthenticated && !isFullyAuthenticated) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthFlow />
+        </BrowserRouter>
+      </QueryClientProvider>
+    );
+  }
+
+  // Main authenticated app layout - FIXED LAYOUT STRUCTURE
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <div className="min-h-screen bg-gray-50">
-          {(() => {
-            console.log('App: Rendering decision - isFullyAuthenticated:', isFullyAuthenticated);
-            
-            // Show authenticated app only when FULLY authenticated (both tokens)
-            if (isFullyAuthenticated) {
-              return (
-                <div className="flex h-screen">
-                  <Sidebar />
-                  <div
-                    className={clsx(
-                      'flex-1 flex flex-col transition-all duration-300',
-                      sidebarCollapsed ? 'ml-16' : 'ml-64'
-                    )}
-                  >
-                    <Header />
-                    <main className="flex-1 overflow-auto bg-gray-50">
-                      <Routes>
-                        <Route path="/" element={<Dashboard />} />
-                        <Route path="/analytics" element={<Analytics />} />
-                        <Route path="/synergy" element={<Synergy />} />
-                        <Route path="/postpulse" element={<PostPulse />} />
-                        <Route path="/post-gen" element={<PostGen />} />
-                        <Route path="/scheduler" element={<Scheduler />} />
-                        <Route path="/creation-engine" element={<CreationEngine />} />
-                        <Route path="/the-algo" element={<TheAlgo />} />
-                        <Route path="/settings" element={<Settings />} />
-                        <Route path="/dma-test" element={<DMATestPage />} />
-                        <Route path="/dma-debug" element={<DMADebugPage />} />
-                        <Route path="*" element={<Navigate to="/" replace />} />
-                      </Routes>
-                    </main>
-                  </div>
-                </div>
-              );
-            }
-            
-            // Show AuthFlow for basic authenticated users (need DMA step)
-            if (isBasicAuthenticated && !isFullyAuthenticated) {
-              return (
+        <div className={clsx(
+          'app-container', // Use CSS class for proper layout
+          darkMode ? 'dark bg-gray-900' : 'bg-gray-50'
+        )}>
+          {/* Main Layout Container - FIXED */}
+          <div className="flex h-full">
+            {/* Sidebar - Fixed positioning */}
+            <div className="sidebar-container z-sidebar">
+              <Sidebar />
+            </div>
+
+            {/* Main Content Area - FIXED */}
+            <div className="flex-1 flex flex-col min-w-0">
+              {/* Header - Fixed positioning */}
+              <div className="z-header">
+                <Header />
+              </div>
+
+              {/* Content Area - FIXED */}
+              <main className="main-content-area p-6">
                 <Routes>
-                  <Route path="/" element={<AuthFlow />} />
-                  <Route path="/auth" element={<AuthFlow />} />
-                  <Route path="*" element={<Navigate to="/auth" replace />} />
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/analytics" element={<Analytics />} />
+                  <Route path="/synergy" element={<Synergy />} />
+                  <Route path="/postpulse" element={<PostPulse />} />
+                  <Route path="/postgen" element={<PostGen />} />
+                  <Route path="/scheduler" element={<Scheduler />} />
+                  <Route path="/creation-engine" element={<CreationEngine />} />
+                  <Route path="/algo" element={<TheAlgo />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/dma-test" element={<DMATestPage />} />
+                  <Route path="/dma-debug" element={<DMADebugPage />} />
                 </Routes>
-              );
-            }
-            
-            // Show landing page for unauthenticated users
-            return (
-              <Routes>
-                <Route path="/" element={<LandingPage />} />
-                <Route path="/auth" element={<AuthFlow />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            );
-          })()}
+              </main>
+            </div>
+          </div>
         </div>
       </BrowserRouter>
     </QueryClientProvider>

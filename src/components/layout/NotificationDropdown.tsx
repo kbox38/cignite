@@ -1,3 +1,4 @@
+// src/components/layout/NotificationDropdown.tsx - Fixed z-index positioning
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, X, User } from 'lucide-react';
@@ -93,11 +94,11 @@ export const NotificationDropdown: React.FC<NotificationProps> = ({
         )}
       </motion.button>
 
-      {/* Notification Dropdown */}
+      {/* Notification Dropdown - FIXED Z-INDEX */}
       <AnimatePresence>
         {showNotifications && (
           <>
-            {/* Backdrop for mobile */}
+            {/* Backdrop for mobile - FIXED Z-INDEX */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -106,14 +107,15 @@ export const NotificationDropdown: React.FC<NotificationProps> = ({
               onClick={() => setShowNotifications(false)}
             />
 
-            {/* Dropdown Container */}
+            {/* Dropdown Container - FIXED Z-INDEX TO BE HIGHEST */}
             <motion.div
               ref={dropdownRef}
               initial={{ opacity: 0, y: -10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="absolute top-full right-0 mt-2 w-80 max-w-[90vw] bg-white rounded-xl shadow-2xl border border-gray-200 z-dropdown overflow-hidden"
+              className="absolute top-full right-0 mt-2 w-80 max-w-[90vw] bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden"
+              style={{ zIndex: 10000 }} // FIXED: Force highest z-index
               role="dialog"
               aria-label="Notifications"
             >
@@ -188,22 +190,18 @@ export const NotificationDropdown: React.FC<NotificationProps> = ({
                             </div>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
-                              Partnership invitation from{' '}
-                              <span className="font-semibold">
-                                {invitation.fromUser?.name || 'LinkedIn User'}
-                              </span>
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {invitation.fromUser?.industry || 'Professional Services'}
-                            </p>
-                            <div className="flex items-center mt-2 space-x-2">
-                              <button className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors">
-                                View
-                              </button>
-                              <button className="px-3 py-1 bg-gray-100 text-gray-600 text-xs rounded-md hover:bg-gray-200 transition-colors">
-                                Later
-                              </button>
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <h5 className="font-semibold text-gray-900 text-sm truncate">
+                                  {invitation.fromUser?.name || 'Unknown User'}
+                                </h5>
+                                <p className="text-xs text-gray-600 mt-0.5">
+                                  {invitation.fromUser?.industry || 'Professional'}
+                                </p>
+                                <p className="text-xs text-blue-600 mt-1 font-medium">
+                                  Wants to connect
+                                </p>
+                              </div>
                             </div>
                           </div>
                         </div>
