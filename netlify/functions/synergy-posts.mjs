@@ -1,4 +1,5 @@
-
+// netlify/functions/synergy-posts.mjs - Clean ES6 module format
+import fetch from 'node-fetch';
 
 // Main handler function - ES6 export
 export async function handler(event, context) {
@@ -56,10 +57,10 @@ export async function handler(event, context) {
   }
 
   try {
-    // Check cache first
+    // SYNERGY APPROACH: Check cache first - only refresh every 24 hours
     const cachedPosts = await getCachedPosts(partnerUserId, parseInt(limit));
     if (cachedPosts && !isCacheStale(cachedPosts.fetchedAt)) {
-      console.log("Returning cached posts");
+      console.log("Returning cached posts (24h TTL)");
       return {
         statusCode: 200,
         headers: {
@@ -69,71 +70,33 @@ export async function handler(event, context) {
         body: JSON.stringify({ 
           posts: cachedPosts.posts,
           source: "cache",
-          fetchedAt: cachedPosts.fetchedAt
+          fetchedAt: cachedPosts.fetchedAt,
+          nextRefresh: new Date(new Date(cachedPosts.fetchedAt).getTime() + 24 * 60 * 60 * 1000).toISOString()
         }),
       };
     }
 
-    // Get partner's LinkedIn URN from database
-    const partnerUrn = await getPartnerLinkedInUrn(partnerUserId);
-    if (!partnerUrn) {
-      return {
-        statusCode: 404,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-        body: JSON.stringify({ 
-          error: "Partner LinkedIn URN not found",
-          posts: [],
-          source: "error_fallback",
-          fetchedAt: new Date().toISOString()
-        }),
-      };
-    }
-
-    console.log("Fetching fresh posts from LinkedIn for:", partnerUrn);
-
-    // FIXED: Add timeout to prevent hanging requests
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
+    console.log("Cache is stale or missing, checking if we should fetch fresh data");
     
-    try {
-      // Try DMA API first, fallback to snapshot
-      let posts = [];
-      
-      try {
-        posts = await fetchPartnerPostsFromDMA(authorization, partnerUrn, parseInt(limit));
-        console.log(`DMA API returned ${posts.length} posts`);
-      } catch (dmaError) {
-        console.log("DMA API failed, trying snapshot fallback:", dmaError.message);
-        posts = await fetchPartnerPostsFromSnapshot(authorization, partnerUrn, parseInt(limit));
-        console.log(`Snapshot API returned ${posts.length} posts`);
-      }
-      
-      clearTimeout(timeoutId);
-      
-      // Cache the results (won't throw even if it fails)
-      await cachePosts(partnerUserId, posts);
-
-      return {
-        statusCode: 200,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-        body: JSON.stringify({ 
-          posts,
-          source: "linkedin",
-          fetchedAt: new Date().toISOString(),
-          count: posts.length
-        }),
-      };
-      
-    } catch (error) {
-      clearTimeout(timeoutId);
-      throw error;
-    }
+    // Only fetch fresh data if we have the user's own token (not trying to fetch other users' posts)
+    // For synergy partners, we rely on cached data that each user updates for themselves
+    
+    return {
+      statusCode: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+      body: JSON.stringify({ 
+        posts: cachedPosts?.posts || [], 
+        source: "cache_only",
+        message: "Synergy posts come from cached data updated by each user",
+        fetchedAt: cachedPosts?.fetchedAt || new Date().toISOString(),
+        cacheAge: cachedPosts?.fetchedAt ? 
+          Math.round((new Date().getTime() - new Date(cachedPosts.fetchedAt).getTime()) / (1000 * 60 * 60)) + " hours" : 
+          "No cache"
+      }),
+    };
     
   } catch (error) {
     console.error("Synergy posts error:", error);
@@ -200,7 +163,7 @@ async function getCachedPosts(partnerUserId, limit) {
       .from('post_cache')
       .select('*')
       .eq('user_id', partnerUserId)
-      .order('created_at_ms', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(limit);
 
     if (error) {
@@ -217,7 +180,7 @@ async function getCachedPosts(partnerUserId, limit) {
     const latestCache = cachedPosts[0];
     const posts = cachedPosts.map(post => ({
       postUrn: post.post_urn,
-      createdAtMs: post.created_at_ms,
+      createdAtMs: post.created_at_ms || new Date(post.created_at).getTime(),
       textPreview: post.text_preview || '',
       mediaType: post.media_type || 'NONE',
       mediaAssetUrn: post.media_asset_urn,
@@ -234,7 +197,7 @@ async function getCachedPosts(partnerUserId, limit) {
   }
 }
 
-function isCacheStale(fetchedAt, ttlMinutes = 30) {
+function isCacheStale(fetchedAt, ttlMinutes = 1440) { // 24 hours = 1440 minutes
   if (!fetchedAt) return true;
   
   const cacheAge = new Date().getTime() - new Date(fetchedAt).getTime();
