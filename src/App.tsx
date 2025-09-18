@@ -131,7 +131,7 @@ function App() {
                   <div
                     className={clsx(
                       'flex-1 flex flex-col transition-all duration-300',
-                      sidebarCollapsed ? 'ml-20' : 'ml-64'
+                      sidebarCollapsed ? 'ml-16' : 'ml-64'
                     )}
                   >
                     <Header />
@@ -140,7 +140,7 @@ function App() {
                         <Route path="/" element={<Dashboard />} />
                         <Route path="/analytics" element={<Analytics />} />
                         <Route path="/synergy" element={<Synergy />} />
-                        <Route path="/post-pulse" element={<PostPulse />} />
+                        <Route path="/postpulse" element={<PostPulse />} />
                         <Route path="/post-gen" element={<PostGen />} />
                         <Route path="/scheduler" element={<Scheduler />} />
                         <Route path="/creation-engine" element={<CreationEngine />} />

@@ -58,7 +58,7 @@ html, body, #root {
 }
 
 /* Z-Index Layer System - UPDATED */
-.z-dropdown { z-index: 9999; }      /* Notification dropdown (highest) */
+.z-dropdown { z-index: 10000; }     /* Notification dropdown (highest - increased from 9999) */
 .z-modal { z-index: 1000; }         /* Modals and overlays */  
 .z-toast { z-index: 900; }          /* Toast notifications */
 .z-backdrop { z-index: 800; }       /* Modal backdrops */
@@ -66,3 +66,6 @@ html, body, #root {
 .z-header { z-index: 90; }          /* Header elements */
 .z-tooltip { z-index: 80; }         /* Tooltips */
 .z-default { z-index: 10; }         /* Default elevated elements */
+
+/* Add this new utility class for cards to ensure they stay below dropdown */
+.z-card { z-index: 1; }             /* Card components */
