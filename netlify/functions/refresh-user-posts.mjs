@@ -24,11 +24,12 @@ export async function handler(event, context) {
   }
 
   const { authorization } = event.headers;
-  const { userId, forceRefresh = false } = JSON.parse(event.body || '{}');
+  const { userId, forceRefresh = false, trigger = "manual" } = JSON.parse(event.body || '{}');
 
   console.log("=== REFRESH USER POSTS ===");
   console.log("User ID:", userId);
   console.log("Force refresh:", forceRefresh);
+  console.log("Trigger:", trigger);
   console.log("Authorization present:", !!authorization);
 
   if (!authorization) {
@@ -54,11 +55,13 @@ export async function handler(event, context) {
   }
 
   try {
-    // Check if refresh is needed (24h cooldown unless forced)
-    if (!forceRefresh) {
+    // Check if refresh is needed based on trigger type
+    const { trigger = "manual" } = JSON.parse(event.body || '{}');
+    
+    if (!forceRefresh && trigger !== "login" && trigger !== "scheduled") {
       const lastRefresh = await getLastRefreshTime(userId);
       if (lastRefresh && !isRefreshNeeded(lastRefresh)) {
-        const nextRefresh = new Date(new Date(lastRefresh).getTime() + 24 * 60 * 60 * 1000);
+        const nextRefresh = getNextMidnight();
         return {
           statusCode: 200,
           headers: {
@@ -69,11 +72,14 @@ export async function handler(event, context) {
             message: "Posts refreshed recently",
             lastRefresh,
             nextRefresh: nextRefresh.toISOString(),
-            hoursUntilNextRefresh: Math.ceil((nextRefresh.getTime() - new Date().getTime()) / (1000 * 60 * 60))
+            hoursUntilNextRefresh: Math.ceil((nextRefresh.getTime() - new Date().getTime()) / (1000 * 60 * 60)),
+            trigger: "none_needed"
           }),
         };
       }
     }
+
+    console.log(`Refreshing posts triggered by: ${trigger}`);
 
     console.log("Refreshing user's own posts from LinkedIn...");
 
@@ -111,7 +117,8 @@ export async function handler(event, context) {
         success: true,
         postsUpdated: posts.length,
         lastRefresh: new Date().toISOString(),
-        nextRefresh: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        nextRefresh: getNextMidnight().toISOString(),
+        trigger,
         posts: posts.map(p => ({ 
           text: p.textPreview.substring(0, 100) + '...',
           date: new Date(p.createdAtMs).toLocaleDateString()
@@ -160,11 +167,18 @@ async function getLastRefreshTime(userId) {
 }
 
 function isRefreshNeeded(lastRefresh) {
-  const now = new Date().getTime();
-  const lastRefreshTime = new Date(lastRefresh).getTime();
-  const hoursSinceRefresh = (now - lastRefreshTime) / (1000 * 60 * 60);
+  const now = new Date();
+  const lastRefreshDate = new Date(lastRefresh);
   
-  return hoursSinceRefresh >= 24; // Refresh needed if 24+ hours old
+  // Check if it's a different day (past midnight)
+  return now.toDateString() !== lastRefreshDate.toDateString();
+}
+
+function getNextMidnight() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+  return tomorrow;
 }
 
 async function fetchUserPostsFromSnapshot(authorization, limit = 5) {
