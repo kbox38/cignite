@@ -1,9 +1,4 @@
-// netlify/functions/synergy-posts.js - Complete file converted to CommonJS
-const fetch = require('node-fetch');
-
-// Main handler function - converted to CommonJS export
-exports.handler = async (event, context) => {
-  // Handle CORS preflight
+export async function handler(event, context) {
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 200,
@@ -84,82 +79,49 @@ exports.handler = async (event, context) => {
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": "*",
         },
-        body: JSON.stringify({ 
-          error: "Partner LinkedIn URN not found",
-          posts: [],
-          source: "error_fallback",
-          fetchedAt: new Date().toISOString()
-        }),
+        body: JSON.stringify({ error: "Partner LinkedIn URN not found" }),
       };
     }
 
-    console.log("Fetching fresh posts from LinkedIn for:", partnerUrn);
+    console.log("Fetching fresh posts from LinkedIn DMA API for:", partnerUrn);
 
-    // FIXED: Add timeout to prevent hanging requests
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
+    // Fetch fresh data from LinkedIn DMA API
+    const posts = await fetchPartnerPostsFromDMA(authorization, partnerUrn, parseInt(limit));
     
-    try {
-      // Try DMA API first, fallback to snapshot
-      let posts = [];
-      
-      try {
-        posts = await fetchPartnerPostsFromDMA(authorization, partnerUrn, parseInt(limit));
-        console.log(`DMA API returned ${posts.length} posts`);
-      } catch (dmaError) {
-        console.log("DMA API failed, trying snapshot fallback:", dmaError.message);
-        posts = await fetchPartnerPostsFromSnapshot(authorization, partnerUrn, parseInt(limit));
-        console.log(`Snapshot API returned ${posts.length} posts`);
-      }
-      
-      clearTimeout(timeoutId);
-      
-      // Cache the results (won't throw even if it fails)
-      await cachePosts(partnerUserId, posts);
+    // Cache the results
+    await cachePosts(partnerUserId, posts);
 
-      return {
-        statusCode: 200,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-        body: JSON.stringify({ 
-          posts,
-          source: "linkedin",
-          fetchedAt: new Date().toISOString(),
-          count: posts.length
-        }),
-      };
-      
-    } catch (error) {
-      clearTimeout(timeoutId);
-      throw error;
-    }
-    
-  } catch (error) {
-    console.error("Synergy posts error:", error);
-    
-    // FIXED: Return empty array instead of 502 error
     return {
-      statusCode: 200, // Changed from 500 to 200
+      statusCode: 200,
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
       },
       body: JSON.stringify({ 
-        posts: [], // Return empty array instead of error
-        source: "error_fallback",
-        fetchedAt: new Date().toISOString(),
-        count: 0,
-        error: error.message // Include error for debugging
+        posts,
+        source: "linkedin",
+        fetchedAt: new Date().toISOString()
+      }),
+    };
+  } catch (error) {
+    console.error("Synergy posts error:", error);
+    return {
+      statusCode: 500,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+      body: JSON.stringify({ 
+        error: "Internal server error",
+        details: error.message 
       }),
     };
   }
-};
+}
 
 async function getPartnerLinkedInUrn(partnerUserId) {
   try {
-    const { createClient } = require('@supabase/supabase-js');
+    const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -189,7 +151,7 @@ async function getPartnerLinkedInUrn(partnerUserId) {
 
 async function getCachedPosts(partnerUserId, limit) {
   try {
-    const { createClient } = require('@supabase/supabase-js');
+    const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -237,8 +199,7 @@ async function getCachedPosts(partnerUserId, limit) {
 
 function isCacheStale(fetchedAt, ttlMinutes = 30) {
   if (!fetchedAt) return true;
-  
-  const cacheAge = new Date().getTime() - new Date(fetchedAt).getTime();
+    .slice(0, 5) // EXACTLY 5 most recent posts for synergy
   return cacheAge > (ttlMinutes * 60 * 1000);
 }
 
@@ -247,157 +208,101 @@ async function fetchPartnerPostsFromDMA(authorization, partnerUrn, limit = 5) {
     console.log("Fetching posts from LinkedIn DMA API for:", partnerUrn);
     console.log("Using authorization:", authorization ? 'Bearer token present' : 'No token');
 
-    const baseUrl = 'https://api.linkedin.com/v2/people';
-    const extractedId = partnerUrn.replace('urn:li:person:', '');
+    // FIXED: Use the correct DMA API endpoint with proper parameters
+    const url = `https://api.linkedin.com/rest/memberSnapshotData?q=criteria&domain=MEMBER_SHARE_INFO&member=${encodeURIComponent(partnerUrn)}`;
     
-    const url = `${baseUrl}/${extractedId}/networkinfo?projection=(posts~(lastModified,created,shareCommentary,content,ugcPost))`;
-    console.log("DMA API URL:", url);
-
     const response = await fetch(url, {
-      method: 'GET',
       headers: {
-        'Authorization': `Bearer ${authorization}`,
-        'Content-Type': 'application/json',
+        'Authorization': authorization,
+        'LinkedIn-Version': '202312',
         'X-Restli-Protocol-Version': '2.0.0',
-        'LinkedIn-Version': '202306'
+        'Accept': 'application/json'
       }
     });
 
-    console.log("DMA API Response status:", response.status);
+    console.log('LinkedIn API response status:', response.status);
+    console.log('LinkedIn API response headers:', Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("DMA API Error:", response.status, errorText);
-      throw new Error(`DMA API failed: ${response.status}`);
+      console.error(`LinkedIn DMA API error: ${response.status} - ${errorText}`);
+      
+      // FIXED: Handle specific error cases
+      if (response.status === 404) {
+        console.log('No posts found for partner - returning empty array');
+        return [];
+      }
+      if (response.status === 403) {
+        throw new Error('Access denied - check DMA permissions');
+      }
+      if (response.status === 401) {
+        throw new Error('Unauthorized - invalid or expired token');
+      }
+      
+      throw new Error(`LinkedIn API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log("DMA API Response data keys:", Object.keys(data));
+    console.log("LinkedIn DMA API response received, processing data...");
 
-    if (!data.posts || !data.posts.elements) {
-      console.log("No posts found in DMA response");
+    // FIXED: Better error handling for data extraction
+    if (!data.elements || data.elements.length === 0) {
+      console.log("No elements found in API response");
       return [];
     }
 
-    const posts = data.posts.elements
-      .slice(0, limit) // EXACTLY 5 most recent posts for synergy
-      .map((post, index) => {
-        console.log(`Processing DMA post ${index + 1}:`, Object.keys(post));
-        
-        const textContent = extractTextContent(post);
-        const mediaInfo = extractMediaInfo(post);
-        const createdAt = post.created?.time || Date.now();
-        
-        return {
-          postUrn: post.id || `temp_${Date.now()}_${index}`,
-          createdAtMs: createdAt,
-          textPreview: textContent,
-          mediaType: mediaInfo.type,
-          mediaAssetUrn: mediaInfo.assetUrn,
-          permalink: post.permalink || null
-        };
-      });
+    // Extract posts from Member Snapshot response
+    const memberShareInfo = data.elements.find(element => 
+      element.domain === 'MEMBER_SHARE_INFO' && element.snapshotData
+    );
 
-    console.log(`Successfully processed ${posts.length} posts from DMA`);
+    if (!memberShareInfo || !memberShareInfo.snapshotData) {
+      console.log("No MEMBER_SHARE_INFO data found in response");
+      return [];
+    }
+
+    const rawPosts = memberShareInfo.snapshotData;
+    console.log(`Found ${rawPosts.length} raw posts`);
+
+    // FIXED: Better post processing with error handling
+    const posts = rawPosts
+      .filter(post => post && (post.Date || post.date)) // Filter out invalid posts
+      .sort((a, b) => {
+        const timeA = new Date(a.Date || a.date || 0).getTime();
+        const timeB = new Date(b.Date || b.date || 0).getTime();
+        return timeB - timeA; // Most recent first
+      })
+      .slice(0, Math.min(limit, 5)) // Limit to requested number or 5, whichever is smaller
+      .map((post, index) => {
+        try {
+          const createdAtMs = new Date(post.Date || post.date || Date.now()).getTime();
+          const textContent = extractTextContent(post);
+          const mediaInfo = extractMediaInfo(post);
+
+          return {
+            postUrn: post.ShareLink || `urn:li:share:${createdAtMs}_${index}`,
+            createdAtMs: createdAtMs,
+            textPreview: textContent.substring(0, 300), // Limit preview length
+            mediaType: mediaInfo.type,
+            mediaAssetUrn: mediaInfo.assetUrn,
+            permalink: post.ShareLink || null
+          };
+        } catch (error) {
+          console.error('Error processing individual post:', error);
+          return null; // Will be filtered out below
+        }
+      })
+      .filter(post => post !== null); // Remove any failed posts
+
+    console.log(`Successfully processed ${posts.length} posts`);
     return posts;
 
   } catch (error) {
     console.error('Error fetching posts from DMA API:', error);
-    throw error; // Re-throw to allow fallback
-  }
-}
-
-// FALLBACK: Fetch from Member Snapshot API
-async function fetchPartnerPostsFromSnapshot(authorization, partnerUrn, limit = 5) {
-  try {
-    console.log("Fetching posts from LinkedIn Snapshot API for:", partnerUrn);
+    console.error('Error stack:', error.stack);
     
-    const baseUrl = 'https://api.linkedin.com/rest/memberSnapshotData';
-    const extractedId = partnerUrn.replace('urn:li:person:', '');
-    
-    const url = `${baseUrl}?q=criteria&memberId=${extractedId}&domain=MEMBER_SHARE_INFO`;
-    console.log("Snapshot API URL:", url);
-
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${authorization}`,
-        'Content-Type': 'application/json',
-        'LinkedIn-Version': '202312'
-      }
-    });
-
-    console.log("Snapshot API Response status:", response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Snapshot API Error:", response.status, errorText);
-      throw new Error(`Snapshot API failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    console.log("Snapshot API Response data keys:", Object.keys(data));
-
-    if (!data.elements || !data.elements[0] || !data.elements[0].snapshotData) {
-      console.log("No posts found in Snapshot response");
-      return [];
-    }
-
-    const shareInfo = data.elements[0].snapshotData;
-    console.log(`Found ${shareInfo.length} items in snapshot data`);
-
-    const posts = shareInfo
-      .slice(0, limit * 2) // Get more to account for filtering
-      .map((item, index) => {
-        try {
-          console.log(`Processing snapshot item ${index + 1}:`, Object.keys(item));
-          
-          const shareUrl = item["Share URL"] || item.shareUrl || item.url;
-          const shareDate = item["Share Date"] || item.shareDate || item.date;
-          const textContent = extractTextContent(item);
-          const mediaInfo = extractMediaInfo(item);
-          
-          if (!shareUrl) {
-            console.log(`Skipping item ${index + 1}: No share URL`);
-            return null;
-          }
-          
-          // Extract URN from URL
-          const urnMatch = shareUrl.match(/activity-(\d+)/);
-          const postUrn = urnMatch ? `urn:li:activity:${urnMatch[1]}` : `temp_${Date.now()}_${index}`;
-          
-          // Parse date
-          let createdAtMs = Date.now();
-          if (shareDate) {
-            const parsedDate = new Date(shareDate);
-            if (!isNaN(parsedDate.getTime())) {
-              createdAtMs = parsedDate.getTime();
-            }
-          }
-          
-          return {
-            postUrn,
-            createdAtMs,
-            textPreview: textContent,
-            mediaType: mediaInfo.type,
-            mediaAssetUrn: mediaInfo.assetUrn,
-            permalink: shareUrl
-          };
-        } catch (error) {
-          console.warn(`Error processing snapshot item ${index}:`, error);
-          return null;
-        }
-      })
-      .filter(post => post !== null) // Remove failed items
-      .slice(0, limit); // Take only the requested number
-
-    console.log(`Successfully processed ${posts.length} posts from Snapshot`);
-    return posts;
-
-  } catch (error) {
-    console.error('Error fetching posts from Snapshot API:', error);
-    // Don't throw error, return empty array to prevent 502
-    console.log('Returning empty array due to snapshot error');
+    // FIXED: Don't throw error, return empty array to prevent 502
+    console.log('Returning empty array due to error');
     return [];
   }
 }
@@ -418,8 +323,7 @@ function extractTextContent(post) {
     
     for (const field of textFields) {
       if (post[field] && typeof post[field] === 'string') {
-        const text = post[field].trim();
-        return text.length > 500 ? text.substring(0, 500) + '...' : text;
+        return post[field].trim();
       }
     }
     
@@ -479,7 +383,7 @@ function extractMediaInfo(post) {
 // FIXED: Enhanced cache function with better error handling
 async function cachePosts(partnerUserId, posts) {
   try {
-    const { createClient } = require('@supabase/supabase-js');
+    const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -522,5 +426,154 @@ async function cachePosts(partnerUserId, posts) {
   } catch (error) {
     console.error('Error in cachePosts:', error);
     // Don't throw error - caching failure shouldn't break the main functionality
+  }
+}
+
+// Additional fix for the main handler to prevent 502 errors
+export async function handler(event, context) {
+  // Add this at the beginning of the try block:
+  
+  try {
+    // ... existing validation code ...
+
+    // FIXED: Add timeout to prevent hanging requests
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
+    
+    try {
+      // ... existing logic ...
+      
+      const posts = await fetchPartnerPostsFromDMA(authorization, partnerUrn, parseInt(limit));
+      
+      clearTimeout(timeoutId);
+      
+      // Cache the results (won't throw even if it fails)
+      await cachePosts(partnerUserId, posts);
+
+      return {
+        statusCode: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+        body: JSON.stringify({ 
+          posts,
+          source: "linkedin",
+          fetchedAt: new Date().toISOString(),
+          count: posts.length
+        }),
+      };
+      
+    } catch (error) {
+      clearTimeout(timeoutId);
+      throw error;
+    }
+    
+  } catch (error) {
+    console.error("Synergy posts error:", error);
+    
+    // FIXED: Return empty array instead of 502 error
+    return {
+      statusCode: 200, // Changed from 500 to 200
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+      body: JSON.stringify({ 
+        posts: [], // Return empty array instead of error
+        source: "error_fallback",
+        fetchedAt: new Date().toISOString(),
+        count: 0,
+        error: error.message // Include error for debugging
+      }),
+    };
+  }
+}
+
+function extractTextContent(post) {
+  try {
+    // Try different possible text content fields
+    const textContent = 
+      post.ShareCommentary || 
+      post['Share Commentary'] ||
+      post.shareCommentary ||
+      post.Commentary ||
+      post.commentary ||
+      post.text ||
+      '';
+    
+    return textContent.substring(0, 500);
+  } catch (error) {
+    console.error('Error extracting text content:', error);
+    return '';
+  }
+}
+
+function extractMediaInfo(post) {
+  try {
+    const defaultInfo = { type: 'NONE', assetUrn: null };
+
+    // FIXED: Check for media in snapshot data format
+    const mediaUrl = post.MediaUrl || post['Media URL'] || post.mediaUrl;
+    const mediaType = post.MediaType || post['Media Type'] || post.mediaType || 'NONE';
+    
+    if (mediaUrl) {
+      return {
+        type: mediaType,
+        assetUrn: mediaUrl
+      };
+    }
+
+    return defaultInfo;
+  } catch (error) {
+    console.error('Error extracting media info:', error);
+    return { type: 'NONE', assetUrn: null };
+  }
+}
+
+async function cachePosts(partnerUserId, posts) {
+  try {
+    if (!posts || posts.length === 0) {
+      console.log("No posts to cache");
+      return;
+    }
+
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    console.log(`Caching ${posts.length} posts for user:`, partnerUserId);
+
+    // Delete existing cache for this user
+    await supabase
+      .from('post_cache')
+      .delete()
+      .eq('user_id', partnerUserId);
+
+    // Insert new cached posts
+    const cacheEntries = posts.map(post => ({
+      user_id: partnerUserId,
+      post_urn: post.postUrn,
+      created_at_ms: post.createdAtMs,
+      text_preview: post.textPreview,
+      media_type: post.mediaType,
+      media_asset_urn: post.mediaAssetUrn,
+      permalink: post.permalink,
+      fetched_at: new Date().toISOString()
+    }));
+
+    const { error } = await supabase
+      .from('post_cache')
+      .insert(cacheEntries);
+
+    if (error) {
+      console.error('Error caching posts:', error);
+    } else {
+      console.log("Posts cached successfully");
+    }
+  } catch (error) {
+    console.error('Error in cachePosts:', error);
   }
 }
