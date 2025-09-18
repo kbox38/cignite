@@ -1,4 +1,4 @@
-// src/App.tsx - Fixed layout positioning
+// src/App.tsx - Fixed OAuth token processing
 import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
@@ -32,7 +32,14 @@ const queryClient = new QueryClient({
 });
 
 function App() {
-  const { isBasicAuthenticated, isFullyAuthenticated, accessToken, dmaToken, setUserId } = useAuthStore();
+  const { 
+    isBasicAuthenticated, 
+    isFullyAuthenticated, 
+    accessToken, 
+    dmaToken, 
+    setTokens,
+    setUserId 
+  } = useAuthStore();
   const { sidebarCollapsed } = useAppStore();
   const darkMode = false; // Force bright mode always
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
@@ -56,16 +63,29 @@ function App() {
     const userIdParam = urlParams.get('user_id');
     const hasAuthParams = accessTokenParam || dmaTokenParam;
     
-    // Process tokens separately to maintain two-step flow
-    if (accessTokenParam || dmaTokenParam) {
+    // FIXED: Process tokens and update auth store
+    if (hasAuthParams) {
       console.log('App: Processing tokens from URL', {
         accessToken: accessTokenParam ? 'found' : 'missing',
         dmaToken: dmaTokenParam ? 'found' : 'missing',
         userId: userIdParam ? 'found' : 'missing'
       });
 
+      // CRITICAL FIX: Update tokens in auth store
+      const newAccessToken = accessTokenParam || accessToken;
+      const newDmaToken = dmaTokenParam || dmaToken;
+      
+      console.log('App: Setting tokens in store', {
+        newAccessToken: newAccessToken ? 'present' : 'null',
+        newDmaToken: newDmaToken ? 'present' : 'null'
+      });
+      
+      // Update the auth store with new tokens
+      setTokens(newAccessToken, newDmaToken);
+
       // Set userId if provided
       if (userIdParam) {
+        console.log('App: Setting userId:', userIdParam);
         setUserId(userIdParam);
       }
 
@@ -73,6 +93,8 @@ function App() {
       const newUrl = new URL(window.location.href);
       newUrl.search = '';
       window.history.replaceState({}, '', newUrl.toString());
+      
+      console.log('App: URL parameters cleared');
     }
     
     setHasProcessedUrlParams(true);
@@ -81,7 +103,38 @@ function App() {
     setTimeout(() => {
       setAuthCheckComplete(true);
     }, 500);
-  }, [hasProcessedUrlParams, setUserId]);
+  }, [hasProcessedUrlParams, setTokens, setUserId, accessToken, dmaToken]);
+
+  // FIXED: Add login trigger for posts refresh
+  useEffect(() => {
+    // Trigger login posts refresh when user becomes fully authenticated
+    if (isFullyAuthenticated && authCheckComplete) {
+      console.log('App: User fully authenticated, triggering login posts refresh');
+      
+      // Get userId from auth store
+      const { userId } = useAuthStore.getState();
+      
+      if (userId && dmaToken) {
+        // Call login-triggered posts refresh
+        fetch('/.netlify/functions/login-posts-refresh', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${dmaToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userId })
+        }).then(response => {
+          if (response.ok) {
+            console.log('App: Login posts refresh triggered successfully');
+          } else {
+            console.log('App: Login posts refresh failed:', response.status);
+          }
+        }).catch(error => {
+          console.log('App: Login posts refresh error:', error.message);
+        });
+      }
+    }
+  }, [isFullyAuthenticated, authCheckComplete, dmaToken]);
 
   // Return loading state while checking auth
   if (!authCheckComplete) {
