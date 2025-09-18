@@ -1,5 +1,4 @@
-// netlify/functions/synergy-posts.mjs - Clean ES6 module format
-import fetch from 'node-fetch';
+
 
 // Main handler function - ES6 export
 export async function handler(event, context) {
