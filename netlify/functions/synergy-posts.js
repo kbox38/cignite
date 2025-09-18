@@ -199,7 +199,7 @@ async function getCachedPosts(partnerUserId, limit) {
 
 function isCacheStale(fetchedAt, ttlMinutes = 30) {
   if (!fetchedAt) return true;
-    slice(0, 5) // EXACTLY 5 most recent posts for synergy
+    .slice(0, 5) // EXACTLY 5 most recent posts for synergy
   return cacheAge > (ttlMinutes * 60 * 1000);
 }
 
