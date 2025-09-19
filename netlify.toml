@@ -7,6 +7,11 @@
 
   NODE_VERSION = "20"
 
+# Scheduled Functions
+[[functions]]
+  name = "scheduled-posts-sync"
+  schedule = "0 0 * * *"  # Run daily at midnight UTC
+  
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"

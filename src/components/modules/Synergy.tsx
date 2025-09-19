@@ -1,32 +1,10 @@
-import { useState, useMemo, useEffect } from "react";
-import { motion } from "framer-motion";
-import {
-  Plus,
-  ExternalLink,
-  Copy,
-  Users,
-  Clock,
-  Image as ImageIcon,
-  Video,
-  FileText,
-  Link as LinkIcon,
-  Sparkles,
-  Send,
-  X,
-  AlertCircle,
-  RefreshCw,
-  Search,
-  UserPlus,
-  Bell,
-  Check,
-  XCircle,
-} from "lucide-react";
-import { Card } from "../ui/Card";
-import { Button } from "../ui/Button";
-import { LoadingSpinner } from "../ui/LoadingSpinner";
-import { useAuthStore } from "../../stores/authStore";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSynergyUserSearch } from "../../hooks/useSynergyData";
+// src/components/Synergy.tsx
+// Updated Synergy component with posts sync status and controls
+
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Users, Plus, Sync, Clock, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { usePostsSync } from '../../hooks/usePostsSync';
 
 interface SynergyPartner {
   id: string;
@@ -36,17 +14,8 @@ interface SynergyPartner {
   linkedinMemberUrn?: string;
   dmaActive: boolean;
   createdAt: string;
-}
-
-interface PendingInvitation {
-  id: string;
-  fromUserId: string;
-  toUserId: string;
-  fromUserName: string;
-  fromUserAvatar?: string;
-  fromUserHeadline?: string;
-  message?: string;
-  createdAt: string;
+  lastPostsSync?: string;
+  postsSyncStatus?: string;
 }
 
 interface PartnerPost {
@@ -54,1045 +23,333 @@ interface PartnerPost {
   createdAtMs: number;
   textPreview: string;
   mediaType: string;
-  mediaAssetUrn?: string;
-  permalink?: string;
-  raw?: any;
+  likesCount?: number;
+  commentsCount?: number;
+  engagementRate?: number;
 }
 
-export const Synergy = () => {
-  const { dmaToken, userId } = useAuthStore();
+export default function Synergy() {
+  const [partners, setPartners] = useState<SynergyPartner[]>([]);
+  const [partnerPosts, setPartnerPosts] = useState<Record<string, PartnerPost[]>>({});
+  const [loading, setLoading] = useState(true);
   const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-
-  const [suggestingFor, setSuggestingFor] = useState<string | null>(null);
-  const [suggestions, setSuggestions] = useState<Record<string, string>>({});
-  const queryClient = useQueryClient();
-
-  // Fetch partners from database
+  const [postsLoading, setPostsLoading] = useState<Record<string, boolean>>({});
+  
+  // Use posts sync hook
   const {
-    data: partnersData,
-    isLoading: partnersLoading,
-    refetch: refetchPartners,
-  } = useQuery({
-    queryKey: ["synergy-partners"],
-    queryFn: async () => {
-      const response = await fetch("/.netlify/functions/synergy-partners", {
-        headers: {
-          Authorization: `Bearer ${dmaToken}`,
-          "Content-Type": "application/json",
-        },
-      });
+    syncStatus,
+    isLoading: syncLoading,
+    error: syncError,
+    refreshStatus,
+    triggerManualSync,
+    formatLastSync,
+    getSyncStatusColor,
+    getSyncStatusIcon,
+    getSyncStatusText
+  } = usePostsSync();
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch partners");
-      }
-
-      return response.json();
-    },
-    enabled: !!dmaToken,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
-
-  const partners = Array.isArray(partnersData?.partners) ? partnersData.partners : [];  const pendingInvitations = Array.isArray(partnersData?.pendingInvitations) ? partnersData.pendingInvitations : [];
-  // Fetch partner posts using Snapshot API
-  const {
-    data: partnerPostsData,
-    isLoading: postsLoading,
-    error: postsError,
-  } = useQuery({
-    queryKey: ["synergy-posts", selectedPartner],
-    queryFn: async () => {
-      if (!selectedPartner) throw new Error("No partner selected");
-
-      const response = await fetch(
-        `/.netlify/functions/synergy-posts?partnerUserId=${encodeURIComponent(
-          selectedPartner
-        )}&limit=10`,
-        {
-          headers: {
-            Authorization: `Bearer ${dmaToken}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `HTTP ${response.status}`);
-      }
-
-      return response.json();
-    },
-    enabled: !!selectedPartner && !!dmaToken && partners.length > 0,
-    staleTime: 10 * 60 * 1000, // 10 minutes cache
-    retry: 2,
-  });
-
-  // Send invitation mutation
-  const sendInvitationMutation = useMutation({
-    mutationFn: async (partnerId: string) => {
-      const response = await fetch("/.netlify/functions/synergy-partners", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${dmaToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "invite",
-          partnerId,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to send invitation");
-      }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      refetchPartners();
-      setShowAddModal(false);
-      setSearchTerm("");
-      setSearchResults([]);
-      queryClient.invalidateQueries({ queryKey: ['synergy-user-search'] });
-    },
-  });
-
-  // Accept invitation mutation
-  const acceptInvitationMutation = useMutation({
-    mutationFn: async (invitationId: string) => {
-      const response = await fetch("/.netlify/functions/synergy-partners", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${dmaToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "accept",
-          invitationId,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to accept invitation");
-      }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      refetchPartners();
-    },
-  });
-
-  // Decline invitation mutation
-  const declineInvitationMutation = useMutation({
-    mutationFn: async (invitationId: string) => {
-      const response = await fetch("/.netlify/functions/synergy-partners", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${dmaToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          action: "decline",
-          invitationId,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to decline invitation");
-      }
-
-      return response.json();
-    },
-    onSuccess: () => {
-      refetchPartners();
-    },
-  });
-
-  // Generate comment suggestion
-  const suggestCommentMutation = useMutation({
-    mutationFn: async ({
-      post,
-      partnerName,
-    }: {
-      post: PartnerPost;
-      partnerName: string;
-    }) => {
-      const response = await fetch(
-        "/.netlify/functions/synergy-suggest-comment",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${dmaToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            post: {
-              urn: post.postUrn,
-              text: post.textPreview,
-              mediaType: post.mediaType,
-              partnerName: partnerName,
-            },
-            viewerProfile: {
-              headline: "Professional LinkedIn User",
-              topics: ["LinkedIn Growth", "Professional Development"],
-            },
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to generate suggestion");
-      }
-
-      return response.json();
-    },
-    onSuccess: (data) => {
-      // Handle both single suggestion and multiple suggestions format
-      if (data.suggestions && Array.isArray(data.suggestions)) {
-        setSuggestions((prev) => ({
-          ...prev,
-          [data.postUrn]: data.suggestions,
-        }));
-      } else if (data.suggestion) {
-        setSuggestions((prev) => ({
-          ...prev,
-          [data.postUrn]: data.suggestion,
-        }));
-      }
-      setSuggestingFor(null);
-    },
-    onError: (error) => {
-      console.error("Failed to generate suggestion:", error);
-      setSuggestingFor(null);
-    },
-  });
-
-  const handleSuggestComment = (post: PartnerPost, partnerName: string) => {
-    setSuggestingFor(post.postUrn);
-    suggestCommentMutation.mutate({ post, partnerName });
-  };
-
-  const handleCopySuggestion = (suggestion: string) => {
-    navigator.clipboard.writeText(suggestion);
-  };
-
-  const handleRegenerateSuggestion = (
-    post: PartnerPost,
-    partnerName: string
-  ) => {
-    // Remove existing suggestion and generate new one
-    setSuggestions((prev) => {
-      const newSuggestions = { ...prev };
-      delete newSuggestions[post.postUrn];
-      return newSuggestions;
-    });
-    handleSuggestComment(post, partnerName);
-  };
-
-  const getMediaIcon = (mediaType: string) => {
-    switch (mediaType) {
-      case "IMAGE":
-        return <ImageIcon size={16} />;
-      case "VIDEO":
-        return <Video size={16} />;
-      case "ARTICLE":
-        return <FileText size={16} />;
-      case "URN_REFERENCE":
-        return <LinkIcon size={16} />;
-      default:
-        return null;
-    }
-  };
-
-  const formatDate = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-
-    if (diffDays > 0) {
-      return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
-    } else if (diffHours > 0) {
-      return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
-    } else {
-      return "Just now";
-    }
-  };
-
-  const selectedPartnerData = useMemo(() => {
-    return partners.find((p) => p.id === selectedPartner);
-  }, [selectedPartner, partners]);
-
-  // Use the search hook
-  const {
-    data: searchData,
-    isLoading: isSearching,
-    refetch: searchUsers,
-  } = useSynergyUserSearch(searchTerm, 10);
-
-  // Update search results when search data changes
+  // Load partners on component mount
   useEffect(() => {
-    if (searchData) {
-      setSearchResults(searchData);
+    loadPartners();
+  }, []);
+
+  /**
+   * Load synergy partners
+   */
+  async function loadPartners() {
+    try {
+      const response = await fetch('/.netlify/functions/synergy-partners');
+      if (!response.ok) throw new Error('Failed to load partners');
+      
+      const data = await response.json();
+      setPartners(data.partners || []);
+    } catch (error) {
+      console.error('Failed to load partners:', error);
+    } finally {
+      setLoading(false);
     }
-  }, [searchData]);
-
-  const sendInvitation = (partnerUserId: string) => {
-    sendInvitationMutation.mutate(partnerUserId);
-  };
-
-  const acceptInvitation = (invitationId: string) => {
-    acceptInvitationMutation.mutate(invitationId);
-  };
-
-  const declineInvitation = (invitationId: string) => {
-    declineInvitationMutation.mutate(invitationId);
-  };
-
-  if (!dmaToken) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="space-y-6"
-      >
-        <div className="text-center py-12">
-          <AlertCircle size={48} className="mx-auto text-orange-400 mb-4" />
-          <h2 className="text-2xl font-bold mb-4">DMA Access Required</h2>
-          <p className="text-gray-600 mb-6">
-            Synergy features require LinkedIn Data Member Agreement (DMA) access
-            to view partner data.
-          </p>
-          <Button
-            variant="primary"
-            onClick={() => (window.location.href = "/")}
-          >
-            Enable DMA Access
-          </Button>
-        </div>
-      </motion.div>
-    );
   }
 
-  if (!userId) {
+  /**
+   * Load posts for a specific partner
+   */
+  async function loadPartnerPosts(partnerId: string) {
+    if (postsLoading[partnerId]) return;
+    
+    setPostsLoading(prev => ({ ...prev, [partnerId]: true }));
+    
+    try {
+      const response = await fetch('/.netlify/functions/synergy-posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ partnerUserId: partnerId })
+      });
+      
+      if (!response.ok) throw new Error('Failed to load posts');
+      
+      const data = await response.json();
+      setPartnerPosts(prev => ({
+        ...prev,
+        [partnerId]: data.posts || []
+      }));
+    } catch (error) {
+      console.error(`Failed to load posts for partner ${partnerId}:`, error);
+      setPartnerPosts(prev => ({
+        ...prev,
+        [partnerId]: []
+      }));
+    } finally {
+      setPostsLoading(prev => ({ ...prev, [partnerId]: false }));
+    }
+  }
+
+  /**
+   * Handle manual sync trigger
+   */
+  async function handleManualSync() {
+    const success = await triggerManualSync();
+    if (success) {
+      // Reload partner posts after sync completes
+      setTimeout(() => {
+        if (selectedPartner) {
+          loadPartnerPosts(selectedPartner);
+        }
+      }, 5000);
+    }
+  }
+
+  /**
+   * Select partner and load their posts
+   */
+  function selectPartner(partnerId: string) {
+    setSelectedPartner(partnerId);
+    loadPartnerPosts(partnerId);
+  }
+
+  if (loading) {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="space-y-6"
-      >
-        <div className="text-center py-12">
-          <AlertCircle size={48} className="mx-auto text-orange-400 mb-4" />
-          <h2 className="text-2xl font-bold mb-4">
-            User Identification Required
-          </h2>
-          <p className="text-gray-600 mb-6">
-            User identification is required for Synergy features. Please
-            re-authenticate to continue.
-          </p>
-          <Button
-            variant="primary"
-            onClick={() => (window.location.href = "/")}
-          >
-            Re-authenticate
-          </Button>
-        </div>
-      </motion.div>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
     );
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="space-y-6"
-    >
+    <div className="space-y-6">
+      {/* Header with Sync Status */}
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Synergy Partners</h2>
-          <p className="text-gray-600 mt-1">
-            Collaborate and engage with your strategic LinkedIn partners
-          </p>
+        <div className="flex items-center space-x-3">
+          <Users className="h-8 w-8 text-blue-600" />
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Synergy Partners</h1>
+            <p className="text-gray-600">Collaborate and engage with your network</p>
+          </div>
         </div>
-        <div className="flex space-x-3">
-          {/* Notifications Button */}
-          <Button
-            variant="outline"
-            onClick={() => setShowNotifications(true)}
-            className="relative"
+        
+        {/* Posts Sync Status */}
+        <div className="flex items-center space-x-4">
+          <div className="text-right">
+            <div className={`text-sm font-medium ${getSyncStatusColor()}`}>
+              {getSyncStatusText()}
+            </div>
+            <div className="text-xs text-gray-500">
+              Last sync: {formatLastSync()}
+            </div>
+          </div>
+          
+          <button
+            onClick={handleManualSync}
+            disabled={syncLoading}
+            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
           >
-            <Bell size={20} className="mr-2" />
-            Notifications
-            {pendingInvitations.length > 0 && (
-              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {pendingInvitations.length}
-              </span>
-            )}
-          </Button>
-
-          <Button variant="primary" onClick={() => setShowAddModal(true)}>
-            <Plus size={20} className="mr-2" />
-            Add Partner
-          </Button>
+            <RefreshCw className={`h-4 w-4 mr-2 ${syncLoading ? 'animate-spin' : ''}`} />
+            {syncLoading ? 'Syncing...' : 'Sync Posts'}
+          </button>
         </div>
       </div>
 
-      {/* Notifications Modal */}
-      {showNotifications && (
+      {/* Sync Error */}
+      {syncError && (
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-modal p-4"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-red-50 border border-red-200 rounded-lg p-4"
         >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Partnership Invitations</h3>
-              <Button
-                variant="ghost"
-                onClick={() => setShowNotifications(false)}
-              >
-                <X size={20} />
-              </Button>
-            </div>
-
-              {!Array.isArray(pendingInvitations) || pendingInvitations.length === 0 ? (
-                <div className="text-center py-8">
-                  <Bell size={48} className="mx-auto text-gray-300 mb-4" />
-                  <p className="text-gray-500">No pending invitations</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {pendingInvitations.map((invitation) => (
-                  <div
-                    key={invitation.id}
-                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <img
-                        src={
-                          invitation.fromUser?.avatarUrl ||
-                          `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                            invitation.fromUser?.name
-                          )}&background=0ea5e9&color=fff`
-                        }
-                        alt={invitation.fromUserName}
-                        className="w-12 h-12 rounded-full"
-                      />
-                      <div>
-                        <h4 className="font-medium text-gray-900">
-                          {invitation.fromUser?.name || "LinkedIn User"}
-                        </h4>
-                        <p className="text-sm text-gray-600">
-                          {invitation.fromUser?.headline || "LinkedIn Professional"}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          Sent{" "}
-                          {new Date(invitation.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex space-x-2">
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => acceptInvitation(invitation.id)}
-                        disabled={acceptInvitationMutation.isPending}
-                      >
-                        <Check size={14} className="mr-1" />
-                        Accept
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => declineInvitation(invitation.id)}
-                        disabled={declineInvitationMutation.isPending}
-                      >
-                        <XCircle size={14} className="mr-1" />
-                        Decline
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </motion.div>
+          <div className="flex items-center">
+            <AlertCircle className="h-5 w-5 text-red-600 mr-2" />
+            <span className="text-red-800 text-sm">{syncError}</span>
+          </div>
         </motion.div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-200px)]">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Partners List */}
         <div className="lg:col-span-1">
-          <Card variant="glass" className="p-6 h-full">
-            <h3 className="text-lg font-semibold mb-4 flex items-center">
-              <Users size={20} className="mr-2" />
-              Partners ({partners.length})
-            </h3>
-
-            {partnersLoading ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="animate-pulse">
-                    <div className="h-16 bg-gray-200 rounded-lg"></div>
-                  </div>
-                ))}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="p-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium text-gray-900">Partners</h3>
+                <button className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-full text-blue-600 bg-blue-100 hover:bg-blue-200">
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Partner
+                </button>
               </div>
-            ) : partners.length === 0 ? (
-              <div className="text-center py-8">
-                <Users size={48} className="mx-auto text-gray-300 mb-4" />
-                <p className="text-gray-500 mb-2">No partners yet</p>
-                <p className="text-sm text-gray-400">
-                  Add your first synergy partner to get started
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {partners.map((partner, index) => (
-                  <motion.div
-                    key={partner.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                      selectedPartner === partner.id
-                        ? "bg-blue-50 border-2 border-blue-200"
-                        : "bg-gray-50 hover:bg-gray-100 border-2 border-transparent"
-                    }`}
-                    onClick={() => setSelectedPartner(partner.id)}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="relative">
-                        <img
-                          src={
-                            partner.avatarUrl ||
-                            `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                              partner.name
-                            )}&background=0ea5e9&color=fff`
-                          }
-                          alt={partner.name}
-                          className="w-12 h-12 rounded-full"
-                        />
-                        <div
-                          className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
-                            partner.dmaActive ? "bg-green-500" : "bg-gray-400"
-                          }`}
-                        ></div>
+            </div>
+            
+            <div className="p-4">
+              {partners.length === 0 ? (
+                <div className="text-center py-8">
+                  <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500 text-sm">No partners yet</p>
+                  <p className="text-gray-400 text-xs">Add partners to start collaborating</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {partners.map((partner) => (
+                    <motion.div
+                      key={partner.id}
+                      whileHover={{ scale: 1.02 }}
+                      className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                        selectedPartner === partner.id
+                          ? 'bg-blue-50 border-2 border-blue-200'
+                          : 'bg-gray-50 border-2 border-transparent hover:bg-gray-100'
+                      }`}
+                      onClick={() => selectPartner(partner.id)}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="flex-shrink-0">
+                          {partner.avatarUrl ? (
+                            <img
+                              src={partner.avatarUrl}
+                              alt={partner.name}
+                              className="h-10 w-10 rounded-full"
+                            />
+                          ) : (
+                            <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-400 to-cyan-400 flex items-center justify-center text-white font-medium">
+                              {partner.name?.[0]?.toUpperCase() || '?'}
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {partner.name || 'Unnamed Partner'}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {partner.email}
+                          </p>
+                        </div>
+                        
+                        <div className="flex-shrink-0">
+                          {partner.dmaActive ? (
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <Clock className="h-4 w-4 text-yellow-500" />
+                          )}
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-gray-900 truncate">
-                          {partner.name}
-                        </h4>
-                        <p className="text-sm text-gray-500 truncate">
-                          {partner.dmaActive ? "DMA Active" : "DMA Inactive"}
-                        </p>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-          </Card>
+                      
+                      {/* Partner's sync status */}
+                      {partner.lastPostsSync && (
+                        <div className="mt-2 text-xs text-gray-400">
+                          Posts synced: {new Date(partner.lastPostsSync).toLocaleDateString()}
+                        </div>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Partner Posts */}
         <div className="lg:col-span-2">
-          {selectedPartnerData ? (
-            <div className="space-y-6">
-              {/* Partner Header */}
-              <Card variant="glass" className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <img
-                      src={selectedPartnerData.avatarUrl}
-                      alt={selectedPartnerData.name}
-                      className="w-16 h-16 rounded-full"
-                    />
-                    <div>
-                      <h3 className="text-xl font-bold">
-                        {selectedPartnerData.name}
-                      </h3>
-                      <p className="text-gray-600">
-                        {selectedPartnerData.email}
-                      </p>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <div
-                          className={`w-2 h-2 rounded-full ${
-                            selectedPartnerData.dmaActive
-                              ? "bg-green-500"
-                              : "bg-gray-400"
-                          }`}
-                        ></div>
-                        <span className="text-sm text-gray-500">
-                          {selectedPartnerData.dmaActive
-                            ? "DMA Active"
-                            : "DMA Inactive"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-blue-600">
-                      {partnerPostsData?.posts?.length || 0}
-                    </div>
-                    <div className="text-sm text-gray-500">Latest Posts</div>
-                  </div>
-                </div>
-              </Card>
-
-              {/* Partner Posts */}
-              <div className="space-y-4">
-                <h4 className="text-lg font-semibold">
-                  Latest Posts (Snapshot Data)
-                </h4>
-
-                {postsLoading ? (
-                  <div className="space-y-4">
-                    {[1, 2, 3].map((i) => (
-                      <Card key={i} variant="glass" className="p-6">
-                        <div className="animate-pulse">
-                          <div className="h-4 bg-gray-300 rounded w-1/4 mb-4"></div>
-                          <div className="space-y-2">
-                            <div className="h-4 bg-gray-300 rounded"></div>
-                            <div className="h-4 bg-gray-300 rounded w-3/4"></div>
-                          </div>
-                          <div className="h-20 bg-gray-300 rounded mt-4"></div>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                ) : postsError ? (
-                  <Card variant="glass" className="p-6 text-center">
-                    <AlertCircle
-                      size={48}
-                      className="mx-auto text-red-400 mb-4"
-                    />
-                    <p className="text-red-600">
-                      Error loading posts: {postsError.message}
-                    </p>
-                    {postsError.message.includes("partner_not_authorized") && (
-                      <div className="mt-4">
-                        <Button variant="primary">
-                          Request Partner Reconnection
-                        </Button>
-                      </div>
-                    )}
-                  </Card>
-                ) : partnerPostsData && partnerPostsData.posts.length > 0 ? (
-                  <div className="space-y-6 max-h-[700px] overflow-y-auto">
-                    {partnerPostsData.posts.map((post, index) => (
-                      <motion.div
-                        key={post.postUrn}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                      >
-                        <Card
-                          variant="glass"
-                          className="p-6 hover:shadow-lg transition-all duration-200 border border-gray-200"
-                        >
-                          {/* Post Header */}
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center space-x-2 text-sm text-gray-600">
-                              <Clock size={14} />
-                              <span>{formatDate(post.createdAtMs)}</span>
-                              {post.mediaType !== "TEXT" && (
-                                <>
-                                  <span>•</span>
-                                  <div className="flex items-center space-x-1">
-                                    {getMediaIcon(post.mediaType)}
-                                    <span>{post.mediaType}</span>
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                window.open(
-                                  post.permalink || `https://linkedin.com/feed/`,
-                                  "_blank"
-                                )
-                              }
-                            >
-                              <ExternalLink size={14} />
-                            </Button>
-                          </div>
-
-                          {/* Media Thumbnail */}
-                          {post.mediaAssetUrn && (
-                            <div className="w-full h-32 bg-gray-100 rounded-lg mb-4 overflow-hidden">
-                              <img
-                                src={`/.netlify/functions/linkedin-media-download?assetId=${post.mediaAssetUrn
-                                  .split(":")
-                                  .pop()}&token=${encodeURIComponent(
-                                  dmaToken
-                                )}`}
-                                alt="Post media"
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = "none";
-                                }}
-                              />
-                            </div>
-                          )}
-
-                          {/* Post Content */}
-                          <div className="mb-4">
-                            <p className="text-gray-800 leading-relaxed line-clamp-3">
-                              {post.textPreview}
-                            </p>
-                          </div>
-
-                          {/* AI Suggestion Section */}
-                          <div className="border-t pt-4">
-                            <h5 className="font-medium text-gray-900 mb-3 flex items-center">
-                              <Sparkles size={16} className="mr-2" />
-                              AI Comment Suggestions (5 Professional Approaches)
-                            </h5>
-
-                            {suggestions[post.postUrn] ? (
-                              <div className="space-y-3">
-                                {/* Display exactly 5 suggestions */}
-                                <div className="grid grid-cols-1 gap-3">
-                                  {Array.isArray(suggestions[post.postUrn]) ? 
-                                    suggestions[post.postUrn].map((suggestion, suggestionIndex) => (
-                                      <div key={suggestionIndex} className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-3">
-                                        <div className="flex items-start justify-between mb-2">
-                                          <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
-                                            {suggestion.approach || `Approach ${suggestionIndex + 1}`}
-                                          </span>
-                                          <span className="text-xs text-blue-500 font-medium">
-                                            {suggestion.tone || 'professional'}
-                                          </span>
-                                        </div>
-                                        <p className="text-sm text-blue-800 mb-3 leading-relaxed">
-                                          "{suggestion.text || suggestion}"
-                                        </p>
-                                        <div className="flex space-x-2">
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => handleCopySuggestion(suggestion.text || suggestion)}
-                                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-100"
-                                          >
-                                            <Copy size={12} className="mr-1" />
-                                            Copy
-                                          </Button>
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => window.open(post.permalink || `https://linkedin.com/feed/`, "_blank")}
-                                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-100"
-                                          >
-                                            <Send size={12} className="mr-1" />
-                                            Use
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    )) :
-                                    // Fallback for single suggestion format
-                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                                      <p className="text-sm text-blue-700 mb-3">
-                                        "{suggestions[post.postUrn]}"
-                                      </p>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleCopySuggestion(suggestions[post.postUrn])}
-                                      >
-                                        <Copy size={14} className="mr-1" />
-                                        Copy
-                                      </Button>
-                                    </div>
-                                  }
-                                </div>
-                                
-                                {/* Regenerate Button */}
-                                <div className="mt-4 pt-3 border-t border-blue-200">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleRegenerateSuggestion(post, selectedPartnerData.name)}
-                                    disabled={suggestingFor === post.postUrn}
-                                    className="w-full"
-                                  >
-                                    <RefreshCw size={14} className="mr-1" />
-                                    Regenerate 5 Professional Comments
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="space-y-3">
-                                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                                  <p className="text-sm text-gray-600">
-                                    Generate 5 professional AI comment suggestions to engage with this post.
-                                  </p>
-                                </div>
-
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() =>
-                                    handleSuggestComment(
-                                      post,
-                                      selectedPartnerData.name
-                                    )
-                                  }
-                                  disabled={suggestingFor === post.postUrn}
-                                  className="w-full"
-                                >
-                                  {suggestingFor === post.postUrn ? (
-                                    <>
-                                      <LoadingSpinner
-                                        size="sm"
-                                        className="mr-2"
-                                      />
-                                      Generating...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Sparkles size={16} className="mr-2" />
-                                      Generate 5 Professional Comments
-                                    </>
-                                  )}
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        </Card>
-                      </motion.div>
-                    ))}
-                  </div>
-                ) : (
-                  <Card variant="glass" className="p-8 text-center">
-                    <FileText
-                      size={48}
-                      className="mx-auto text-gray-300 mb-4"
-                    />
-                    <p className="text-gray-500 mb-2">No recent posts</p>
-                    <p className="text-sm text-gray-400">
-                      This partner hasn't published posts recently in their LinkedIn data.
-                    </p>
-                  </Card>
-                )}
-              </div>
-            </div>
-          ) : (
-            <Card
-              variant="glass"
-              className="p-12 text-center h-full flex items-center justify-center"
-            >
-              <div>
-                <Users size={64} className="mx-auto text-gray-300 mb-4" />
-                <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                  Select a Partner
-                </h3>
-                <p className="text-gray-500">
-                  Choose a synergy partner to view their latest 5 posts and generate professional comment suggestions.
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="p-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900">
+                {selectedPartner 
+                  ? `${partners.find(p => p.id === selectedPartner)?.name}'s Latest Posts`
+                  : 'Select a Partner'
+                }
+              </h3>
+              {selectedPartner && (
+                <p className="text-sm text-gray-500 mt-1">
+                  Latest 5 posts • Updated automatically
                 </p>
-              </div>
-            </Card>
-          )}
-        </div>
-      </div>
-
-      {/* Add Partner Modal */}
-      {showAddModal && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Add Synergy Partner</h3>
-              <Button variant="ghost" onClick={() => setShowAddModal(false)}>
-                <X size={20} />
-              </Button>
+              )}
             </div>
-
-            <div className="space-y-4">
-              {/* Search Section */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Search Platform Users
-                </label>
-                <div className="flex space-x-2">
-                  <div className="relative flex-1">
-                    <Search
-                      size={20}
-                      className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Search by name, email, or industry..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      onKeyPress={(e) => e.key === "Enter" && searchUsers()}
-                    />
-                  </div>
-                  <Button
-                    variant="primary"
-                    onClick={() => searchUsers()}
-                    disabled={isSearching || !searchTerm.trim()}
-                  >
-                    {isSearching ? (
-                      <LoadingSpinner size="sm" />
-                    ) : (
-                      <Search size={16} />
-                    )}
-                  </Button>
+            
+            <div className="p-4">
+              {!selectedPartner ? (
+                <div className="text-center py-12">
+                  <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">Select a partner to view their latest posts</p>
                 </div>
-              </div>
-
-              {/* Search Results */}
-              {searchResults.length > 0 && (
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  <h4 className="font-medium text-gray-900">
-                    Search Results ({searchResults.length} found)
-                  </h4>
-                  {searchResults.map((user) => (
-                    <div
-                      key={user.id}
-                      className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+              ) : postsLoading[selectedPartner] ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="ml-3 text-gray-500">Loading posts...</span>
+                </div>
+              ) : partnerPosts[selectedPartner]?.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-4xl mb-4">📝</div>
+                  <p className="text-gray-500">No posts found</p>
+                  <p className="text-gray-400 text-sm mt-2">
+                    This partner hasn't posted recently or their posts haven't synced yet
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {partnerPosts[selectedPartner]?.map((post, index) => (
+                    <motion.div
+                      key={post.postUrn}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow"
                     >
-                      <div className="flex items-center space-x-3">
-                        <img
-                          src={user.avatarUrl}
-                          alt={user.name}
-                          className="w-12 h-12 rounded-full"
-                        />
-                        <div>
-                          <h5 className="font-medium text-gray-900">
-                            {user.name}
-                          </h5>
-                          <p className="text-sm text-gray-600">
-                            {user.headline}
-                          </p>
-                          <div className="flex items-center space-x-2 mt-1">
-                            <span className="text-xs text-gray-500">
-                              {user.industry}
-                            </span>
-                            <span className="text-xs text-gray-500">•</span>
-                            <span className="text-xs text-gray-500">
-                              {user.location}
-                            </span>
-                            {user.mutualConnections > 0 && (
-                              <>
-                                <span className="text-xs text-gray-500">•</span>
-                                <span className="text-xs text-blue-600">
-                                  {user.mutualConnections} mutual
-                                </span>
-                              </>
-                            )}
-                          </div>
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="text-sm text-gray-500">
+                          {new Date(post.createdAtMs).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </div>
+                        <div className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">
+                          {post.mediaType}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="flex items-center space-x-1">
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          <span className="text-xs text-green-600">
-                            DMA Active
-                          </span>
-                        </div>
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => sendInvitation(user.id)}
-                          disabled={user.invitationStatus === 'sent' || user.invitationStatus === 'received' || sendInvitationMutation.isPending}
-                        >
-                          {sendInvitationMutation.isPending ? (
-                            <LoadingSpinner size="sm" />
-                          ) : user.invitationStatus === 'sent' ? (
-                            <>
-                              <Check size={14} className="mr-1" />
-                              Sent
-                            </>
-                          ) : user.invitationStatus === 'received' ? (
-                            <>
-                              <Bell size={14} className="mr-1" />
-                              Invited You
-                            </>
-                          ) : (
-                            <>
-                              <UserPlus size={14} className="mr-1" />
-                              Send Invitation
-                            </>
-                          )}
-                        </Button>
+                      
+                      <div className="mb-3">
+                        <p className="text-gray-900 text-sm leading-relaxed">
+                          {post.textPreview}
+                        </p>
                       </div>
-                    </div>
+                      
+                      {/* Engagement metrics */}
+                      <div className="flex items-center space-x-4 text-xs text-gray-500">
+                        {post.likesCount !== undefined && (
+                          <span>❤️ {post.likesCount}</span>
+                        )}
+                        {post.commentsCount !== undefined && (
+                          <span>💬 {post.commentsCount}</span>
+                        )}
+                        {post.engagementRate !== undefined && (
+                          <span>📈 {(post.engagementRate * 100).toFixed(1)}%</span>
+                        )}
+                      </div>
+                    </motion.div>
                   ))}
                 </div>
               )}
-
-              {/* No Results */}
-              {searchTerm && !isSearching && searchResults.length === 0 && (
-                <div className="text-center py-8">
-                  <Users size={48} className="mx-auto text-gray-300 mb-4" />
-                  <p className="text-gray-500">
-                    No users found with DMA consent matching "{searchTerm}"
-                  </p>
-                  <p className="text-sm text-gray-400 mt-2">
-                    Try searching with different keywords
-                  </p>
-                </div>
-              )}
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <div className="flex items-start space-x-2">
-                  <AlertCircle size={16} className="text-blue-600 mt-0.5" />
-                  <div className="text-sm text-blue-800">
-                    <p className="font-medium mb-1">DMA Requirement</p>
-                    <p>
-                      Only users with active LinkedIn DMA consent can be added
-                      as Synergy partners. Invitations will be sent through the
-                      platform notification system.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex space-x-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowAddModal(false)}
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-              </div>
             </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </motion.div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
-};
+}
