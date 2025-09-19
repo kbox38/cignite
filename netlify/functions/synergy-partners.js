@@ -69,14 +69,33 @@ async function getPartners(supabase, event) {
     const url = new URL(event.rawUrl);
     const userId = url.searchParams.get('userId');
 
-    if (!userId) {
+    // Debug logging
+    console.log("=== DEBUG SYNERGY PARTNERS ===");
+    console.log("Raw URL:", event.rawUrl);
+    console.log("Query params:", url.searchParams.toString());
+    console.log("Extracted userId:", userId);
+    console.log("userId type:", typeof userId);
+    console.log("userId is null:", userId === null);
+    console.log("userId is undefined:", userId === undefined);
+    console.log("userId is empty string:", userId === "");
+
+    if (!userId || userId === "null" || userId === "undefined") {
+      console.error("Missing or invalid userId parameter");
       return {
         statusCode: 400,
         headers: {
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": "*",
         },
-        body: JSON.stringify({ error: "userId parameter is required" }),
+        body: JSON.stringify({ 
+          error: "userId parameter is required", 
+          debug: {
+            receivedUserId: userId,
+            type: typeof userId,
+            rawUrl: event.rawUrl,
+            queryParams: url.searchParams.toString()
+          }
+        }),
       };
     }
 
@@ -130,7 +149,11 @@ async function getPartners(supabase, event) {
       body: JSON.stringify({
         partners,
         count: partners.length,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        debug: {
+          userId: userId,
+          partnershipsFound: partnerships?.length || 0
+        }
       }),
     };
 
