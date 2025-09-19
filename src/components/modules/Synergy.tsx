@@ -74,8 +74,8 @@ export default function Synergy() {
   const [notificationCount, setNotificationCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  // FIXED: Get current user ID from correct auth store with hydration check
-  const { userId: currentUserId, isBasicAuthenticated } = useAuthStore();
+  // FIXED: Get current user ID from correct auth store
+  const { userId: currentUserId } = useAuthStore();
 
   // Posts sync hook
   const {
@@ -90,20 +90,14 @@ export default function Synergy() {
     getSyncStatusText
   } = usePostsSync();
 
-  // FIXED: Only load data when we have a valid userId (store is hydrated)
+  // Load data on component mount
   useEffect(() => {
-    console.log('Synergy: Auth state:', { 
-      currentUserId, 
-      isBasicAuthenticated,
-      hasUserId: !!currentUserId 
-    });
-    
-    // Wait for store to be hydrated and have userId
-    if (currentUserId && isBasicAuthenticated) {
+    console.log('Synergy: currentUserId from auth store:', currentUserId);
+    if (currentUserId) {
       loadPartners();
       loadNotificationCount();
     }
-  }, [currentUserId, isBasicAuthenticated]);
+  }, [currentUserId]);
 
   /**
    * Load synergy partners for current user
@@ -289,21 +283,17 @@ export default function Synergy() {
   }
 
   // Authentication check
-  if (!currentUserId || !isBasicAuthenticated) {
+  if (!currentUserId) {
     return (
       <div className="text-center py-12">
         <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-        <p className="text-gray-500 text-lg">
-          {!isBasicAuthenticated ? 'Please log in to access synergy features' : 'Loading user data...'}
-        </p>
+        <p className="text-gray-500 text-lg">Please log in to access synergy features</p>
         <p className="text-gray-400 text-sm mt-2">
           Synergy allows you to collaborate with other LinkedIn professionals
         </p>
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mt-4 text-xs text-gray-400">
-            Debug: currentUserId = {String(currentUserId)}, isAuthenticated = {String(isBasicAuthenticated)}
-          </div>
-        )}
+        <div className="mt-4 text-xs text-gray-400">
+          Debug: currentUserId = {String(currentUserId)}
+        </div>
       </div>
     );
   }
@@ -373,12 +363,10 @@ export default function Synergy() {
         </motion.div>
       )}
 
-      {/* Debug Info - only in development */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="text-xs text-gray-400 bg-gray-50 p-2 rounded">
-          Debug: Using userId from auth store: {currentUserId} | isAuthenticated: {String(isBasicAuthenticated)}
-        </div>
-      )}
+      {/* Debug Info */}
+      <div className="text-xs text-gray-400 bg-gray-50 p-2 rounded">
+        Debug: Using userId from auth store: {currentUserId}
+      </div>
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
