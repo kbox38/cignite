@@ -6,23 +6,24 @@
 export default async function handler(event, context) {
   // Handle CORS preflight
   if (event.httpMethod === "OPTIONS") {
-    return {
-      statusCode: 200,
+    return new Response("", {
+      status: 200,
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "POST, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      },
-      body: "",
-    };
+      }
+    });
   }
 
   if (event.httpMethod !== "POST") {
-    return {
-      statusCode: 405,
-      headers: { "Access-Control-Allow-Origin": "*" },
-      body: JSON.stringify({ error: "Method not allowed" }),
-    };
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    });
   }
 
   try {
@@ -35,11 +36,13 @@ export default async function handler(event, context) {
     const { userId } = JSON.parse(event.body || '{}');
 
     if (!userId) {
-      return {
-        statusCode: 400,
-        headers: { "Access-Control-Allow-Origin": "*" },
-        body: JSON.stringify({ error: "userId is required" }),
-      };
+      return new Response(JSON.stringify({ error: "userId is required" }), {
+        status: 400,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      });
     }
 
     // Get user sync status
@@ -72,31 +75,32 @@ export default async function handler(event, context) {
       .limit(1)
       .single();
 
-    return {
-      statusCode: 200,
+    return new Response(JSON.stringify({
+      status: user.posts_sync_status || 'pending',
+      lastSync: user.last_posts_sync,
+      postsCount: postsCount || 0,
+      latestPostDate: latestPost?.created_at || null,
+      timestamp: new Date().toISOString()
+    }), {
+      status: 200,
       headers: {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
-      body: JSON.stringify({
-        status: user.posts_sync_status || 'pending',
-        lastSync: user.last_posts_sync,
-        postsCount: postsCount || 0,
-        latestPostDate: latestPost?.created_at || null,
-        timestamp: new Date().toISOString()
-      }),
-    };
+        "Access-Control-Allow-Origin": "*"
+      }
+    });
 
   } catch (error) {
     console.error("Get sync status error:", error);
     
-    return {
-      statusCode: 500,
-      headers: { "Access-Control-Allow-Origin": "*" },
-      body: JSON.stringify({
-        error: error.message,
-        timestamp: new Date().toISOString()
-      }),
-    };
+    return new Response(JSON.stringify({
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }), {
+      status: 500,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    });
   }
 }
