@@ -55,13 +55,11 @@ export async function handler(event, context) {
   }
 
   try {
-    // Check if refresh is needed based on trigger type
-    const { trigger = "manual" } = JSON.parse(event.body || '{}');
-    
-    if (!forceRefresh && trigger !== "login" && trigger !== "scheduled") {
+    // Check if refresh is needed (unless forced)
+    if (!forceRefresh) {
       const lastRefresh = await getLastRefreshTime(userId);
       if (lastRefresh && !isRefreshNeeded(lastRefresh)) {
-        const nextRefresh = getNextMidnight();
+        console.log("Posts are fresh, skipping refresh");
         return {
           statusCode: 200,
           headers: {
@@ -69,40 +67,22 @@ export async function handler(event, context) {
             "Access-Control-Allow-Origin": "*",
           },
           body: JSON.stringify({ 
-            message: "Posts refreshed recently",
+            success: true,
+            message: "Posts are already up to date",
             lastRefresh,
-            nextRefresh: nextRefresh.toISOString(),
-            hoursUntilNextRefresh: Math.ceil((nextRefresh.getTime() - new Date().getTime()) / (1000 * 60 * 60)),
-            trigger: "none_needed"
+            skipped: true,
+            trigger
           }),
         };
       }
     }
 
-    console.log(`Refreshing posts triggered by: ${trigger}`);
+    console.log("Fetching fresh posts from LinkedIn...");
 
-    console.log("Refreshing user's own posts from LinkedIn...");
-
-    // Fetch fresh posts using user's own token
-    let posts = [];
+    // Fetch user's posts from LinkedIn Snapshot API
+    const posts = await fetchUserPostsFromSnapshot(authorization.replace('Bearer ', ''), 5);
     
-    try {
-      posts = await fetchUserPostsFromSnapshot(authorization, 5);
-      console.log(`Fetched ${posts.length} posts from Snapshot API`);
-    } catch (error) {
-      console.error("Error fetching posts:", error);
-      return {
-        statusCode: 500,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-        body: JSON.stringify({ 
-          error: "Failed to fetch posts",
-          details: error.message
-        }),
-      };
-    }
+    console.log(`Fetched ${posts.length} posts for user ${userId}`);
 
     // Update cache with user's latest posts
     await updateUserPostsCache(userId, posts);
