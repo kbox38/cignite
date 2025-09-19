@@ -1,19 +1,22 @@
 /**
- * Netlify Function: synergy-partners
+ * Netlify Function: synergy-partners.js  
  * Manages synergy partnerships and available users
+ * Fixed to match current export format and requirements
  */
 
-export default async function handler(event, context) {
+// Main handler function - matching current repo export format
+export async function handler(event, context) {
   // Handle CORS preflight
   if (event.httpMethod === "OPTIONS") {
-    return new Response("", {
-      status: 200,
+    return {
+      statusCode: 200,
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      }
-    });
+      },
+      body: "",
+    };
   }
 
   try {
@@ -30,28 +33,30 @@ export default async function handler(event, context) {
       // Handle partner operations (invite, accept, etc.)
       return await handlePartnerOperation(supabase, event);
     } else {
-      return new Response(JSON.stringify({ error: "Method not allowed" }), {
-        status: 405,
+      return {
+        statusCode: 405,
         headers: {
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*"
-        }
-      });
+          "Access-Control-Allow-Origin": "*",
+        },
+        body: JSON.stringify({ error: "Method not allowed" }),
+      };
     }
 
   } catch (error) {
     console.error("Synergy partners error:", error);
     
-    return new Response(JSON.stringify({
-      error: error.message,
-      timestamp: new Date().toISOString()
-    }), {
-      status: 500,
+    return {
+      statusCode: 500,
       headers: {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*"
-      }
-    });
+        "Access-Control-Allow-Origin": "*",
+      },
+      body: JSON.stringify({
+        error: error.message,
+        timestamp: new Date().toISOString()
+      }),
+    };
   }
 }
 
@@ -60,18 +65,19 @@ export default async function handler(event, context) {
  */
 async function getPartners(supabase, event) {
   try {
-    // Extract user ID from query params or headers
+    // Extract user ID from query params
     const url = new URL(event.rawUrl);
     const userId = url.searchParams.get('userId');
 
     if (!userId) {
-      return new Response(JSON.stringify({ error: "userId parameter is required" }), {
-        status: 400,
+      return {
+        statusCode: 400,
         headers: {
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*"
-        }
-      });
+          "Access-Control-Allow-Origin": "*",
+        },
+        body: JSON.stringify({ error: "userId parameter is required" }),
+      };
     }
 
     console.log(`Getting partners for user: ${userId}`);
@@ -115,17 +121,18 @@ async function getPartners(supabase, event) {
 
     console.log(`Found ${partners.length} partners for user ${userId}`);
 
-    return new Response(JSON.stringify({
-      partners,
-      count: partners.length,
-      timestamp: new Date().toISOString()
-    }), {
-      status: 200,
+    return {
+      statusCode: 200,
       headers: {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*"
-      }
-    });
+        "Access-Control-Allow-Origin": "*",
+      },
+      body: JSON.stringify({
+        partners,
+        count: partners.length,
+        timestamp: new Date().toISOString()
+      }),
+    };
 
   } catch (error) {
     console.error("Get partners error:", error);
@@ -154,13 +161,14 @@ async function handlePartnerOperation(supabase, event) {
         return await declinePartnerInvitation(supabase, invitationId);
       
       default:
-        return new Response(JSON.stringify({ error: "Invalid action" }), {
-          status: 400,
+        return {
+          statusCode: 400,
           headers: {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*"
-          }
-        });
+            "Access-Control-Allow-Origin": "*",
+          },
+          body: JSON.stringify({ error: "Invalid action" }),
+        };
     }
 
   } catch (error) {
@@ -215,17 +223,18 @@ async function searchAvailableUsers(supabase, userId) {
 
   console.log(`Found ${filteredUsers.length} available users`);
 
-  return new Response(JSON.stringify({
-    users: filteredUsers,
-    count: filteredUsers.length,
-    timestamp: new Date().toISOString()
-  }), {
-    status: 200,
+  return {
+    statusCode: 200,
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*"
-    }
-  });
+      "Access-Control-Allow-Origin": "*",
+    },
+    body: JSON.stringify({
+      users: filteredUsers,
+      count: filteredUsers.length,
+      timestamp: new Date().toISOString()
+    }),
+  };
 }
 
 /**
@@ -249,17 +258,18 @@ async function sendPartnerInvitation(supabase, fromUserId, toUserId, message) {
     throw new Error(`Failed to send invitation: ${error.message}`);
   }
 
-  return new Response(JSON.stringify({
-    success: true,
-    invitation,
-    message: "Invitation sent successfully"
-  }), {
-    status: 200,
+  return {
+    statusCode: 200,
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*"
-    }
-  });
+      "Access-Control-Allow-Origin": "*",
+    },
+    body: JSON.stringify({
+      success: true,
+      invitation,
+      message: "Invitation sent successfully"
+    }),
+  };
 }
 
 /**
@@ -309,17 +319,18 @@ async function acceptPartnerInvitation(supabase, invitationId) {
     throw new Error(`Failed to create partnership: ${partnershipError.message}`);
   }
 
-  return new Response(JSON.stringify({
-    success: true,
-    partnership,
-    message: "Partnership created successfully"
-  }), {
-    status: 200,
+  return {
+    statusCode: 200,
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*"
-    }
-  });
+      "Access-Control-Allow-Origin": "*",
+    },
+    body: JSON.stringify({
+      success: true,
+      partnership,
+      message: "Partnership created successfully"
+    }),
+  };
 }
 
 /**
@@ -341,14 +352,15 @@ async function declinePartnerInvitation(supabase, invitationId) {
     throw new Error(`Failed to decline invitation: ${error.message}`);
   }
 
-  return new Response(JSON.stringify({
-    success: true,
-    message: "Invitation declined"
-  }), {
-    status: 200,
+  return {
+    statusCode: 200,
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*"
-    }
-  });
+      "Access-Control-Allow-Origin": "*",
+    },
+    body: JSON.stringify({
+      success: true,
+      message: "Invitation declined"
+    }),
+  };
 }
