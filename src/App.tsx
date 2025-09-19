@@ -12,7 +12,7 @@ import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { Dashboard } from './components/dashboard/Dashboard';
 import { Analytics } from './components/modules/Analytics';
-import { Synergy } from './components/modules/Synergy';
+import Synergy from './components/modules/Synergy';
 import { PostPulse } from './components/modules/PostPulse';
 import { PostGen } from './components/modules/PostGen';
 import { Scheduler } from './components/modules/Scheduler';
