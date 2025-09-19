@@ -1,5 +1,5 @@
 // src/components/Synergy.tsx
-// Complete rebuild of Synergy component with all functionality
+// Fixed to use the correct auth store for userId
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -19,7 +19,7 @@ import {
 import { usePostsSync } from '../../hooks/usePostsSync';
 import AddPartnerModal from '../../AddPartnerModal';
 import NotificationsPanel from '../../NotificationsPanel';
-import { authService } from '../../services/auth';
+import { useAuthStore } from '../../stores/authStore'; // FIXED: Use correct auth store
 
 interface SynergyPartner {
   id: string;
@@ -74,9 +74,8 @@ export default function Synergy() {
   const [notificationCount, setNotificationCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  // Get current user
-  const currentUser = authService.getCurrentUser();
-  const currentUserId = currentUser?.id;
+  // FIXED: Get current user ID from correct auth store
+  const { userId: currentUserId } = useAuthStore();
 
   // Posts sync hook
   const {
@@ -93,6 +92,7 @@ export default function Synergy() {
 
   // Load data on component mount
   useEffect(() => {
+    console.log('Synergy: currentUserId from auth store:', currentUserId);
     if (currentUserId) {
       loadPartners();
       loadNotificationCount();
@@ -103,7 +103,10 @@ export default function Synergy() {
    * Load synergy partners for current user
    */
   async function loadPartners() {
-    if (!currentUserId) return;
+    if (!currentUserId) {
+      console.warn('Synergy: No currentUserId available');
+      return;
+    }
     
     setLoading(true);
     setError(null);
@@ -122,7 +125,8 @@ export default function Synergy() {
       );
 
       if (!response.ok) {
-        throw new Error(`Failed to load partners: ${response.status} ${response.statusText}`);
+        const errorData = await response.json();
+        throw new Error(`Failed to load partners: ${response.status} ${response.statusText} - ${errorData.error || ''}`);
       }
 
       const data = await response.json();
@@ -287,6 +291,9 @@ export default function Synergy() {
         <p className="text-gray-400 text-sm mt-2">
           Synergy allows you to collaborate with other LinkedIn professionals
         </p>
+        <div className="mt-4 text-xs text-gray-400">
+          Debug: currentUserId = {String(currentUserId)}
+        </div>
       </div>
     );
   }
@@ -355,6 +362,11 @@ export default function Synergy() {
           </div>
         </motion.div>
       )}
+
+      {/* Debug Info */}
+      <div className="text-xs text-gray-400 bg-gray-50 p-2 rounded">
+        Debug: Using userId from auth store: {currentUserId}
+      </div>
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -629,19 +641,23 @@ export default function Synergy() {
       </div>
 
       {/* Modals */}
-      <AddPartnerModal
-        isOpen={showAddPartnerModal}
-        onClose={() => setShowAddPartnerModal(false)}
-        currentUserId={currentUserId}
-        onInviteSent={handleInvitationSent}
-      />
+      {currentUserId && (
+        <>
+          <AddPartnerModal
+            isOpen={showAddPartnerModal}
+            onClose={() => setShowAddPartnerModal(false)}
+            currentUserId={currentUserId}
+            onInviteSent={handleInvitationSent}
+          />
 
-      <NotificationsPanel
-        isOpen={showNotifications}
-        onClose={() => setShowNotifications(false)}
-        currentUserId={currentUserId}
-        onInvitationHandled={handleInvitationHandled}
-      />
+          <NotificationsPanel
+            isOpen={showNotifications}
+            onClose={() => setShowNotifications(false)}
+            currentUserId={currentUserId}
+            onInvitationHandled={handleInvitationHandled}
+          />
+        </>
+      )}
     </div>
   );
 }
