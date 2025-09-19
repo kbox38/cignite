@@ -1,4 +1,4 @@
-// src/components/auth/AuthFlow.tsx - Restored two-step authentication
+// src/components/auth/AuthFlow.tsx - Fixed with scroll support
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { Button } from '../ui/Button';
@@ -181,10 +181,9 @@ export const AuthFlow = () => {
   );
 
   return (
-    <div className="min-h-screen overflow-y-auto bg-gradient-to-br from-blue-50 via-white to-cyan-50">
-      <div className="container mx-auto px-4 py-8 max-w-2xl"></div>
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="max-w-2xl w-full">
+    // FIXED: Added proper scrolling container with custom classes
+    <div className="auth-flow-container min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50">
+      <div className="container mx-auto px-4 py-8 max-w-2xl">
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">
@@ -213,13 +212,17 @@ export const AuthFlow = () => {
           </div>
         </div>
 
-        {/* Auth steps */}
+        {/* Auth steps - FIXED: Added auth-step-card class */}
         <div className="space-y-6 mb-8">
-          {steps.map(step => renderStepCard(step, step.id === currentStep))}
+          {steps.map(step => (
+            <div key={step.id} className="auth-step-card">
+              {renderStepCard(step, step.id === currentStep)}
+            </div>
+          ))}
         </div>
 
-        {/* Footer actions */}
-        <div className="text-center space-y-4 pb-8">
+        {/* Footer actions - FIXED: Added auth-footer-padding class */}
+        <div className="text-center space-y-4 auth-footer-padding">
           {(isBasicAuthenticated || dmaToken) && (
             <button
               onClick={handleStartOver}
@@ -241,7 +244,7 @@ export const AuthFlow = () => {
 
         {/* Debug info (only in development) */}
         {process.env.NODE_ENV === 'development' && (
-          <div className="mt-8 p-4 bg-gray-100 rounded-lg text-xs font-mono">
+          <div className="mt-8 mb-8 p-4 bg-gray-100 rounded-lg text-xs font-mono">
             <p className="font-bold mb-2">Debug Info:</p>
             <p>Basic Auth: {isBasicAuthenticated ? '✓' : '✗'}</p>
             <p>DMA Token: {dmaToken ? '✓' : '✗'}</p>
@@ -251,7 +254,6 @@ export const AuthFlow = () => {
           </div>
         )}
       </div>
-    </div>
     </div>
   );
 };

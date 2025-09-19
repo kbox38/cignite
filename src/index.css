@@ -145,3 +145,42 @@ html, body, #root {
   will-change: transform;
   backface-visibility: hidden;
 }
+
+/* FIXED: AuthFlow scroll improvements */
+.auth-flow-container {
+  height: 100vh;
+  height: -webkit-fill-available; /* For iOS Safari */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+}
+
+/* Custom scrollbar for auth flow */
+.auth-flow-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.auth-flow-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.auth-flow-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.auth-flow-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Ensure buttons are always accessible */
+.auth-step-card {
+  min-height: fit-content;
+  margin-bottom: 1.5rem;
+}
+
+/* Add padding to ensure footer content is visible */
+.auth-footer-padding {
+  padding-bottom: 3rem;
+  min-height: fit-content;
+}
