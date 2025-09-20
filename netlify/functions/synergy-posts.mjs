@@ -1,5 +1,5 @@
 // netlify/functions/synergy-posts.mjs
-// Fixed version - now correctly accesses linkedin_dma_token column
+// FIXED: Now correctly fetches posts in the right direction for synergy partners
 
 export async function handler(event, context) {
   const startTime = Date.now();
@@ -27,7 +27,7 @@ export async function handler(event, context) {
   }
 
   try {
-    const { partnerUserId, limit = '5', currentUserId } = event.queryStringParameters || {};
+    const { partnerUserId, limit = '5', currentUserId, direction = 'theirs' } = event.queryStringParameters || {};
     const authorization = event.headers.authorization || event.headers.Authorization;
 
     console.log('=== SYNERGY POSTS DEBUG ===');
@@ -35,10 +35,11 @@ export async function handler(event, context) {
       partnerUserId,
       limit,
       currentUserId,
+      direction,
       authPresent: !!authorization
     });
 
-    if (!partnerUserId) {
+    if (!partnerUserId || !currentUserId) {
       return {
         statusCode: 400,
         headers: {
@@ -46,7 +47,7 @@ export async function handler(event, context) {
           "Access-Control-Allow-Origin": "*",
         },
         body: JSON.stringify({ 
-          error: "partnerUserId parameter is required",
+          error: "Both partnerUserId and currentUserId parameters are required",
           received: event.queryStringParameters 
         }),
       };
@@ -63,11 +64,45 @@ export async function handler(event, context) {
       };
     }
 
-    // Get partner's DMA token instead of using current user's token
-    const partnerToken = await getPartnerDmaToken(partnerUserId);
+    // FIXED LOGIC: Determine whose posts to fetch and whose token to use
+    let targetUserId, tokenUserId;
     
-    if (!partnerToken) {
-      console.log('⚠️ Partner DMA token not found, using empty posts');
+    if (direction === 'theirs') {
+      // Show partner's posts TO current user - use partner's token to fetch partner's posts
+      targetUserId = partnerUserId;
+      tokenUserId = partnerUserId;
+      console.log('🎯 DIRECTION: Fetching partner\'s posts using partner\'s token');
+    } else if (direction === 'mine') {
+      // Show current user's posts TO partner - use current user's token to fetch current user's posts
+      targetUserId = currentUserId;
+      tokenUserId = currentUserId;
+      console.log('🎯 DIRECTION: Fetching current user\'s posts using current user\'s token');
+    } else {
+      return {
+        statusCode: 400,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+        body: JSON.stringify({ 
+          error: "Invalid direction parameter. Must be 'theirs' or 'mine'",
+          received: { direction }
+        }),
+      };
+    }
+
+    console.log('🔍 POST FETCH STRATEGY:', {
+      direction,
+      targetUserId: `${targetUserId} (${targetUserId === currentUserId ? 'current user' : 'partner'})`,
+      tokenUserId: `${tokenUserId} (${tokenUserId === currentUserId ? 'current user' : 'partner'})`,
+      logic: direction === 'theirs' ? 'Partner posts via partner token' : 'User posts via user token'
+    });
+
+    // Get the appropriate DMA token for fetching posts
+    const dmaToken = await getPartnerDmaToken(tokenUserId);
+    
+    if (!dmaToken) {
+      console.log('⚠️ DMA token not found for user:', tokenUserId);
       return {
         statusCode: 200,
         headers: {
@@ -79,35 +114,37 @@ export async function handler(event, context) {
           source: "no_token",
           fetchedAt: new Date().toISOString(),
           count: 0,
-          message: "Partner has not granted DMA access",
+          message: `User ${tokenUserId} has not granted DMA access`,
           debugInfo: {
-            partnerId: partnerUserId,
+            direction,
+            targetUserId,
+            tokenUserId,
             processingTime: Date.now() - startTime
           }
         }),
       };
     }
 
-    console.log('🔑 Partner DMA token found, fetching posts...');
+    console.log('🔑 DMA token found for user:', tokenUserId);
 
-    // Get partner's sync status
-    const partnerSyncStatus = await getPartnerSyncStatus(partnerUserId);
-    console.log('👥 Partner sync status:', partnerSyncStatus);
+    // Get user's sync status
+    const userSyncStatus = await getPartnerSyncStatus(targetUserId);
+    console.log('👥 Target user sync status:', userSyncStatus);
 
     // Fetch posts from cache/database first
-    let cachedPosts = await getCachedPosts(partnerUserId);
-    console.log('💾 Cached posts:', cachedPosts ? cachedPosts.length : 0);
+    let cachedPosts = await getCachedPosts(targetUserId);
+    console.log('💾 Cached posts for user', targetUserId, ':', cachedPosts ? cachedPosts.length : 0);
 
-    // Fetch fresh posts from LinkedIn API
+    // Fetch fresh posts from LinkedIn API using the appropriate token
     let freshPosts = [];
     try {
-      freshPosts = await fetchLinkedInPosts(partnerToken, parseInt(limit));
-      console.log('🆕 Fresh posts fetched:', freshPosts.length);
+      freshPosts = await fetchLinkedInPosts(dmaToken, parseInt(limit));
+      console.log('🆕 Fresh posts fetched using token from user', tokenUserId, ':', freshPosts.length);
       
       // Update cache if we got fresh data
       if (freshPosts.length > 0) {
-        await updatePostsCache(partnerUserId, freshPosts);
-        console.log('✅ Posts cache updated');
+        await updatePostsCache(targetUserId, freshPosts);
+        console.log('✅ Posts cache updated for user:', targetUserId);
       }
     } catch (error) {
       console.error('❌ Failed to fetch fresh posts:', error);
@@ -121,7 +158,7 @@ export async function handler(event, context) {
     // Process posts for response
     const processedPosts = limitedPosts.map(post => processPostForResponse(post));
 
-    console.log(`✅ Returning ${processedPosts.length} posts for partner ${partnerUserId}`);
+    console.log(`✅ Returning ${processedPosts.length} posts from user ${targetUserId} (${targetUserId === currentUserId ? 'current user' : 'partner'})`);
 
     return {
       statusCode: 200,
@@ -134,9 +171,14 @@ export async function handler(event, context) {
         source: freshPosts.length > 0 ? "api_with_cache" : "cache_only",
         fetchedAt: new Date().toISOString(),
         count: processedPosts.length,
-        partnerSyncStatus,
+        direction,
+        targetUserId,
+        tokenUserId,
+        userSyncStatus,
         debugInfo: {
-          partnerId: partnerUserId,
+          direction,
+          targetUserId: `${targetUserId} (${targetUserId === currentUserId ? 'current user' : 'partner'})`,
+          tokenUserId: `${tokenUserId} (${tokenUserId === currentUserId ? 'current user' : 'partner'})`,
           cachedCount: cachedPosts ? cachedPosts.length : 0,
           freshCount: freshPosts.length,
           totalProcessed: allPosts.length,
@@ -164,9 +206,9 @@ export async function handler(event, context) {
 }
 
 /**
- * Get partner's DMA token from database - FIXED COLUMN NAME
+ * Get user's DMA token from database
  */
-async function getPartnerDmaToken(partnerUserId) {
+async function getPartnerDmaToken(userId) {
   try {
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(
@@ -174,20 +216,18 @@ async function getPartnerDmaToken(partnerUserId) {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    // FIXED: Now correctly queries linkedin_dma_token column
     const { data: user, error } = await supabase
       .from('users')
       .select('linkedin_dma_token')
-      .eq('id', partnerUserId)
+      .eq('id', userId)
       .single();
 
     if (error) {
-      console.error('❌ Failed to get partner DMA token:', error);
+      console.error('❌ Failed to get DMA token for user:', userId, error);
       return null;
     }
 
-    console.log('🔍 Partner DMA token status:', {
-      userId: partnerUserId,
+    console.log('🔍 DMA token status for user', userId, ':', {
       hasToken: !!user?.linkedin_dma_token,
       tokenLength: user?.linkedin_dma_token?.length || 0
     });
@@ -195,15 +235,15 @@ async function getPartnerDmaToken(partnerUserId) {
     return user?.linkedin_dma_token || null;
 
   } catch (error) {
-    console.error('❌ Database error getting DMA token:', error);
+    console.error('❌ Database error getting DMA token for user:', userId, error);
     return null;
   }
 }
 
 /**
- * Get partner's sync status from database
+ * Get user's sync status from database
  */
-async function getPartnerSyncStatus(partnerUserId) {
+async function getPartnerSyncStatus(userId) {
   try {
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(
@@ -214,11 +254,11 @@ async function getPartnerSyncStatus(partnerUserId) {
     const { data: user, error } = await supabase
       .from('users')
       .select('dma_active, dma_consent_date, linkedin_dma_member_urn')
-      .eq('id', partnerUserId)
+      .eq('id', userId)
       .single();
 
     if (error) {
-      console.error('❌ Failed to get partner sync status:', error);
+      console.error('❌ Failed to get sync status for user:', userId, error);
       return { status: 'unknown' };
     }
 
@@ -230,15 +270,15 @@ async function getPartnerSyncStatus(partnerUserId) {
     };
 
   } catch (error) {
-    console.error('❌ Database error getting sync status:', error);
+    console.error('❌ Database error getting sync status for user:', userId, error);
     return { status: 'error' };
   }
 }
 
 /**
- * Get cached posts for partner
+ * Get cached posts for user
  */
-async function getCachedPosts(partnerUserId) {
+async function getCachedPosts(userId) {
   try {
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(
@@ -249,19 +289,19 @@ async function getCachedPosts(partnerUserId) {
     const { data: posts, error } = await supabase
       .from('post_cache')
       .select('*')
-      .eq('user_id', partnerUserId)
+      .eq('user_id', userId)
       .order('published_at', { ascending: false })
       .limit(50);
 
     if (error) {
-      console.error('❌ Failed to get cached posts:', error);
+      console.error('❌ Failed to get cached posts for user:', userId, error);
       return null;
     }
 
     return posts || [];
 
   } catch (error) {
-    console.error('❌ Database error getting cached posts:', error);
+    console.error('❌ Database error getting cached posts for user:', userId, error);
     return null;
   }
 }
@@ -401,14 +441,14 @@ async function updatePostsCache(userId, posts) {
       });
 
     if (error) {
-      console.error('❌ Failed to update posts cache:', error);
+      console.error('❌ Failed to update posts cache for user:', userId, error);
       throw error;
     }
 
-    console.log(`✅ Updated cache with ${postsForDb.length} posts`);
+    console.log(`✅ Updated cache with ${postsForDb.length} posts for user:`, userId);
 
   } catch (error) {
-    console.error('❌ Database error updating posts cache:', error);
+    console.error('❌ Database error updating posts cache for user:', userId, error);
     throw error;
   }
 }

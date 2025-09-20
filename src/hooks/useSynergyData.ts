@@ -1,3 +1,5 @@
+// src/hooks/useSynergyData.ts - FIXED: Correct direction logic
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { synergyService, SynergyPartner, PartnerPost } from '../services/synergy';
 import { useAuthStore } from '../stores/authStore';
@@ -53,21 +55,36 @@ export const useRemovePartner = () => {
   });
 };
 
-// Posts hooks
-export const usePartnerPosts = (partnerUserId: string | null, limit: number = 5) => {
-  const { dmaToken } = useAuthStore();
+// Posts hooks - FIXED: Now properly handles direction logic
+export const usePartnerPosts = (
+  partnerUserId: string | null, 
+  direction: "theirs" | "mine" = "theirs",
+  limit: number = 5
+) => {
+  const { dmaToken, userId } = useAuthStore();
   
   return useQuery({
-    queryKey: ['synergy-posts', partnerUserId, limit],
-    queryFn: () => synergyService.getPartnerPosts(dmaToken!, partnerUserId!, limit),
-    enabled: !!dmaToken && !!partnerUserId,
+    queryKey: ['synergy-posts', partnerUserId, userId, direction, limit],
+    queryFn: () => {
+      if (!partnerUserId || !userId) {
+        throw new Error('Both partnerUserId and currentUserId are required');
+      }
+      
+      console.log('🔍 HOOK: usePartnerPosts calling service with:', {
+        partnerUserId,
+        currentUserId: userId,
+        direction,
+        limit
+      });
+      
+      return synergyService.getPartnerPosts(dmaToken!, partnerUserId, userId, limit, direction);
+    },
+    enabled: !!dmaToken && !!partnerUserId && !!userId,
     staleTime: 10 * 60 * 1000, // 10 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes
     retry: 2,
   });
 };
-
-
 
 // Comment suggestions hooks
 export const useSuggestComment = () => {
@@ -75,31 +92,41 @@ export const useSuggestComment = () => {
   
   return useMutation({
     mutationFn: ({
-      fromUserId,
-      toUserId,
-      postUrn,
-      postPreview,
-      tone = 'supportive'
+      post,
+      viewerProfile
     }: {
-      fromUserId: string;
-      toUserId: string;
-      postUrn: string;
-      postPreview?: string;
-      tone?: string;
-    }) => synergyService.suggestComment(dmaToken!, fromUserId, toUserId, postUrn, postPreview, tone),
+      post: {
+        urn: string;
+        text: string;
+        mediaType: string;
+        partnerName?: string;
+      };
+      viewerProfile?: {
+        headline?: string;
+        topics?: string[];
+      };
+    }) => synergyService.suggestComment(dmaToken!, post, viewerProfile),
   });
 };
 
 // Batch hooks for multiple partners
-export const useMultiplePartnerPosts = (partnerUserIds: string[], limit: number = 5) => {
-  const { dmaToken } = useAuthStore();
+export const useMultiplePartnerPosts = (
+  partnerUserIds: string[], 
+  direction: "theirs" | "mine" = "theirs",
+  limit: number = 5
+) => {
+  const { dmaToken, userId } = useAuthStore();
   
   return useQuery({
-    queryKey: ['synergy-multiple-posts', partnerUserIds, limit],
+    queryKey: ['synergy-multiple-posts', partnerUserIds, userId, direction, limit],
     queryFn: async () => {
+      if (!userId) {
+        throw new Error('Current userId is required');
+      }
+      
       const results = await Promise.all(
         partnerUserIds.map(partnerUserId => 
-          synergyService.getPartnerPosts(dmaToken!, partnerUserId, limit)
+          synergyService.getPartnerPosts(dmaToken!, partnerUserId, userId, limit, direction)
         )
       );
       
@@ -108,25 +135,23 @@ export const useMultiplePartnerPosts = (partnerUserIds: string[], limit: number 
         return acc;
       }, {} as Record<string, PartnerPost[]>);
     },
-    enabled: !!dmaToken && partnerUserIds.length > 0,
+    enabled: !!dmaToken && !!userId && partnerUserIds.length > 0,
     staleTime: 10 * 60 * 1000,
     retry: 1,
   });
 };
 
-
-
 // Analytics hooks
 export const useSynergyAnalytics = (partnerUserId: string | null) => {
-  const { dmaToken } = useAuthStore();
+  const { dmaToken, userId } = useAuthStore();
   
   return useQuery({
-    queryKey: ['synergy-analytics', partnerUserId],
+    queryKey: ['synergy-analytics', partnerUserId, userId],
     queryFn: async () => {
-      if (!partnerUserId) return null;
+      if (!partnerUserId || !userId) return null;
       
-      // Fetch posts for analytics
-      const posts = await synergyService.getPartnerPosts(dmaToken!, partnerUserId, 20);
+      // Fetch posts for analytics - using "theirs" direction to get partner's posts
+      const posts = await synergyService.getPartnerPosts(dmaToken!, partnerUserId, userId, 20, "theirs");
       
       // Calculate metrics
       const last28Days = Date.now() - (28 * 24 * 60 * 60 * 1000);
@@ -140,7 +165,7 @@ export const useSynergyAnalytics = (partnerUserId: string | null) => {
         lastPostDate: posts.length > 0 ? Math.max(...posts.map(p => p.createdAtMs)) : null,
       };
     },
-    enabled: !!dmaToken && !!partnerUserId,
+    enabled: !!dmaToken && !!userId && !!partnerUserId,
     staleTime: 30 * 60 * 1000, // 30 minutes
   });
 };

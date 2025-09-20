@@ -1,4 +1,6 @@
-const API_BASE = "/.netlify/functions";
+// src/services/synergy.ts - FIXED: Correct direction logic
+
+const API_BASE = '/.netlify/functions';
 
 export interface SynergyPartner {
   id: string;
@@ -19,8 +21,6 @@ export interface PartnerPost {
   permalink?: string;
   raw?: any;
 }
-
-
 
 export interface CommentSuggestion {
   suggestion: string;
@@ -78,15 +78,24 @@ export const synergyService = {
     }
   },
 
-  // Post fetching
+  // Post fetching - FIXED: Now properly handles direction logic
   async getPartnerPosts(
     token: string,
     partnerUserId: string,
+    currentUserId: string,
     limit: number = 5,
     direction: "theirs" | "mine" = "theirs"
   ): Promise<PartnerPost[]> {
+    
+    console.log('🔍 SYNERGY SERVICE: getPartnerPosts called with:', {
+      partnerUserId,
+      currentUserId,
+      direction,
+      limit
+    });
+
     const response = await fetch(
-      `${API_BASE}/synergy-posts?partnerUserId=${partnerUserId}&limit=${limit}&direction=${direction}`,
+      `${API_BASE}/synergy-posts?partnerUserId=${partnerUserId}&currentUserId=${currentUserId}&limit=${limit}&direction=${direction}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -96,14 +105,23 @@ export const synergyService = {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to fetch partner posts");
+      const errorData = await response.json().catch(() => ({}));
+      console.error('❌ Synergy posts API error:', response.status, errorData);
+      throw new Error(errorData.error || `Failed to fetch partner posts: ${response.status}`);
     }
 
     const data = await response.json();
+    
+    console.log('✅ SYNERGY SERVICE: Posts received:', {
+      count: data.posts?.length || 0,
+      direction: data.direction,
+      source: data.source,
+      targetUserId: data.targetUserId,
+      tokenUserId: data.tokenUserId
+    });
+    
     return data.posts;
   },
-
-
 
   // User search
   async searchUsers(

@@ -27,6 +27,7 @@ import {
 import { useAuthStore } from '../../stores/authStore';
 import AddPartnerModal from '../../AddPartnerModal';
 import NotificationsPanel from '../../NotificationsPanel';
+import { synergyService } from '@/services/synergy';
 
 // Enhanced interfaces
 interface SynergyPartner {
@@ -524,36 +525,49 @@ const Synergy: React.FC = () => {
   };
 
   const loadPartnerPosts = async (partnerId: string) => {
-    if (postsLoading[partnerId]) return;
+  if (!dmaToken || !currentUserId) {
+    console.log('❌ Missing DMA token or current user ID');
+    return;
+  }
 
-    setPostsLoading(prev => ({ ...prev, [partnerId]: true }));
-    
-    try {
-      const response = await fetch(`/.netlify/functions/synergy-posts?partnerUserId=${partnerId}&limit=10&currentUserId=${currentUserId}`, {
-        headers: {
-          'Authorization': `Bearer ${dmaToken}`
-        }
-      });
+  setPostsLoading(prev => ({ ...prev, [partnerId]: true }));
+  
+  try {
+    console.log('🔄 Loading partner posts:', {
+      partnerId,
+      currentUserId,
+      direction: 'theirs' // We want to see THEIR posts
+    });
 
-      if (!response.ok) {
-        throw new Error(`Failed to load posts: ${response.status}`);
-      }
+    // FIXED: Now correctly passes currentUserId and uses 'theirs' direction
+    const posts = await synergyService.getPartnerPosts(
+      dmaToken,
+      partnerId,     // Partner's ID (whose posts we want to see)
+      currentUserId, // Current user's ID (who is viewing)
+      10,           // Limit
+      'theirs'      // Direction: show partner's posts TO current user
+    );
 
-      const data = await response.json();
-      setPartnerPosts(prev => ({ 
-        ...prev, 
-        [partnerId]: data.posts || [] 
-      }));
-    } catch (error) {
-      console.error('Failed to load partner posts:', error);
-      setPartnerPosts(prev => ({ 
-        ...prev, 
-        [partnerId]: [] 
-      }));
-    } finally {
-      setPostsLoading(prev => ({ ...prev, [partnerId]: false }));
-    }
-  };
+    console.log('✅ Partner posts loaded:', {
+      partnerId,
+      postsCount: posts.length,
+      direction: 'theirs'
+    });
+
+    setPartnerPosts(prev => ({ 
+      ...prev, 
+      [partnerId]: posts
+    }));
+  } catch (error) {
+    console.error('❌ Failed to load partner posts:', error);
+    setPartnerPosts(prev => ({ 
+      ...prev, 
+      [partnerId]: [] 
+    }));
+  } finally {
+    setPostsLoading(prev => ({ ...prev, [partnerId]: false }));
+  }
+};
 
   const loadNotificationCount = async () => {
     try {
