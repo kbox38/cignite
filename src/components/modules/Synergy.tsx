@@ -528,14 +528,28 @@ export default function Synergy() {
    * Format post date for display
    */
   function formatPostDate(timestamp: number): string {
-    return new Date(timestamp).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
+    return date.toLocaleDateString('en-US', {
       hour: '2-digit',
       minute: '2-digit'
     });
+  } else if (diffDays === 1) {
+    return 'Yesterday';
+  } else if (diffDays < 7) {
+    return `${diffDays} days ago`;
+  } else {
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
   }
+}
 
   /**
    * Format engagement metrics
@@ -875,16 +889,9 @@ export default function Synergy() {
                           </div>
                         </div>
                         
-                        {/* Media Type Badge */}
+                        {/* External link */}
                         <div className="flex items-center space-x-2">
-                          {post.mediaType && post.mediaType !== 'NONE' && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              {post.mediaType === 'IMAGE' && '📷'}
-                              {post.mediaType === 'VIDEO' && '🎥'}
-                              {post.mediaType === 'ARTICLE' && '📄'}
-                              {post.mediaType}
-                            </span>
-                          )}
+
                           {post.linkedinPostId && (
                             <a
                               href={`https://www.linkedin.com/feed/update/${post.linkedinPostId}/`}
@@ -921,37 +928,6 @@ export default function Synergy() {
                                 +{post.hashtags.length - 3} more
                               </span>
                             )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Engagement Metrics */}
-                      <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                        <div className="flex items-center space-x-4">
-                          <div className="flex items-center space-x-1 text-gray-500">
-                            <Heart className="h-4 w-4" />
-                            <span className="text-sm">{formatNumber(post.likesCount)}</span>
-                          </div>
-                          <div className="flex items-center space-x-1 text-gray-500">
-                            <MessageSquare className="h-4 w-4" />
-                            <span className="text-sm">{formatNumber(post.commentsCount)}</span>
-                          </div>
-                          <div className="flex items-center space-x-1 text-gray-500">
-                            <Share className="h-4 w-4" />
-                            <span className="text-sm">{formatNumber(post.sharesCount)}</span>
-                          </div>
-                          {post.impressions && (
-                            <div className="flex items-center space-x-1 text-gray-500">
-                              <Eye className="h-4 w-4" />
-                              <span className="text-sm">{formatNumber(post.impressions)}</span>
-                            </div>
-                          )}
-                        </div>
-                        
-                        {/* Engagement Rate */}
-                        {post.engagementRate && (
-                          <div className="text-xs text-gray-500">
-                            {(post.engagementRate * 100).toFixed(1)}% engagement
                           </div>
                         )}
                       </div>
