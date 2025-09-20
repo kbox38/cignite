@@ -263,6 +263,13 @@ const PostDetailModal: React.FC<PostDetailModalProps> = ({
                 <p className="text-gray-900 leading-relaxed whitespace-pre-wrap">
                   {post.fullText || post.textPreview || 'No text content available'}
                 </p>
+                
+                {/* Show if text was truncated */}
+                {post.fullText && post.textPreview && post.fullText !== post.textPreview && (
+                  <div className="mt-2 text-sm text-green-600 bg-green-50 px-3 py-1 rounded">
+                    ✨ Full content shown (was truncated in preview)
+                  </div>
+                )}
               </div>
 
               {/* Hashtags */}
@@ -490,75 +497,31 @@ const Synergy: React.FC = () => {
     return num.toString();
   };
 
-  // Quick fix for the loadPartners function in Synergy.tsx
-// Replace the loadPartners function with this enhanced version
-
-const loadPartners = async () => {
-  if (!currentUserId) {
-    console.warn('⚠️ Synergy: No currentUserId available');
-    setPartners([]);
-    return;
-  }
-  
-  try {
-    console.log('📥 Loading partners for user:', currentUserId);
-    
-    const response = await fetch(
-      `/.netlify/functions/synergy-partners?userId=${encodeURIComponent(currentUserId)}`,
-      {
-        method: 'GET',
+  const loadPartners = async () => {
+    try {
+      const response = await fetch('/.netlify/functions/synergy-partners', {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${dmaToken}`
-        }
+        },
+        body: JSON.stringify({
+          action: 'get_partners',
+          userId: currentUserId
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to load partners: ${response.status}`);
       }
-    );
 
-    console.log('📡 Partners response status:', response.status);
-
-    if (!response.ok) {
-      let errorMessage = `Failed to load partners: ${response.status} ${response.statusText}`;
-      
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.error || errorMessage;
-        console.error('❌ API Error Details:', errorData);
-      } catch (parseError) {
-        console.error('❌ Could not parse error response');
-      }
-      
-      throw new Error(errorMessage);
+      const data = await response.json();
+      setPartners(data.partners || []);
+    } catch (error) {
+      console.error('Failed to load partners:', error);
+      setPartners([]);
     }
-
-    const data = await response.json();
-    console.log('✅ Partners loaded successfully:', {
-      count: data.partners?.length || 0,
-      partners: data.partners,
-      debug: data.debug
-    });
-    
-    setPartners(data.partners || []);
-    
-    // If no partners found, log helpful info
-    if (!data.partners || data.partners.length === 0) {
-      console.log('ℹ️ No partners found. This could mean:');
-      console.log('   - User has not created any partnerships yet');
-      console.log('   - All invitations are still pending');
-      console.log('   - Database partnerships are not active status');
-      console.log('   - User ID does not exist in partnerships table');
-    }
-    
-  } catch (error) {
-    console.error('❌ Failed to load partners:', error);
-    setPartners([]); // Set empty array instead of keeping loading state
-    
-    // Don't show error for "no partners found" case
-    if (!error.message.includes('User not found')) {
-      // Only set error for actual errors, not empty results
-      console.log('🔧 Setting error state for user feedback');
-    }
-  }
-};
+  };
 
   const loadPartnerPosts = async (partnerId: string) => {
     if (postsLoading[partnerId]) return;

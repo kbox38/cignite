@@ -1,15 +1,6 @@
-/**
- * SYNERGY BACKEND FIX 2: Enhanced synergy-posts function
- * Location: netlify/functions/synergy-posts.mjs
- * 
- * FIXES:
- * - Proper GET method handling
- * - Enhanced debugging and logging
- * - Better partner sync status tracking
- * - Improved error handling
- */
+// netlify/functions/synergy-posts.mjs
+// Enhanced synergy-posts function with full text content support
 
-// Main handler function - ES6 export
 export async function handler(event, context) {
   const startTime = Date.now();
   console.log('🚀 SYNERGY POSTS: Handler started', {
@@ -48,113 +39,102 @@ export async function handler(event, context) {
     };
   }
 
-  const { authorization } = event.headers;
-  const { partnerUserId, limit = "5", currentUserId } = event.queryStringParameters || {};
-
-  console.log("=== SYNERGY POSTS DEBUG ===");
-  console.log("🔍 Query Parameters:", {
-    partnerUserId,
-    limit,
-    currentUserId,
-    authPresent: !!authorization
-  });
-
-  // Validation
-  if (!authorization) {
-    console.log('❌ Missing authorization header');
-    return {
-      statusCode: 401,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
-      body: JSON.stringify({ error: "No authorization token" }),
-    };
-  }
-
-  if (!partnerUserId) {
-    console.log('❌ Missing partnerUserId parameter');
-    return {
-      statusCode: 400,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
-      body: JSON.stringify({ 
-        error: "partnerUserId is required",
-        received: { partnerUserId, currentUserId, limit }
-      }),
-    };
-  }
-
   try {
-    console.log('🔍 Looking up partner sync status...');
-    
-    // Get partner's sync status first
-    const partnerSyncStatus = await getPartnerSyncStatus(partnerUserId);
-    console.log('📊 Partner sync status:', partnerSyncStatus);
+    const { authorization } = event.headers;
+    const { partnerUserId, limit = "5", currentUserId } = event.queryStringParameters || {};
 
-    // Check if partner needs sync
-    if (shouldTriggerSync(partnerSyncStatus)) {
-      console.log('🔄 Partner needs sync, triggering...');
-      await triggerPartnerSync(partnerUserId);
-    }
+    console.log("=== SYNERGY POSTS DEBUG ===");
+    console.log("🔍 Query Parameters:", {
+      partnerUserId,
+      limit,
+      currentUserId,
+      authPresent: !!authorization
+    });
 
-    // Get cached posts with enhanced debugging
-    console.log('📦 Checking cache for partner posts...');
-    const cachedPosts = await getCachedPosts(partnerUserId, parseInt(limit));
-    
-    if (cachedPosts && !isCacheStale(cachedPosts.fetchedAt)) {
-      console.log("✅ Returning fresh cached posts");
-      const response = {
-        posts: cachedPosts.posts,
-        source: "cache",
-        fetchedAt: cachedPosts.fetchedAt,
-        nextRefresh: new Date(new Date(cachedPosts.fetchedAt).getTime() + 24 * 60 * 60 * 1000).toISOString(),
-        partnerSyncStatus,
-        debugInfo: {
-          partnerId: partnerUserId,
-          cacheHit: true,
-          processingTime: Date.now() - startTime
-        }
-      };
-      
-      console.log('📤 Sending response:', {
-        postsCount: response.posts.length,
-        source: response.source,
-        processingTime: response.debugInfo.processingTime
-      });
-      
+    if (!partnerUserId) {
       return {
-        statusCode: 200,
+        statusCode: 400,
         headers: {
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": "*",
         },
-        body: JSON.stringify(response),
+        body: JSON.stringify({ 
+          error: "partnerUserId parameter is required",
+          received: event.queryStringParameters 
+        }),
       };
     }
 
-    console.log("⚠️ Cache is stale or missing");
-    
-    // Return empty array with status info if no cache
+    if (!authorization) {
+      return {
+        statusCode: 401,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+        body: JSON.stringify({ error: "Authorization header is required" }),
+      };
+    }
+
+    // Extract token from Authorization header
+    const token = authorization.replace('Bearer ', '');
+    console.log('🔑 Token extracted, length:', token.length);
+
+    // Get partner's sync status
+    const partnerSyncStatus = await getPartnerSyncStatus(partnerUserId);
+    console.log('👥 Partner sync status:', partnerSyncStatus);
+
+    // Fetch posts from cache/database first
+    let cachedPosts = await getCachedPosts(partnerUserId);
+    console.log('💾 Cached posts:', cachedPosts ? `${cachedPosts.posts?.length || 0} posts` : 'none');
+
+    // If no cached posts or cache is stale, fetch from LinkedIn
+    if (!cachedPosts || isCacheStale(cachedPosts.fetchedAt)) {
+      console.log('🔄 Fetching fresh posts from LinkedIn...');
+      
+      try {
+        const freshPosts = await fetchPostsFromLinkedIn(token, partnerUserId, parseInt(limit));
+        console.log('✅ Fresh posts fetched:', freshPosts.length);
+        
+        // Cache the posts
+        await cachePosts(partnerUserId, freshPosts);
+        
+        cachedPosts = {
+          posts: freshPosts,
+          fetchedAt: new Date().toISOString()
+        };
+      } catch (linkedinError) {
+        console.error('❌ LinkedIn API error:', linkedinError);
+        
+        // If we have stale cache, use it
+        if (cachedPosts) {
+          console.log('🔄 Using stale cache due to API error');
+        } else {
+          throw linkedinError;
+        }
+      }
+    }
+
+    const posts = cachedPosts.posts || [];
+    console.log(`📊 Returning ${posts.length} posts`);
+
     const response = {
-      posts: cachedPosts?.posts || [], 
-      source: "cache_stale_or_missing",
-      message: "Partner posts cache is being refreshed",
-      fetchedAt: cachedPosts?.fetchedAt || null,
-      cacheAge: cachedPosts?.fetchedAt ? 
+      posts: posts,
+      source: cachedPosts.fetchedAt ? "cached" : "live",
+      fetchedAt: cachedPosts.fetchedAt || new Date().toISOString(),
+      count: posts.length,
+      cacheAge: cachedPosts.fetchedAt ? 
         Math.round((new Date().getTime() - new Date(cachedPosts.fetchedAt).getTime()) / (1000 * 60 * 60)) + " hours" : 
         "No cache",
       partnerSyncStatus,
       debugInfo: {
         partnerId: partnerUserId,
-        cacheHit: false,
+        cacheHit: !!cachedPosts.fetchedAt,
         processingTime: Date.now() - startTime
       }
     };
 
-    console.log('📤 Sending response (no cache):', {
+    console.log('📤 Sending response:', {
       postsCount: response.posts.length,
       source: response.source,
       processingTime: response.debugInfo.processingTime
@@ -173,29 +153,283 @@ export async function handler(event, context) {
     console.error("❌ Synergy posts error:", {
       error: error.message,
       stack: error.stack,
-      partnerId: partnerUserId,
+      partnerUserId: event.queryStringParameters?.partnerUserId,
       processingTime: Date.now() - startTime
     });
     
-    // Return empty array instead of error to prevent UI breaking
     return {
-      statusCode: 200,
+      statusCode: 500,
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
       },
       body: JSON.stringify({ 
-        posts: [],
-        source: "error_fallback",
-        fetchedAt: new Date().toISOString(),
-        count: 0,
-        error: error.message,
+        error: "Failed to fetch partner posts",
+        message: error.message,
         debugInfo: {
-          partnerId: partnerUserId,
+          partnerId: event.queryStringParameters?.partnerUserId,
           processingTime: Date.now() - startTime
         }
       }),
     };
+  }
+}
+
+/**
+ * Fetch posts from LinkedIn DMA API with full text content
+ */
+async function fetchPostsFromLinkedIn(token, partnerUserId, limit = 5) {
+  try {
+    console.log('🔗 Fetching posts from LinkedIn for user:', partnerUserId);
+
+    // First, get the partner's DMA member URN
+    const memberUrn = await getPartnerMemberUrn(partnerUserId);
+    if (!memberUrn) {
+      throw new Error('Partner member URN not found');
+    }
+
+    console.log('👤 Partner member URN:', memberUrn);
+
+    // Fetch posts from MEMBER_SHARE_INFO domain
+    const snapshotResponse = await fetch(
+      `https://api.linkedin.com/rest/memberSnapshots?q=criteria&profiles=${encodeURIComponent(memberUrn)}&domains=MEMBER_SHARE_INFO&start=0&count=${limit}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'LinkedIn-Version': '202405'
+        }
+      }
+    );
+
+    if (!snapshotResponse.ok) {
+      const errorText = await snapshotResponse.text();
+      throw new Error(`LinkedIn API error: ${snapshotResponse.status} ${snapshotResponse.statusText} - ${errorText}`);
+    }
+
+    const snapshotData = await snapshotResponse.json();
+    console.log('📊 Snapshot response:', {
+      hasElements: !!snapshotData.elements,
+      elementsCount: snapshotData.elements?.length || 0
+    });
+
+    if (!snapshotData.elements || snapshotData.elements.length === 0) {
+      console.log('⚠️ No snapshot data found for partner');
+      return [];
+    }
+
+    // Process snapshot data to extract posts
+    const posts = [];
+    
+    for (const element of snapshotData.elements) {
+      if (element.snapshotData && element.snapshotData.length > 0) {
+        for (const snapshot of element.snapshotData) {
+          try {
+            // Parse the snapshot data
+            const postData = typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot;
+            
+            if (postData.shareUrn || postData.ugcPostUrn || postData.activityUrn) {
+              const processedPost = await processPostData(postData, token);
+              if (processedPost) {
+                posts.push(processedPost);
+              }
+            }
+          } catch (parseError) {
+            console.warn('⚠️ Failed to parse post data:', parseError.message);
+          }
+        }
+      }
+    }
+
+    console.log(`✅ Processed ${posts.length} posts from snapshot data`);
+    
+    // Sort posts by creation date (newest first)
+    posts.sort((a, b) => b.createdAtMs - a.createdAtMs);
+    
+    return posts.slice(0, limit);
+
+  } catch (error) {
+    console.error('❌ Failed to fetch posts from LinkedIn:', error);
+    throw error;
+  }
+}
+
+/**
+ * Process individual post data with full text extraction
+ */
+async function processPostData(postData, token) {
+  try {
+    const postUrn = postData.shareUrn || postData.ugcPostUrn || postData.activityUrn;
+    const createdAtMs = postData.createdAt || postData.created?.time || Date.now();
+    
+    // Extract text content (both preview and full)
+    let textPreview = '';
+    let fullText = '';
+    
+    if (postData.text) {
+      fullText = postData.text;
+      textPreview = fullText.length > 200 ? fullText.substring(0, 200) + '...' : fullText;
+    } else if (postData.commentary) {
+      fullText = postData.commentary;
+      textPreview = fullText.length > 200 ? fullText.substring(0, 200) + '...' : fullText;
+    } else if (postData.content && postData.content.commentary) {
+      fullText = postData.content.commentary;
+      textPreview = fullText.length > 200 ? fullText.substring(0, 200) + '...' : fullText;
+    }
+
+    // Extract media type
+    let mediaType = 'TEXT';
+    if (postData.content) {
+      if (postData.content.media) {
+        mediaType = 'IMAGE';
+      } else if (postData.content.article) {
+        mediaType = 'ARTICLE';
+      } else if (postData.content.video) {
+        mediaType = 'VIDEO';
+      }
+    }
+
+    // Extract engagement metrics
+    const engagement = postData.socialDetail || postData.engagement || {};
+    
+    // Extract hashtags from text
+    const hashtags = extractHashtags(fullText);
+    
+    // Extract mentions from text
+    const mentions = extractMentions(fullText);
+
+    // Generate LinkedIn post ID for external link
+    const linkedinPostId = generateLinkedInPostId(postUrn);
+
+    const processedPost = {
+      postUrn: postUrn,
+      linkedinPostId: linkedinPostId,
+      createdAtMs: typeof createdAtMs === 'number' ? createdAtMs : new Date(createdAtMs).getTime(),
+      textPreview: textPreview,
+      fullText: fullText, // IMPORTANT: Include full text for modal
+      mediaType: mediaType,
+      hashtags: hashtags,
+      mentions: mentions,
+      visibility: postData.visibility || 'PUBLIC',
+      likesCount: engagement.numLikes || engagement.likes || 0,
+      commentsCount: engagement.numComments || engagement.comments || 0,
+      sharesCount: engagement.numShares || engagement.shares || 0,
+      impressions: engagement.numViews || engagement.impressions || 0,
+      clicks: engagement.numClicks || engagement.clicks || 0,
+      savesCount: engagement.numSaves || 0,
+      engagementRate: calculateEngagementRate(engagement),
+      reachScore: engagement.numViews || 0,
+      algorithmScore: calculateAlgorithmScore(engagement),
+      sentimentScore: 0, // TODO: Implement sentiment analysis
+      repurposeEligible: isRepurposeEligible(createdAtMs),
+      repurposeDate: getRepurposeDate(createdAtMs),
+      performanceTier: calculatePerformanceTier(engagement),
+      rawData: postData,
+      fetchedAt: new Date().toISOString()
+    };
+
+    console.log('✅ Processed post:', {
+      postUrn: processedPost.postUrn,
+      hasFullText: !!processedPost.fullText,
+      fullTextLength: processedPost.fullText?.length || 0,
+      textPreviewLength: processedPost.textPreview?.length || 0,
+      mediaType: processedPost.mediaType,
+      createdAt: new Date(processedPost.createdAtMs).toISOString()
+    });
+
+    return processedPost;
+
+  } catch (error) {
+    console.error('❌ Failed to process post data:', error);
+    return null;
+  }
+}
+
+/**
+ * Helper functions
+ */
+function extractHashtags(text) {
+  if (!text) return [];
+  const hashtags = text.match(/#[\w]+/g);
+  return hashtags ? hashtags.map(tag => tag.substring(1)) : [];
+}
+
+function extractMentions(text) {
+  if (!text) return [];
+  const mentions = text.match(/@[\w]+/g);
+  return mentions ? mentions.map(mention => mention.substring(1)) : [];
+}
+
+function generateLinkedInPostId(postUrn) {
+  if (!postUrn) return null;
+  // Extract activity ID from URN for LinkedIn URL
+  const match = postUrn.match(/urn:li:activity:(\d+)/);
+  return match ? match[1] : null;
+}
+
+function calculateEngagementRate(engagement) {
+  const total = (engagement.numLikes || 0) + (engagement.numComments || 0) + (engagement.numShares || 0);
+  const views = engagement.numViews || engagement.impressions || 1;
+  return Math.round((total / views) * 100 * 100) / 100; // Round to 2 decimal places
+}
+
+function calculateAlgorithmScore(engagement) {
+  // Simple algorithm score based on engagement
+  const likes = engagement.numLikes || 0;
+  const comments = engagement.numComments || 0;
+  const shares = engagement.numShares || 0;
+  const views = engagement.numViews || 1;
+  
+  return Math.round(((likes + comments * 2 + shares * 3) / views) * 100);
+}
+
+function isRepurposeEligible(createdAtMs) {
+  const now = Date.now();
+  const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+  return (now - createdAtMs) > thirtyDaysMs;
+}
+
+function getRepurposeDate(createdAtMs) {
+  const date = new Date(createdAtMs);
+  date.setDate(date.getDate() + 30);
+  return date.toISOString();
+}
+
+function calculatePerformanceTier(engagement) {
+  const total = (engagement.numLikes || 0) + (engagement.numComments || 0) + (engagement.numShares || 0);
+  
+  if (total >= 100) return 'HIGH';
+  if (total >= 20) return 'MEDIUM';
+  return 'LOW';
+}
+
+/**
+ * Get partner's LinkedIn member URN from database
+ */
+async function getPartnerMemberUrn(partnerUserId) {
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('linkedin_dma_member_urn, linkedin_member_urn')
+      .eq('id', partnerUserId)
+      .single();
+
+    if (error) {
+      console.error('❌ Failed to get partner member URN:', error);
+      return null;
+    }
+
+    return user.linkedin_dma_member_urn || user.linkedin_member_urn;
+
+  } catch (error) {
+    console.error('❌ Database error getting member URN:', error);
+    return null;
   }
 }
 
@@ -210,104 +444,33 @@ async function getPartnerSyncStatus(partnerUserId) {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    console.log("🔍 Getting sync status for user:", partnerUserId);
-
-    const { data: user, error } = await supabase
+    const { data, error } = await supabase
       .from('users')
-      .select('posts_sync_status, last_posts_sync, name, email')
+      .select('last_posts_sync, posts_sync_status, dma_active')
       .eq('id', partnerUserId)
       .single();
 
-    if (error || !user) {
-      console.error('❌ User not found or error:', error);
-      return {
-        status: 'unknown',
-        lastSync: null,
-        error: error?.message || 'User not found'
-      };
+    if (error) {
+      console.warn('⚠️ Could not get partner sync status:', error);
+      return { status: 'unknown' };
     }
-
-    console.log("✅ Partner sync status:", {
-      name: user.name,
-      status: user.posts_sync_status,
-      lastSync: user.last_posts_sync
-    });
 
     return {
-      status: user.posts_sync_status || 'pending',
-      lastSync: user.last_posts_sync,
-      name: user.name
+      status: data.posts_sync_status || 'unknown',
+      lastSync: data.last_posts_sync,
+      dmaActive: data.dma_active || false
     };
+
   } catch (error) {
-    console.error('❌ Error getting partner sync status:', error);
-    return {
-      status: 'error',
-      lastSync: null,
-      error: error.message
-    };
+    console.error('❌ Database error:', error);
+    return { status: 'error' };
   }
 }
 
 /**
- * Determine if partner needs sync
+ * Get cached posts from database
  */
-function shouldTriggerSync(syncStatus) {
-  const { status, lastSync } = syncStatus;
-  
-  // Trigger sync if never synced or failed
-  if (!status || status === 'pending' || status === 'failed') {
-    console.log('🔄 Sync needed: status is', status);
-    return true;
-  }
-  
-  // Trigger sync if last sync was more than 24 hours ago
-  if (lastSync) {
-    const hoursSinceSync = (Date.now() - new Date(lastSync).getTime()) / (1000 * 60 * 60);
-    if (hoursSinceSync > 24) {
-      console.log('🔄 Sync needed: last sync was', Math.round(hoursSinceSync), 'hours ago');
-      return true;
-    }
-  }
-  
-  return false;
-}
-
-/**
- * Trigger partner sync
- */
-async function triggerPartnerSync(partnerUserId) {
-  try {
-    console.log('🚀 Triggering partner sync for:', partnerUserId);
-    
-    const syncResponse = await fetch(`${process.env.URL}/.netlify/functions/sync-user-posts`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        userId: partnerUserId,
-        syncAll: false
-      })
-    });
-
-    if (syncResponse.ok) {
-      const result = await syncResponse.json();
-      console.log('✅ Partner sync triggered successfully:', result);
-      return result;
-    } else {
-      console.warn('⚠️ Partner sync trigger failed:', syncResponse.status);
-      return null;
-    }
-  } catch (error) {
-    console.error('❌ Error triggering partner sync:', error);
-    return null;
-  }
-}
-
-/**
- * Get cached posts for partner
- */
-async function getCachedPosts(partnerUserId, limit) {
+async function getCachedPosts(partnerUserId) {
   try {
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(
@@ -315,62 +478,73 @@ async function getCachedPosts(partnerUserId, limit) {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    console.log("📦 Checking cache for user:", partnerUserId);
-
-    const { data: cachedPosts, error } = await supabase
+    const { data, error } = await supabase
       .from('post_cache')
-      .select('*')
+      .select('posts_data, fetched_at')
       .eq('user_id', partnerUserId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
+      .eq('cache_type', 'synergy_posts')
+      .order('fetched_at', { ascending: false })
+      .limit(1)
+      .single();
 
-    if (error) {
-      console.error('❌ Error fetching cached posts:', error);
+    if (error || !data) {
+      console.log('💾 No cached posts found for partner:', partnerUserId);
       return null;
     }
-
-    if (!cachedPosts || cachedPosts.length === 0) {
-      console.log("📦 No cached posts found");
-      return null;
-    }
-
-    console.log(`📦 Found ${cachedPosts.length} cached posts`);
-
-    // Transform to frontend format
-    const transformedPosts = cachedPosts.map(post => ({
-      postUrn: post.post_urn,
-      linkedinPostId: post.linkedin_post_id,
-      createdAtMs: new Date(post.created_at).getTime(),
-      textPreview: post.content,
-      mediaType: post.media_type,
-      mediaUrls: post.media_urls,
-      likesCount: post.likes_count,
-      commentsCount: post.comments_count,
-      sharesCount: post.shares_count,
-      engagementRate: post.engagement_rate,
-      raw: post.raw_data
-    }));
 
     return {
-      posts: transformedPosts,
-      fetchedAt: cachedPosts[0]?.fetched_at || new Date().toISOString()
+      posts: data.posts_data || [],
+      fetchedAt: data.fetched_at
     };
+
   } catch (error) {
-    console.error('❌ Error getting cached posts:', error);
+    console.error('❌ Cache read error:', error);
     return null;
   }
 }
 
 /**
- * Check if cache is stale (older than 24 hours)
+ * Cache posts to database
+ */
+async function cachePosts(partnerUserId, posts) {
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    const { error } = await supabase
+      .from('post_cache')
+      .upsert({
+        user_id: partnerUserId,
+        cache_type: 'synergy_posts',
+        posts_data: posts,
+        fetched_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id,cache_type'
+      });
+
+    if (error) {
+      console.error('❌ Cache write error:', error);
+    } else {
+      console.log('💾 Posts cached for partner:', partnerUserId);
+    }
+
+  } catch (error) {
+    console.error('❌ Cache write error:', error);
+  }
+}
+
+/**
+ * Check if cache is stale (older than 1 hour)
  */
 function isCacheStale(fetchedAt) {
   if (!fetchedAt) return true;
   
-  const hoursSinceFetch = (Date.now() - new Date(fetchedAt).getTime()) / (1000 * 60 * 60);
-  const isStale = hoursSinceFetch > 24;
+  const now = new Date().getTime();
+  const cacheTime = new Date(fetchedAt).getTime();
+  const oneHour = 60 * 60 * 1000;
   
-  console.log(`📦 Cache age: ${Math.round(hoursSinceFetch)} hours, stale: ${isStale}`);
-  
-  return isStale;
+  return (now - cacheTime) > oneHour;
 }
