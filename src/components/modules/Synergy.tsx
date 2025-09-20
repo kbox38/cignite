@@ -1,5 +1,5 @@
-// src/components/Synergy.tsx
-// Fixed to use the correct auth store for userId
+// src/components/modules/Synergy.tsx
+// Complete fixed implementation with comprehensive debugging
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -14,12 +14,13 @@ import {
   MessageSquare,
   Heart,
   Share,
-  Eye
+  Eye,
+  User,
+  ExternalLink
 } from 'lucide-react';
-import { usePostsSync } from '../../hooks/usePostsSync';
+import { useAuthStore } from '../../stores/authStore';
 import AddPartnerModal from '../../AddPartnerModal';
 import NotificationsPanel from '../../NotificationsPanel';
-import { useAuthStore } from '../../stores/authStore'; // FIXED: Use correct auth store
 
 interface SynergyPartner {
   id: string;
@@ -73,29 +74,31 @@ export default function Synergy() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [syncLoading, setSyncLoading] = useState(false);
 
-  // FIXED: Get current user ID from correct auth store
+  // Enhanced state for debugging and sync status
+  const [globalSyncStatus, setGlobalSyncStatus] = useState<{
+    status: string;
+    lastSync: string | null;
+    postsCount: number;
+  }>({
+    status: 'unknown',
+    lastSync: null,
+    postsCount: 0
+  });
+  const [debugMode, setDebugMode] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+
+  // Get current user ID from auth store
   const { userId: currentUserId } = useAuthStore();
-
-  // Posts sync hook
-  const {
-    syncStatus,
-    isLoading: syncLoading,
-    error: syncError,
-    refreshStatus,
-    triggerManualSync,
-    formatLastSync,
-    getSyncStatusColor,
-    getSyncStatusIcon,
-    getSyncStatusText
-  } = usePostsSync();
 
   // Load data on component mount
   useEffect(() => {
-    console.log('Synergy: currentUserId from auth store:', currentUserId);
+    console.log('🚀 Synergy: Component mounted, currentUserId:', currentUserId);
     if (currentUserId) {
       loadPartners();
       loadNotificationCount();
+      loadUserSyncStatus();
     }
   }, [currentUserId]);
 
@@ -104,7 +107,7 @@ export default function Synergy() {
    */
   async function loadPartners() {
     if (!currentUserId) {
-      console.warn('Synergy: No currentUserId available');
+      console.warn('⚠️ Synergy: No currentUserId available');
       return;
     }
     
@@ -112,7 +115,7 @@ export default function Synergy() {
     setError(null);
     
     try {
-      console.log('Loading partners for user:', currentUserId);
+      console.log('📥 Loading partners for user:', currentUserId);
       
       const response = await fetch(
         `/.netlify/functions/synergy-partners?userId=${currentUserId}`,
@@ -124,17 +127,22 @@ export default function Synergy() {
         }
       );
 
+      console.log('📡 Partners response status:', response.status);
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(`Failed to load partners: ${response.status} ${response.statusText} - ${errorData.error || ''}`);
       }
 
       const data = await response.json();
-      console.log('Partners loaded:', data);
+      console.log('✅ Partners loaded:', {
+        count: data.partners?.length || 0,
+        partners: data.partners
+      });
       
       setPartners(data.partners || []);
     } catch (error) {
-      console.error('Failed to load partners:', error);
+      console.error('❌ Failed to load partners:', error);
       setError(error instanceof Error ? error.message : 'Failed to load partners');
       setPartners([]);
     } finally {
@@ -149,52 +157,102 @@ export default function Synergy() {
     if (!currentUserId) return;
     
     try {
+      console.log('🔔 Loading notification count...');
+      
       const response = await fetch(
         `/.netlify/functions/synergy-invitations?userId=${currentUserId}`
       );
       
       if (response.ok) {
         const data = await response.json();
-        setNotificationCount(data.receivedCount || 0);
+        const count = data.receivedCount || 0;
+        console.log('✅ Notification count loaded:', count);
+        setNotificationCount(count);
       }
     } catch (error) {
-      console.error('Failed to load notification count:', error);
+      console.error('❌ Failed to load notification count:', error);
     }
   }
 
   /**
-   * Load posts for a specific partner
+   * FIXED: Load posts for a specific partner with enhanced debugging
    */
   async function loadPartnerPosts(partnerId: string) {
-    if (postsLoading[partnerId] || !currentUserId) return;
+    if (postsLoading[partnerId] || !currentUserId) {
+      console.log('🚫 Skipping loadPartnerPosts:', { 
+        postsLoading: postsLoading[partnerId], 
+        currentUserId: !!currentUserId,
+        partnerId 
+      });
+      return;
+    }
+    
+    console.log('🔄 SYNERGY DEBUG: Starting loadPartnerPosts');
+    console.log('📊 Debug Info:', {
+      partnerId,
+      currentUserId,
+      timestamp: new Date().toISOString(),
+      loadingState: postsLoading
+    });
     
     setPostsLoading(prev => ({ ...prev, [partnerId]: true }));
     
     try {
-      console.log(`Loading posts for partner: ${partnerId}`);
+      console.log(`🔍 Loading posts for partner: ${partnerId}`);
       
-      const response = await fetch('/.netlify/functions/synergy-posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          partnerUserId: partnerId,
-          currentUserId: currentUserId 
-        })
+      // FIXED: Use GET method with query parameters
+      const url = `/.netlify/functions/synergy-posts?partnerUserId=${encodeURIComponent(partnerId)}&limit=5&currentUserId=${encodeURIComponent(currentUserId)}`;
+      console.log('🌐 Request URL:', url);
+      
+      const response = await fetch(url, {
+        method: 'GET', // CHANGED FROM POST TO GET
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentUserId}`
+        }
       });
       
+      console.log('📡 Response status:', response.status);
+      
       if (!response.ok) {
-        throw new Error(`Failed to load posts: ${response.status}`);
+        const errorText = await response.text();
+        console.error('❌ Response error:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText
+        });
+        throw new Error(`Failed to load posts: ${response.status} - ${errorText}`);
       }
       
       const data = await response.json();
-      console.log(`Posts loaded for partner ${partnerId}:`, data);
+      console.log(`✅ Posts loaded for partner ${partnerId}:`, {
+        postsCount: data.posts?.length || 0,
+        source: data.source,
+        fetchedAt: data.fetchedAt,
+        partnerSyncStatus: data.partnerSyncStatus,
+        debugInfo: data.debugInfo
+      });
       
+      // Store debug info if available
+      if (data.debugInfo || data.partnerSyncStatus) {
+        setDebugInfo(prev => ({
+          ...prev,
+          [partnerId]: {
+            syncStatus: data.partnerSyncStatus,
+            debugInfo: data.debugInfo,
+            lastFetch: new Date().toISOString()
+          }
+        }));
+      }
+      
+      // Update partner posts state
       setPartnerPosts(prev => ({
         ...prev,
         [partnerId]: data.posts || []
       }));
+      
     } catch (error) {
-      console.error(`Failed to load posts for partner ${partnerId}:`, error);
+      console.error(`❌ Failed to load posts for partner ${partnerId}:`, error);
       setPartnerPosts(prev => ({
         ...prev,
         [partnerId]: []
@@ -208,44 +266,319 @@ export default function Synergy() {
    * Select partner and load their posts
    */
   function selectPartner(partnerId: string) {
-    console.log('Selecting partner:', partnerId);
+    console.log('👥 Selecting partner:', partnerId);
     setSelectedPartner(partnerId);
     loadPartnerPosts(partnerId);
   }
 
   /**
-   * Handle manual posts sync
+   * Enhanced manual sync with comprehensive debugging
    */
   async function handleManualSync() {
-    console.log('Triggering manual posts sync');
-    const success = await triggerManualSync();
-    
-    if (success) {
-      // Reload partner posts after sync completes
-      setTimeout(() => {
-        if (selectedPartner) {
-          loadPartnerPosts(selectedPartner);
-        }
-      }, 5000);
+    console.log('🔄 ENHANCED MANUAL SYNC TRIGGERED:', {
+      selectedPartner,
+      currentUserId,
+      debugMode,
+      timestamp: new Date().toISOString()
+    });
+
+    if (!currentUserId) {
+      console.error('❌ No current user ID for manual sync');
+      return;
     }
+
+    setSyncLoading(true);
+    
+    try {
+      const userToSync = selectedPartner || currentUserId;
+      
+      // If debug mode is enabled, use the debug function
+      if (debugMode) {
+        console.log('🐛 Using debug sync mode');
+        
+        const debugResponse = await fetch('/.netlify/functions/manual-sync-debug', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: userToSync,
+            operation: 'trigger'
+          })
+        });
+
+        if (debugResponse.ok) {
+          const debugResult = await debugResponse.json();
+          console.log('🐛 Debug sync result:', debugResult);
+          setDebugInfo(prev => ({
+            ...prev,
+            debugSync: debugResult
+          }));
+        }
+      }
+      
+      // Regular sync call
+      console.log(`🚀 Triggering sync for user: ${userToSync}`);
+      
+      const response = await fetch('/.netlify/functions/sync-user-posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userToSync,
+          syncAll: false
+        })
+      });
+
+      console.log('📡 Sync response status:', response.status);
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Manual sync completed:', result);
+        
+        // Update global sync status
+        setGlobalSyncStatus(prev => ({
+          ...prev,
+          status: 'completed',
+          lastSync: new Date().toISOString(),
+          postsCount: result.results?.[0]?.postsProcessed || 0
+        }));
+        
+        // If partner was synced, reload their posts after delay
+        if (selectedPartner) {
+          console.log('🔄 Reloading partner posts after sync...');
+          setTimeout(() => {
+            loadPartnerPosts(selectedPartner);
+          }, 3000); // Wait 3 seconds for sync to complete
+        }
+        
+        // Refresh partners list
+        loadPartners();
+        
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Manual sync failed:', {
+          status: response.status,
+          error: errorText
+        });
+        
+        setGlobalSyncStatus(prev => ({
+          ...prev,
+          status: 'failed'
+        }));
+      }
+    } catch (error) {
+      console.error('❌ Manual sync error:', error);
+      setGlobalSyncStatus(prev => ({
+        ...prev,
+        status: 'failed'
+      }));
+    } finally {
+      setSyncLoading(false);
+    }
+  }
+
+  /**
+   * Debug function to get comprehensive sync status
+   */
+  async function getDebugInfo(partnerId?: string) {
+    const userToCheck = partnerId || currentUserId;
+    if (!userToCheck) return;
+
+    try {
+      console.log('🐛 Getting debug info for:', userToCheck);
+      
+      const response = await fetch('/.netlify/functions/manual-sync-debug', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userToCheck,
+          operation: 'debug'
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('🐛 Debug info received:', result);
+        
+        setDebugInfo(prev => ({
+          ...prev,
+          [userToCheck]: result.debugInfo
+        }));
+        
+        return result.debugInfo;
+      }
+    } catch (error) {
+      console.error('❌ Error getting debug info:', error);
+    }
+  }
+
+  /**
+   * Load current user's sync status
+   */
+  async function loadUserSyncStatus() {
+    if (!currentUserId) return;
+    
+    try {
+      console.log('📊 Loading user sync status...');
+      
+      const response = await fetch('/.netlify/functions/get-user-sync-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: currentUserId })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ User sync status loaded:', data);
+        
+        setGlobalSyncStatus({
+          status: data.status,
+          lastSync: data.lastSync,
+          postsCount: data.postsCount
+        });
+      } else {
+        console.warn('⚠️ Failed to load user sync status:', response.status);
+      }
+    } catch (error) {
+      console.error('❌ Error loading user sync status:', error);
+    }
+  }
+
+  /**
+   * Enhanced function to get sync status with debugging
+   */
+  function getSyncStatusText(): string {
+    console.log('🔍 SYNC STATUS DEBUG:', {
+      globalSyncStatus,
+      selectedPartner,
+      partnerPosts: selectedPartner ? partnerPosts[selectedPartner] : null,
+      timestamp: new Date().toISOString()
+    });
+
+    // If we have a selected partner, check their specific status
+    if (selectedPartner) {
+      const partnerPostsData = partnerPosts[selectedPartner];
+      const hasPartnerPosts = partnerPostsData && partnerPostsData.length > 0;
+      
+      console.log('👥 Partner Status Check:', {
+        selectedPartner,
+        hasPartnerPosts,
+        postsCount: partnerPostsData?.length || 0
+      });
+
+      if (hasPartnerPosts) {
+        return `✅ Partner posts loaded (${partnerPostsData.length})`;
+      }
+      
+      if (postsLoading[selectedPartner]) {
+        return '🔄 Loading partner posts...';
+      }
+      
+      return '❓ Partner posts not available';
+    }
+
+    // Global sync status
+    switch (globalSyncStatus.status) {
+      case 'completed':
+        return `✅ Sync completed (${globalSyncStatus.postsCount} posts)`;
+      case 'syncing':
+        return '🔄 Syncing posts...';
+      case 'failed':
+        return '❌ Sync failed';
+      case 'pending':
+        return '⏳ Sync pending';
+      default:
+        return '❓ Status unknown';
+    }
+  }
+
+  /**
+   * Enhanced function to get sync status color
+   */
+  function getSyncStatusColor(): string {
+    if (selectedPartner) {
+      const partnerPostsData = partnerPosts[selectedPartner];
+      const hasPartnerPosts = partnerPostsData && partnerPostsData.length > 0;
+      
+      if (hasPartnerPosts) return 'text-green-600';
+      if (postsLoading[selectedPartner]) return 'text-blue-600';
+      return 'text-gray-500';
+    }
+
+    switch (globalSyncStatus.status) {
+      case 'completed':
+        return 'text-green-600';
+      case 'syncing':
+        return 'text-blue-600';
+      case 'failed':
+        return 'text-red-600';
+      case 'pending':
+        return 'text-yellow-600';
+      default:
+        return 'text-gray-500';
+    }
+  }
+
+  /**
+   * Enhanced function to format last sync time
+   */
+  function formatLastSync(): string {
+    console.log('📅 FORMAT LAST SYNC DEBUG:', {
+      globalSyncStatus,
+      selectedPartner,
+      partners: partners.find(p => p.id === selectedPartner)
+    });
+
+    if (selectedPartner) {
+      const partner = partners.find(p => p.id === selectedPartner);
+      if (partner?.lastPostsSync) {
+        const syncDate = new Date(partner.lastPostsSync);
+        const now = new Date();
+        const diffHours = Math.round((now.getTime() - syncDate.getTime()) / (1000 * 60 * 60));
+        
+        if (diffHours < 1) return 'Just now';
+        if (diffHours < 24) return `${diffHours}h ago`;
+        
+        const diffDays = Math.round(diffHours / 24);
+        if (diffDays < 7) return `${diffDays}d ago`;
+        
+        return syncDate.toLocaleDateString();
+      }
+      return 'Never';
+    }
+
+    if (globalSyncStatus.lastSync) {
+      const syncDate = new Date(globalSyncStatus.lastSync);
+      const now = new Date();
+      const diffHours = Math.round((now.getTime() - syncDate.getTime()) / (1000 * 60 * 60));
+      
+      if (diffHours < 1) return 'Just now';
+      if (diffHours < 24) return `${diffHours}h ago`;
+      
+      const diffDays = Math.round(diffHours / 24);
+      if (diffDays < 7) return `${diffDays}d ago`;
+      
+      return syncDate.toLocaleDateString();
+    }
+
+    return 'Never';
   }
 
   /**
    * Handle invitation sent callback
    */
   function handleInvitationSent() {
-    console.log('Invitation sent successfully');
+    console.log('✉️ Invitation sent successfully');
     setShowAddPartnerModal(false);
-    // Show success message or toast here if needed
   }
 
   /**
    * Handle invitation response callback
    */
   function handleInvitationHandled() {
-    console.log('Invitation handled, refreshing data');
-    loadPartners(); // Refresh partners list
-    loadNotificationCount(); // Refresh notification count
+    console.log('📨 Invitation handled, refreshing data');
+    loadPartners();
+    loadNotificationCount();
     setShowNotifications(false);
   }
 
@@ -271,6 +604,50 @@ export default function Synergy() {
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
     return num.toString();
   }
+
+  // Debug panel component
+  const renderDebugPanel = () => {
+    if (!debugMode) return null;
+
+    return (
+      <div className="mt-6 p-4 bg-gray-900 text-green-400 rounded-lg font-mono text-xs">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-green-300 font-bold">🐛 SYNERGY DEBUG PANEL</h3>
+          <button
+            onClick={() => getDebugInfo(selectedPartner)}
+            className="px-2 py-1 bg-green-700 text-white rounded text-xs hover:bg-green-600"
+          >
+            Refresh Debug Info
+          </button>
+        </div>
+        
+        <div className="space-y-4 max-h-96 overflow-y-auto">
+          <div>
+            <div className="text-green-300 font-bold">Current State:</div>
+            <pre className="text-xs">
+              {JSON.stringify({
+                selectedPartner,
+                currentUserId,
+                globalSyncStatus,
+                partnersCount: partners.length,
+                postsLoading,
+                selectedPartnerPosts: selectedPartner ? partnerPosts[selectedPartner]?.length : 0
+              }, null, 2)}
+            </pre>
+          </div>
+          
+          {debugInfo && (
+            <div>
+              <div className="text-green-300 font-bold">Debug Info:</div>
+              <pre className="text-xs">
+                {JSON.stringify(debugInfo, null, 2)}
+              </pre>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   // Loading state
   if (loading) {
@@ -312,6 +689,19 @@ export default function Synergy() {
         
         {/* Action Buttons */}
         <div className="flex items-center space-x-4">
+          {/* Debug Toggle */}
+          <button
+            onClick={() => setDebugMode(!debugMode)}
+            className={`px-2 py-1 text-xs rounded transition-colors ${
+              debugMode 
+                ? 'bg-green-600 text-white' 
+                : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+            }`}
+            title="Toggle debug mode"
+          >
+            🐛 Debug
+          </button>
+
           {/* Notifications Button */}
           <button
             onClick={() => setShowNotifications(true)}
@@ -344,84 +734,70 @@ export default function Synergy() {
             <RefreshCw className={`h-4 w-4 mr-2 ${syncLoading ? 'animate-spin' : ''}`} />
             {syncLoading ? 'Syncing...' : 'Sync Posts'}
           </button>
+          
+          {/* Add Partner Button */}
+          <button
+            onClick={() => setShowAddPartnerModal(true)}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Partner
+          </button>
         </div>
       </div>
 
-      {/* Error Messages */}
-      {(error || syncError) && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-red-50 border border-red-200 rounded-lg p-4"
-        >
-          <div className="flex items-center">
-            <AlertCircle className="h-5 w-5 text-red-600 mr-2" />
-            <span className="text-red-800 text-sm">
-              {error || syncError}
-            </span>
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="flex">
+            <AlertCircle className="h-5 w-5 text-red-400" />
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">Error</h3>
+              <div className="mt-2 text-sm text-red-700">
+                {error}
+              </div>
+            </div>
           </div>
-        </motion.div>
+        </div>
       )}
-
-      {/* Debug Info */}
-      <div className="text-xs text-gray-400 bg-gray-50 p-2 rounded">
-        Debug: Using userId from auth store: {currentUserId}
-      </div>
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Partners List Sidebar */}
+        {/* Partners List */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            {/* Partners Header */}
             <div className="p-4 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium text-gray-900">
-                  Partners ({partners.length})
-                </h3>
-                <button 
-                  onClick={() => setShowAddPartnerModal(true)}
-                  className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-full text-blue-600 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Add Partner
-                </button>
-              </div>
+              <h3 className="text-lg font-medium text-gray-900">Your Partners</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                {partners.length} active partnership{partners.length !== 1 ? 's' : ''}
+              </p>
             </div>
             
-            {/* Partners List */}
             <div className="p-4">
               {partners.length === 0 ? (
                 <div className="text-center py-8">
                   <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500 text-sm mb-2">No partners yet</p>
-                  <p className="text-gray-400 text-xs mb-4">
-                    Add partners to start collaborating and sharing insights
+                  <p className="text-gray-500">No synergy partners yet</p>
+                  <p className="text-gray-400 text-sm mt-1">
+                    Add partners to start collaborating
                   </p>
-                  <button
-                    onClick={() => setShowAddPartnerModal(true)}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Find Partners
-                  </button>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {partners.map((partner) => (
                     <motion.div
                       key={partner.id}
+                      onClick={() => selectPartner(partner.id)}
+                      className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                        selectedPartner === partner.id
+                          ? 'bg-blue-50 border border-blue-200'
+                          : 'bg-gray-50 hover:bg-gray-100 border border-transparent'
+                      }`}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                        selectedPartner === partner.id
-                          ? 'bg-blue-50 border-2 border-blue-200 shadow-sm'
-                          : 'bg-gray-50 border-2 border-transparent hover:bg-gray-100 hover:shadow-sm'
-                      }`}
-                      onClick={() => selectPartner(partner.id)}
                     >
                       <div className="flex items-center space-x-3">
-                        {/* Partner Avatar */}
+                        {/* Avatar */}
                         <div className="flex-shrink-0">
                           {partner.avatarUrl ? (
                             <img
@@ -478,146 +854,167 @@ export default function Synergy() {
             <div className="p-4 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">
                 {selectedPartner 
-                  ? `${partners.find(p => p.id === selectedPartner)?.name}'s Latest Posts`
-                  : 'Select a Partner'
+                  ? `${partners.find(p => p.id === selectedPartner)?.name || 'Partner'}'s Posts`
+                  : 'Partner Posts'
                 }
               </h3>
-              {selectedPartner && (
-                <p className="text-sm text-gray-500 mt-1">
-                  Latest 5 posts • Updated automatically every 24 hours
-                </p>
-              )}
+              <p className="text-sm text-gray-500 mt-1">
+                {selectedPartner
+                  ? 'Recent posts from your synergy partner'
+                  : 'Select a partner to view their posts'
+                }
+              </p>
             </div>
             
             {/* Posts Content */}
             <div className="p-4">
               {!selectedPartner ? (
-                // No Partner Selected
                 <div className="text-center py-12">
-                  <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500 text-lg mb-2">Select a partner to view their latest posts</p>
-                  <p className="text-gray-400 text-sm">
-                    See what your synergy partners are sharing on LinkedIn
+                  <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">Select a partner to view their posts</p>
+                  <p className="text-gray-400 text-sm mt-1">
+                    Choose from your synergy partners on the left
                   </p>
                 </div>
               ) : postsLoading[selectedPartner] ? (
-                // Loading Posts
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <span className="ml-3 text-gray-500">Loading posts...</span>
-                </div>
-              ) : !partnerPosts[selectedPartner] || partnerPosts[selectedPartner]?.length === 0 ? (
-                // No Posts Found
                 <div className="text-center py-12">
-                  <div className="text-4xl mb-4">📝</div>
-                  <p className="text-gray-500 text-lg mb-2">No posts found</p>
-                  <p className="text-gray-400 text-sm">
-                    This partner hasn't posted recently or their posts haven't synced yet
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-gray-500">Loading partner posts...</p>
+                </div>
+              ) : partnerPosts[selectedPartner]?.length === 0 ? (
+                <div className="text-center py-12">
+                  <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">No posts available</p>
+                  <p className="text-gray-400 text-sm mt-1">
+                    Partner posts will appear here once synced
                   </p>
                   <button
                     onClick={handleManualSync}
                     disabled={syncLoading}
-                    className="mt-4 inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                    className="mt-4 inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <RefreshCw className={`h-4 w-4 mr-2 ${syncLoading ? 'animate-spin' : ''}`} />
-                    {syncLoading ? 'Syncing...' : 'Refresh Posts'}
+                    {syncLoading ? 'Syncing...' : 'Sync Partner Posts'}
                   </button>
                 </div>
               ) : (
-                // Posts List
                 <div className="space-y-4">
                   {partnerPosts[selectedPartner]?.map((post, index) => (
                     <motion.div
-                      key={post.postUrn}
+                      key={post.postUrn || index}
+                      className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.1 }}
-                      className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow duration-200"
                     >
                       {/* Post Header */}
                       <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center space-x-2 text-sm text-gray-500">
-                          <Clock className="h-4 w-4" />
-                          <span>{formatPostDate(post.createdAtMs)}</span>
+                        <div className="flex items-center space-x-3">
+                          <div className="flex-shrink-0">
+                            {partners.find(p => p.id === selectedPartner)?.avatarUrl ? (
+                              <img
+                                src={partners.find(p => p.id === selectedPartner)?.avatarUrl}
+                                alt={partners.find(p => p.id === selectedPartner)?.name}
+                                className="h-8 w-8 rounded-full"
+                              />
+                            ) : (
+                              <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-400 to-cyan-400 flex items-center justify-center text-white font-medium text-xs">
+                                {partners.find(p => p.id === selectedPartner)?.name?.[0]?.toUpperCase() || '?'}
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">
+                              {partners.find(p => p.id === selectedPartner)?.name || 'Partner'}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {formatPostDate(post.createdAtMs)}
+                            </p>
+                          </div>
                         </div>
+                        
+                        {/* Media Type Badge */}
                         <div className="flex items-center space-x-2">
-                          <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
-                            {post.mediaType || 'TEXT'}
-                          </span>
-                          {post.visibility && (
-                            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
-                              {post.visibility}
+                          {post.mediaType && post.mediaType !== 'NONE' && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {post.mediaType === 'IMAGE' && '📷'}
+                              {post.mediaType === 'VIDEO' && '🎥'}
+                              {post.mediaType === 'ARTICLE' && '📄'}
+                              {post.mediaType}
                             </span>
+                          )}
+                          {post.linkedinPostId && (
+                            <a
+                              href={`https://www.linkedin.com/feed/update/${post.linkedinPostId}/`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-gray-400 hover:text-blue-600 transition-colors"
+                              title="View on LinkedIn"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
                           )}
                         </div>
                       </div>
-                      
+
                       {/* Post Content */}
                       <div className="mb-4">
-                        <p className="text-gray-900 text-sm leading-relaxed whitespace-pre-wrap">
-                          {post.textPreview}
+                        <p className="text-gray-900 text-sm leading-relaxed">
+                          {post.textPreview || 'No text content available'}
                         </p>
-                      </div>
-
-                      {/* Post Hashtags */}
-                      {post.hashtags && post.hashtags.length > 0 && (
-                        <div className="mb-3">
-                          <div className="flex flex-wrap gap-1">
-                            {post.hashtags.slice(0, 5).map((hashtag, idx) => (
-                              <span 
+                        
+                        {/* Hashtags */}
+                        {post.hashtags && post.hashtags.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {post.hashtags.slice(0, 3).map((hashtag, idx) => (
+                              <span
                                 key={idx}
-                                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
                               >
-                                {hashtag}
+                                #{hashtag}
                               </span>
                             ))}
-                            {post.hashtags.length > 5 && (
+                            {post.hashtags.length > 3 && (
                               <span className="text-xs text-gray-500">
-                                +{post.hashtags.length - 5} more
+                                +{post.hashtags.length - 3} more
                               </span>
                             )}
                           </div>
-                        </div>
-                      )}
-                      
+                        )}
+                      </div>
+
                       {/* Engagement Metrics */}
                       <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                        <div className="flex items-center space-x-4 text-xs text-gray-500">
-                          {post.likesCount !== undefined && (
-                            <div className="flex items-center space-x-1">
-                              <Heart className="h-3 w-3" />
-                              <span>{formatNumber(post.likesCount)}</span>
-                            </div>
-                          )}
-                          {post.commentsCount !== undefined && (
-                            <div className="flex items-center space-x-1">
-                              <MessageSquare className="h-3 w-3" />
-                              <span>{formatNumber(post.commentsCount)}</span>
-                            </div>
-                          )}
-                          {post.sharesCount !== undefined && (
-                            <div className="flex items-center space-x-1">
-                              <Share className="h-3 w-3" />
-                              <span>{formatNumber(post.sharesCount)}</span>
-                            </div>
-                          )}
-                          {post.impressions !== undefined && (
-                            <div className="flex items-center space-x-1">
-                              <Eye className="h-3 w-3" />
-                              <span>{formatNumber(post.impressions)}</span>
+                        <div className="flex items-center space-x-4">
+                          <div className="flex items-center space-x-1 text-gray-500">
+                            <Heart className="h-4 w-4" />
+                            <span className="text-sm">{formatNumber(post.likesCount)}</span>
+                          </div>
+                          <div className="flex items-center space-x-1 text-gray-500">
+                            <MessageSquare className="h-4 w-4" />
+                            <span className="text-sm">{formatNumber(post.commentsCount)}</span>
+                          </div>
+                          <div className="flex items-center space-x-1 text-gray-500">
+                            <Share className="h-4 w-4" />
+                            <span className="text-sm">{formatNumber(post.sharesCount)}</span>
+                          </div>
+                          {post.impressions && (
+                            <div className="flex items-center space-x-1 text-gray-500">
+                              <Eye className="h-4 w-4" />
+                              <span className="text-sm">{formatNumber(post.impressions)}</span>
                             </div>
                           )}
                         </div>
                         
                         {/* Engagement Rate */}
-                        {post.engagementRate !== undefined && post.engagementRate > 0 && (
-                          <div className="text-xs font-medium text-green-600">
+                        {post.engagementRate && (
+                          <div className="text-xs text-gray-500">
                             {(post.engagementRate * 100).toFixed(1)}% engagement
                           </div>
                         )}
                       </div>
 
-                      {/* Performance Indicator */}
+                      {/* Performance Tier */}
                       {post.performanceTier && post.performanceTier !== 'UNKNOWN' && (
                         <div className="mt-2">
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
@@ -625,7 +1022,7 @@ export default function Synergy() {
                               ? 'bg-green-100 text-green-800'
                               : post.performanceTier === 'MEDIUM'
                               ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-gray-100 text-gray-800'
+                              : 'bg-red-100 text-red-800'
                           }`}>
                             {post.performanceTier} Performance
                           </span>
@@ -640,24 +1037,23 @@ export default function Synergy() {
         </div>
       </div>
 
-      {/* Modals */}
-      {currentUserId && (
-        <>
-          <AddPartnerModal
-            isOpen={showAddPartnerModal}
-            onClose={() => setShowAddPartnerModal(false)}
-            currentUserId={currentUserId}
-            onInviteSent={handleInvitationSent}
-          />
+      {/* Debug Panel */}
+      {renderDebugPanel()}
 
-          <NotificationsPanel
-            isOpen={showNotifications}
-            onClose={() => setShowNotifications(false)}
-            currentUserId={currentUserId}
-            onInvitationHandled={handleInvitationHandled}
-          />
-        </>
-      )}
+      {/* Modals */}
+      <AddPartnerModal
+        isOpen={showAddPartnerModal}
+        onClose={() => setShowAddPartnerModal(false)}
+        currentUserId={currentUserId}
+        onInviteSent={handleInvitationSent}
+      />
+
+      <NotificationsPanel
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+        currentUserId={currentUserId}
+        onInvitationHandled={handleInvitationHandled}
+      />
     </div>
   );
 }
