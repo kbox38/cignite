@@ -1,71 +1,39 @@
 /**
- * FIXED: sync-user-posts.mjs - Dynamic token handling
+ * Netlify Function: sync-user-posts.mjs
+ * Syncs user posts from LinkedIn DMA APIs and stores them in the database
  * Location: netlify/functions/sync-user-posts.mjs
- * 
- * ISSUE: LINKEDIN_DMA_ACCESS_TOKEN doesn't exist - need to get user's token
- * SOLUTION: Get user's DMA token from database and use it for API calls
  */
 
 /**
- * Fetch user posts from LinkedIn DMA API - FIXED VERSION
+ * Main handler function - required export for Netlify
  */
-async function fetchUserPostsFromLinkedIn(memberUrn, userId) {
-  try {
-    console.log('🔍 Fetching posts for member:', memberUrn, 'user:', userId);
-    
-    // FIXED: Get user's DMA token from database instead of environment
-    const userToken = await getUserDmaToken(userId);
-    
-    if (!userToken) {
-      throw new Error('User DMA token not found - user needs to complete DMA authentication');
-    }
+export async function handler(event, context) {
+  console.log("🔄 Sync user posts handler started at:", new Date().toISOString());
 
-    console.log('✅ Using user DMA token for API call');
-
-    // Use Member Changelog API to get recent posts
-    const response = await fetch(
-      `https://api.linkedin.com/rest/memberChangeLogs?q=memberAndApplication&count=50`,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${userToken}`, // FIXED: Use user's token
-          'LinkedIn-Version': '202312',
-          'X-Restli-Protocol-Version': '2.0.0'
-        }
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ LinkedIn API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorText
-      });
-      throw new Error(`LinkedIn API error: ${response.status} - ${errorText}`);
-    }
-
-    const data = await response.json();
-    console.log('✅ LinkedIn API response received:', {
-      elementsCount: data.elements?.length || 0
-    });
-
-    // Process changelog entries to extract posts
-    const posts = await processChangelogToPosts(data.elements || [], userToken);
-    
-    console.log(`📊 Processed ${posts.length} posts from changelog`);
-    return posts;
-
-  } catch (error) {
-    console.error('❌ Error fetching posts from LinkedIn:', error);
-    throw error;
+  // Handle CORS preflight
+  if (event.httpMethod === "OPTIONS") {
+    return {
+      statusCode: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      },
+      body: "",
+    };
   }
-}
 
-/**
- * Get user's DMA token from database
- */
-async function getUserDmaToken(userId) {
+  if (event.httpMethod !== "POST") {
+    return {
+      statusCode: 405,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+      body: JSON.stringify({ error: "Method not allowed" }),
+    };
+  }
+
   try {
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(
@@ -73,85 +41,383 @@ async function getUserDmaToken(userId) {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    console.log('🔑 Getting DMA token for user:', userId);
+    const requestBody = event.body ? JSON.parse(event.body) : {};
+    const { userId, syncAll = false } = requestBody;
 
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('dma_token, dma_token_expires_at, name')
-      .eq('id', userId)
-      .single();
+    console.log('📊 Sync request parameters:', { userId, syncAll });
 
-    if (error || !user) {
-      console.error('❌ User not found:', error);
-      return null;
-    }
+    let results = [];
 
-    if (!user.dma_token) {
-      console.error('❌ No DMA token found for user:', user.name);
-      return null;
-    }
-
-    // Check if token is expired
-    if (user.dma_token_expires_at) {
-      const expiresAt = new Date(user.dma_token_expires_at);
-      const now = new Date();
+    if (syncAll) {
+      // Sync all DMA-active users
+      console.log('🌐 Starting sync for all users');
       
-      if (now >= expiresAt) {
-        console.error('❌ DMA token expired for user:', user.name);
-        return null;
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('id, linkedin_dma_member_urn, dma_active, name')
+        .eq('dma_active', true);
+
+      if (usersError) {
+        throw new Error(`Failed to get users: ${usersError.message}`);
       }
+
+      console.log(`📋 Found ${users.length} DMA-active users to sync`);
+
+      for (const user of users) {
+        try {
+          console.log(`🔄 Syncing user: ${user.name} (${user.id})`);
+          const result = await syncUserPosts(supabase, user.id);
+          results.push({
+            userId: user.id,
+            userName: user.name,
+            success: true,
+            ...result
+          });
+        } catch (error) {
+          console.error(`❌ Sync failed for user ${user.id}:`, error.message);
+          results.push({
+            userId: user.id,
+            userName: user.name,
+            success: false,
+            error: error.message
+          });
+        }
+      }
+
+    } else if (userId) {
+      // Sync specific user
+      console.log(`👤 Starting sync for user: ${userId}`);
+      
+      try {
+        const result = await syncUserPosts(supabase, userId);
+        results.push({
+          userId,
+          success: true,
+          ...result
+        });
+      } catch (error) {
+        console.error(`❌ Sync failed for user ${userId}:`, error.message);
+        results.push({
+          userId,
+          success: false,
+          error: error.message
+        });
+      }
+
+    } else {
+      return {
+        statusCode: 400,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+        body: JSON.stringify({ error: "userId is required when not syncing all" }),
+      };
     }
 
-    console.log('✅ Valid DMA token found for user:', user.name);
-    return user.dma_token;
+    const successCount = results.filter(r => r.success).length;
+    const failureCount = results.filter(r => !r.success).length;
+
+    console.log(`✅ Sync completed: ${successCount} success, ${failureCount} failures`);
+
+    return {
+      statusCode: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+      body: JSON.stringify({
+        success: true,
+        totalProcessed: results.length,
+        successCount,
+        failureCount,
+        results,
+        timestamp: new Date().toISOString()
+      }),
+    };
 
   } catch (error) {
-    console.error('❌ Error getting user DMA token:', error);
-    return null;
+    console.error("❌ Sync user posts error:", error);
+    
+    return {
+      statusCode: 500,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+      body: JSON.stringify({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      }),
+    };
   }
 }
 
 /**
- * Process changelog entries to extract post data
+ * Sync posts for a specific user
  */
-async function processChangelogToPosts(changelogElements, userToken) {
-  const posts = [];
-  
-  console.log(`🔄 Processing ${changelogElements.length} changelog elements`);
+async function syncUserPosts(supabase, userId) {
+  console.log(`🔄 Starting posts sync for user: ${userId}`);
 
-  for (const element of changelogElements) {
-    try {
-      // Only process CREATE events for posts/articles
-      if (element.method !== 'CREATE') continue;
-      
-      // Check if it's a post or article
-      const isPost = element.resourceName?.includes('posts') || 
-                     element.resourceName?.includes('socialActions') ||
-                     element.resourceName?.includes('shares');
-      
-      if (!isPost) continue;
+  // Update sync status to 'syncing'
+  await supabase
+    .from('users')
+    .update({ 
+      posts_sync_status: 'syncing',
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', userId);
 
-      console.log('📝 Processing post element:', {
-        resourceName: element.resourceName,
-        method: element.method,
-        activityId: element.activityId
-      });
+  try {
+    // Get user's LinkedIn DMA info
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select(`
+        id, name, linkedin_dma_member_urn, dma_active,
+        linkedin_member_urn
+      `)
+      .eq('id', userId)
+      .single();
 
-      // Extract post data from the element
-      const post = await extractPostFromElement(element, userToken);
-      
-      if (post) {
-        posts.push(post);
-      }
-      
-    } catch (error) {
-      console.warn('⚠️ Error processing changelog element:', error);
-      // Continue processing other elements
+    if (userError || !user) {
+      throw new Error(`User not found: ${userError?.message || 'No user data'}`);
     }
-  }
 
-  console.log(`✅ Successfully processed ${posts.length} posts`);
-  return posts;
+    if (!user.dma_active) {
+      throw new Error('User does not have DMA access enabled');
+    }
+
+    console.log(`👤 User info:`, {
+      name: user.name,
+      dmaUrn: user.linkedin_dma_member_urn,
+      dmaActive: user.dma_active
+    });
+
+    // Get DMA token for this user
+    const dmaToken = await getDMATokenForUser(userId);
+    
+    if (!dmaToken) {
+      throw new Error('No DMA token available for user');
+    }
+
+    // Fetch posts from LinkedIn
+    console.log(`📡 Fetching posts from LinkedIn...`);
+    const posts = await fetchUserPostsFromLinkedIn(dmaToken, userId, user.linkedin_dma_member_urn);
+    
+    console.log(`📝 Fetched ${posts.length} posts for user ${userId}`);
+
+    // Store posts in database
+    let postsProcessed = 0;
+    let postsInserted = 0;
+    let postsUpdated = 0;
+    let errors = [];
+
+    for (const post of posts) {
+      try {
+        const { data, error } = await supabase
+          .from('post_cache')
+          .upsert({
+            user_id: userId,
+            post_urn: post.postUrn,
+            linkedin_post_id: post.linkedinPostId,
+            content: post.textPreview,
+            content_length: post.textPreview?.length || 0,
+            media_type: post.mediaType,
+            media_urls: post.mediaUrls || [],
+            hashtags: post.hashtags || [],
+            mentions: post.mentions || [],
+            visibility: post.visibility || 'PUBLIC',
+            published_at: new Date(post.createdAtMs).toISOString(),
+            likes_count: post.likesCount || 0,
+            comments_count: post.commentsCount || 0,
+            shares_count: post.sharesCount || 0,
+            impressions: post.impressions || 0,
+            clicks: post.clicks || 0,
+            saves_count: post.savesCount || 0,
+            engagement_rate: post.engagementRate || 0,
+            reach_score: post.reachScore || 0,
+            algorithm_score: post.algorithmScore || 0,
+            sentiment_score: post.sentimentScore || 0,
+            repurpose_eligible: post.repurposeEligible || false,
+            repurpose_date: post.repurposeDate,
+            repurposed_count: post.repurposedCount || 0,
+            performance_tier: post.performanceTier || 'UNKNOWN',
+            raw_data: post.rawData,
+            fetched_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id,post_urn',
+            ignoreDuplicates: false
+          })
+          .select('id');
+
+        if (!error) {
+          postsProcessed++;
+          // For simplicity, count as inserted (could be refined to detect actual inserts vs updates)
+          postsInserted++;
+        } else {
+          console.warn(`⚠️ Failed to store post ${post.postUrn}:`, error.message);
+          errors.push({
+            postUrn: post.postUrn,
+            error: error.message
+          });
+        }
+
+      } catch (postError) {
+        console.warn(`⚠️ Exception storing post ${post.postUrn}:`, postError.message);
+        errors.push({
+          postUrn: post.postUrn,
+          error: postError.message
+        });
+      }
+    }
+
+    // Update sync status to 'completed'
+    await supabase
+      .from('users')
+      .update({ 
+        posts_sync_status: 'completed',
+        last_posts_sync: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    const syncResult = {
+      postsProcessed,
+      postsInserted,
+      postsUpdated,
+      totalFetched: posts.length,
+      errorCount: errors.length,
+      errors: errors.slice(0, 5) // Limit error details
+    };
+
+    console.log(`✅ Sync completed for user ${userId}:`, syncResult);
+
+    return syncResult;
+
+  } catch (error) {
+    console.error(`❌ Sync error for user ${userId}:`, error);
+    
+    // Update sync status to 'failed'
+    await supabase
+      .from('users')
+      .update({ 
+        posts_sync_status: 'failed',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    throw error;
+  }
+}
+
+/**
+ * Get DMA token for user
+ * In a real implementation, this would fetch from your auth system
+ */
+async function getDMATokenForUser(userId) {
+  console.log(`🔑 Getting DMA token for user: ${userId}`);
+  
+  // TODO: Implement actual token retrieval from your auth system
+  // This could involve:
+  // 1. Decrypting stored tokens from database
+  // 2. Refreshing expired tokens
+  // 3. Fetching from secure token storage
+  
+  // For now, return a test token or environment variable
+  const testToken = process.env.LINKEDIN_DMA_TOKEN || process.env.LINKEDIN_ACCESS_TOKEN;
+  
+  if (!testToken) {
+    console.warn('⚠️ No DMA token available in environment');
+  }
+  
+  return testToken;
+}
+
+/**
+ * Fetch user posts from LinkedIn DMA APIs
+ */
+async function fetchUserPostsFromLinkedIn(userToken, userId, dmaUrn) {
+  console.log(`📡 Fetching posts from LinkedIn for user: ${userId}`);
+  console.log(`🔍 DMA URN: ${dmaUrn}`);
+  
+  try {
+    // Use LinkedIn changelog API to get recent activity
+    const changelogUrl = 'https://api.linkedin.com/v2/changelog';
+    
+    console.log(`📞 Calling LinkedIn changelog API...`);
+    
+    const changelogResponse = await fetch(changelogUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${userToken}`,
+        'LinkedIn-Version': '202312',
+        'X-Restli-Protocol-Version': '2.0.0'
+      }
+    });
+
+    console.log(`📊 LinkedIn API response status: ${changelogResponse.status}`);
+
+    if (!changelogResponse.ok) {
+      const errorText = await changelogResponse.text();
+      console.error('❌ LinkedIn API error response:', errorText);
+      throw new Error(`LinkedIn API error: ${changelogResponse.status} - ${errorText}`);
+    }
+
+    const changelogData = await changelogResponse.json();
+    console.log(`📋 Changelog response:`, {
+      hasElements: !!changelogData.elements,
+      elementsCount: changelogData.elements?.length || 0,
+      paging: changelogData.paging
+    });
+
+    if (!changelogData.elements || changelogData.elements.length === 0) {
+      console.log('📭 No changelog elements found');
+      return [];
+    }
+
+    const posts = [];
+
+    // Process changelog elements to extract posts
+    for (const element of changelogData.elements) {
+      try {
+        // Check if this element represents a post or article
+        const isPost = element.resourceName?.includes('posts') || 
+                       element.resourceName?.includes('socialActions') ||
+                       element.resourceName?.includes('shares') ||
+                       element.resourceName?.includes('ugcPosts');
+        
+        if (!isPost) {
+          continue;
+        }
+
+        console.log('📝 Processing post element:', {
+          resourceName: element.resourceName,
+          method: element.method,
+          activityId: element.activityId
+        });
+
+        // Extract post data from the element
+        const post = await extractPostFromElement(element, userToken);
+        
+        if (post) {
+          posts.push(post);
+        }
+        
+      } catch (error) {
+        console.warn('⚠️ Error processing changelog element:', error.message);
+        // Continue processing other elements
+      }
+    }
+
+    console.log(`✅ Successfully processed ${posts.length} posts from ${changelogData.elements.length} elements`);
+    return posts;
+
+  } catch (error) {
+    console.error('❌ Error fetching posts from LinkedIn:', error);
+    throw error;
+  }
 }
 
 /**
@@ -165,35 +431,42 @@ async function extractPostFromElement(element, userToken) {
     // Generate a post URN from the element
     const postUrn = element.resourceUri || 
                     `urn:li:activity:${element.activityId}` ||
-                    `urn:li:post:${element.id}`;
+                    `urn:li:post:${element.id}` ||
+                    `urn:li:share:${Date.now()}`;
 
-    // Extract text content
+    // Extract text content from various possible locations
     const textContent = activity.message?.text || 
                        activity.content?.text || 
-                       activity.commentary?.text || 
+                       activity.commentary?.text ||
+                       activity.shareText ||
+                       element.content?.text ||
                        '';
 
-    // Determine media type
-    let mediaType = 'NONE';
-    if (activity.content?.media) {
-      mediaType = 'IMAGE'; // Could be refined further
-    } else if (activity.content?.article) {
+    // Determine media type from content structure
+    let mediaType = 'TEXT';
+    if (activity.content?.media || element.content?.media) {
+      mediaType = 'IMAGE';
+    } else if (activity.content?.article || element.content?.article) {
       mediaType = 'ARTICLE';
+    } else if (activity.content?.video || element.content?.video) {
+      mediaType = 'VIDEO';
+    } else if (activity.content?.poll || element.content?.poll) {
+      mediaType = 'POLL';
     }
 
-    // Create post object
+    // Create post object with extracted data
     const post = {
       postUrn: postUrn,
-      linkedinPostId: element.activityId,
+      linkedinPostId: element.activityId || element.id,
       createdAtMs: new Date(createdAt).getTime(),
-      textPreview: textContent.substring(0, 500), // Limit to 500 chars
+      textPreview: textContent.substring(0, 500), // Limit to 500 chars for preview
       mediaType: mediaType,
-      mediaUrls: [],
+      mediaUrls: extractMediaUrls(activity.content || element.content),
       hashtags: extractHashtags(textContent),
       mentions: extractMentions(textContent),
-      visibility: 'PUBLIC', // Default assumption
+      visibility: 'PUBLIC', // Default assumption, could be refined
       
-      // Engagement metrics (would need separate API calls to get real data)
+      // Engagement metrics (initialized to 0 - would need separate API calls for real data)
       likesCount: 0,
       commentsCount: 0,
       sharesCount: 0,
@@ -202,7 +475,7 @@ async function extractPostFromElement(element, userToken) {
       savesCount: 0,
       engagementRate: 0,
       
-      // Algorithm scoring (would be calculated based on engagement)
+      // Algorithm scoring (would be calculated based on engagement and other factors)
       reachScore: 0,
       algorithmScore: 0,
       sentimentScore: 0,
@@ -213,7 +486,7 @@ async function extractPostFromElement(element, userToken) {
       repurposedCount: 0,
       performanceTier: 'UNKNOWN',
       
-      // Raw data for debugging
+      // Store raw data for debugging and future processing
       rawData: element
     };
 
@@ -221,7 +494,9 @@ async function extractPostFromElement(element, userToken) {
       postUrn: post.postUrn,
       createdAt: new Date(post.createdAtMs).toISOString(),
       textLength: post.textPreview.length,
-      mediaType: post.mediaType
+      mediaType: post.mediaType,
+      hasHashtags: post.hashtags.length > 0,
+      hasMentions: post.mentions.length > 0
     });
 
     return post;
@@ -233,12 +508,42 @@ async function extractPostFromElement(element, userToken) {
 }
 
 /**
+ * Extract media URLs from content object
+ */
+function extractMediaUrls(content) {
+  if (!content) return [];
+  
+  const urls = [];
+  
+  // Check for media in various content structures
+  if (content.media?.elements) {
+    content.media.elements.forEach(mediaElement => {
+      if (mediaElement.media?.identifiers) {
+        mediaElement.media.identifiers.forEach(identifier => {
+          if (identifier.identifier) {
+            urls.push(identifier.identifier);
+          }
+        });
+      }
+    });
+  }
+  
+  return urls;
+}
+
+/**
  * Extract hashtags from text
  */
 function extractHashtags(text) {
   if (!text) return [];
-  const hashtags = text.match(/#[\w]+/g) || [];
-  return hashtags.map(tag => tag.replace('#', ''));
+  
+  try {
+    const hashtags = text.match(/#[\w]+/g) || [];
+    return hashtags.map(tag => tag.replace('#', '').toLowerCase());
+  } catch (error) {
+    console.warn('⚠️ Error extracting hashtags:', error);
+    return [];
+  }
 }
 
 /**
@@ -246,9 +551,20 @@ function extractHashtags(text) {
  */
 function extractMentions(text) {
   if (!text) return [];
-  const mentions = text.match(/@[\w]+/g) || [];
-  return mentions.map(mention => mention.replace('@', ''));
+  
+  try {
+    const mentions = text.match(/@[\w]+/g) || [];
+    return mentions.map(mention => mention.replace('@', '').toLowerCase());
+  } catch (error) {
+    console.warn('⚠️ Error extracting mentions:', error);
+    return [];
+  }
 }
 
-// Export the updated function
-export { fetchUserPostsFromLinkedIn };
+// Export helper functions for potential reuse
+export { 
+  fetchUserPostsFromLinkedIn, 
+  extractPostFromElement, 
+  extractHashtags, 
+  extractMentions 
+};
