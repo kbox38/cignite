@@ -477,33 +477,42 @@ async function createOrUpdateUserEnhanced(profileInfo, accessToken, dmaUrn, isDm
     if (isDmaFlow) {
       console.log('🔍 DMA FLOW: Looking for existing user to link DMA data to...');
       
-      // FOR DMA FLOW: Try to find the most recently active user first
-      // This ensures we link DMA to the user who just completed basic OAuth
-      console.log('🔍 Step 1: Looking for most recent active user...');
+      // ENHANCED Step 1: Look for recent user with extended time window (30 minutes)
+      console.log('🔍 Step 1: Looking for most recent active user (extended window)...');
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      
       const { data: recentUsers, error: recentError } = await supabase
         .from('users')
         .select('*')
         .order('last_login', { ascending: false })
-        .limit(5);
+        .limit(10); // Increased from 5 to 10
 
       console.log('🔍 DEBUG: Recent users found:', recentUsers?.length || 0);
       
       if (recentUsers && recentUsers.length > 0) {
-        // Look for a user without DMA data who logged in recently (last 10 minutes)
-        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+        // Look for a user without DMA data who logged in recently (extended to 30 minutes)
         const candidateUser = recentUsers.find(user => 
           !user.dma_active && 
           !user.linkedin_dma_member_urn && 
-          user.last_login > tenMinutesAgo
+          user.last_login > thirtyMinutesAgo
         );
         
         if (candidateUser) {
           existingUser = candidateUser;
           console.log('✅ Found recent user to link DMA to:', existingUser.id, existingUser.name);
+        } else {
+          // FALLBACK: If no recent user without DMA, find the most recent user period
+          console.log('🔍 FALLBACK: Looking for any recent user...');
+          const fallbackUser = recentUsers.find(user => user.last_login > thirtyMinutesAgo);
+          
+          if (fallbackUser) {
+            existingUser = fallbackUser;
+            console.log('✅ Found fallback recent user:', existingUser.id, existingUser.name);
+          }
         }
       }
       
-      // Step 2: Fallback - look by DMA URN if no recent user found
+      // Step 2: Look by DMA URN if no recent user found
       if (!existingUser && dmaUrn) {
         console.log('🔍 Step 2: Looking up by DMA URN...');
         const { data: userByDmaUrn, error: dmaLookupError } = await supabase
@@ -530,6 +539,38 @@ async function createOrUpdateUserEnhanced(profileInfo, accessToken, dmaUrn, isDm
         if (userByLinkedinUrn) {
           existingUser = userByLinkedinUrn;
           console.log('✅ Found user by LinkedIn URN:', existingUser.id);
+        }
+      }
+
+      // ENHANCED Step 4: Look by email if we have a real email
+      if (!existingUser && profileInfo.email && !profileInfo.email.includes('linkedin-growth.app')) {
+        console.log('🔍 Step 4: Looking up by email...');
+        const { data: userByEmail, error: emailLookupError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', profileInfo.email)
+          .single();
+        
+        if (userByEmail) {
+          existingUser = userByEmail;
+          console.log('✅ Found user by email:', existingUser.id);
+        }
+      }
+
+      // ENHANCED Step 5: Last resort - find ANY user without DMA active
+      if (!existingUser) {
+        console.log('🔍 Step 5: Last resort - looking for any user without DMA...');
+        const { data: anyUserWithoutDma, error: anyUserError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('dma_active', false)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (anyUserWithoutDma) {
+          existingUser = anyUserWithoutDma;
+          console.log('✅ Found any user without DMA (last resort):', existingUser.id);
         }
       }
       
@@ -642,14 +683,47 @@ async function createOrUpdateUserEnhanced(profileInfo, accessToken, dmaUrn, isDm
       return updatedUser;
       
     } else {
-      console.log('📝 No existing user found - creating new user...');
+      console.log('📝 No existing user found...');
       
-      // Only create new users for Basic OAuth flow
-      // DMA flow should always link to existing user
+      // ENHANCED: For DMA flow, create a basic user if absolutely no user exists
+      // This handles edge cases where DMA flow happens first
       if (isDmaFlow) {
-        console.error('❌ DMA flow should not create new users - should link to existing account');
-        throw new Error('DMA flow failed to find existing user to link to');
+        console.log('🆕 DMA FLOW: Creating new user since none exists (edge case handling)...');
+        
+        const newUserData = {
+          email: profileInfo.email || `dma-user-${Date.now()}@linkedin-growth.app`,
+          name: profileInfo.name || 'LinkedIn User',
+          given_name: profileInfo.given_name || 'LinkedIn',
+          family_name: profileInfo.family_name || 'User',
+          avatar_url: profileInfo.picture,
+          linkedin_member_urn: profileInfo.linkedinUrn,
+          linkedin_dma_member_urn: dmaUrn,
+          account_status: 'active',
+          last_login: now,
+          created_at: now,
+          dma_active: true,  // Activate DMA immediately for edge case
+          dma_consent_date: now
+        };
+
+        console.log('🔍 DEBUG: New DMA user data:', JSON.stringify(newUserData, null, 2));
+
+        const { data: newUser, error: createError } = await supabase
+          .from('users')
+          .insert(newUserData)
+          .select('*')
+          .single();
+
+        if (createError) {
+          console.error('❌ Error creating DMA user:', createError);
+          throw createError;
+        }
+
+        console.log('✅ New DMA user created successfully (edge case)');
+        return newUser;
       }
+
+      // For Basic OAuth flow - standard new user creation
+      console.log('🆕 BASIC FLOW: Creating new user...');
       
       const newUserData = {
         email: profileInfo.email || `user-${Date.now()}@linkedin-growth.app`,
