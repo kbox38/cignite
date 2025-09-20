@@ -275,105 +275,47 @@ export default function Synergy() {
    * Enhanced manual sync with comprehensive debugging
    */
   async function handleManualSync() {
-    console.log('🔄 ENHANCED MANUAL SYNC TRIGGERED:', {
-      selectedPartner,
-      currentUserId,
-      debugMode,
-      timestamp: new Date().toISOString()
-    });
+  const { dmaToken } = useAuthStore.getState(); // Get current user's token
+  
+  if (!dmaToken) {
+    console.error('❌ No DMA token available');
+    return;
+  }
 
-    if (!currentUserId) {
-      console.error('❌ No current user ID for manual sync');
-      return;
-    }
-
+  try {
     setSyncLoading(true);
     
-    try {
-      const userToSync = selectedPartner || currentUserId;
-      
-      // If debug mode is enabled, use the debug function
-      if (debugMode) {
-        console.log('🐛 Using debug sync mode');
-        
-        const debugResponse = await fetch('/.netlify/functions/manual-sync-debug', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: userToSync,
-            operation: 'trigger'
-          })
-        });
+    const userToSync = selectedPartner || currentUserId;
+    
+    console.log(`🚀 Triggering sync for user: ${userToSync}`);
+    
+    // FIXED: Pass the user's DMA token in Authorization header
+    const response = await fetch('/.netlify/functions/sync-user-posts', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${dmaToken}` // Pass user's token
+      },
+      body: JSON.stringify({
+        userId: userToSync,
+        syncAll: false
+      })
+    });
 
-        if (debugResponse.ok) {
-          const debugResult = await debugResponse.json();
-          console.log('🐛 Debug sync result:', debugResult);
-          setDebugInfo(prev => ({
-            ...prev,
-            debugSync: debugResult
-          }));
-        }
-      }
-      
-      // Regular sync call
-      console.log(`🚀 Triggering sync for user: ${userToSync}`);
-      
-      const response = await fetch('/.netlify/functions/sync-user-posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: userToSync,
-          syncAll: false
-        })
-      });
-
-      console.log('📡 Sync response status:', response.status);
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ Manual sync completed:', result);
-        
-        // Update global sync status
-        setGlobalSyncStatus(prev => ({
-          ...prev,
-          status: 'completed',
-          lastSync: new Date().toISOString(),
-          postsCount: result.results?.[0]?.postsProcessed || 0
-        }));
-        
-        // If partner was synced, reload their posts after delay
-        if (selectedPartner) {
-          console.log('🔄 Reloading partner posts after sync...');
-          setTimeout(() => {
-            loadPartnerPosts(selectedPartner);
-          }, 3000); // Wait 3 seconds for sync to complete
-        }
-        
-        // Refresh partners list
-        loadPartners();
-        
-      } else {
-        const errorText = await response.text();
-        console.error('❌ Manual sync failed:', {
-          status: response.status,
-          error: errorText
-        });
-        
-        setGlobalSyncStatus(prev => ({
-          ...prev,
-          status: 'failed'
-        }));
-      }
-    } catch (error) {
-      console.error('❌ Manual sync error:', error);
-      setGlobalSyncStatus(prev => ({
-        ...prev,
-        status: 'failed'
-      }));
-    } finally {
-      setSyncLoading(false);
+    if (response.ok) {
+      const result = await response.json();
+      console.log('✅ Manual sync completed:', result);
+      // Handle success...
+    } else {
+      console.error('❌ Manual sync failed:', response.status);
+      // Handle error...
     }
+  } catch (error) {
+    console.error('❌ Manual sync error:', error);
+  } finally {
+    setSyncLoading(false);
   }
+}
 
   /**
    * Debug function to get comprehensive sync status

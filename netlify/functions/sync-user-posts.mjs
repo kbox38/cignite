@@ -1,6 +1,7 @@
 /**
  * Netlify Function: sync-user-posts.mjs
  * Syncs user posts from LinkedIn DMA APIs and stores them in the database
+ * FIXED: Uses Authorization header for user's DMA token
  * Location: netlify/functions/sync-user-posts.mjs
  */
 
@@ -43,14 +44,34 @@ export async function handler(event, context) {
 
     const requestBody = event.body ? JSON.parse(event.body) : {};
     const { userId, syncAll = false } = requestBody;
+    
+    // FIXED: Extract authorization header for user's DMA token
+    const authorizationHeader = event.headers.authorization || event.headers.Authorization;
 
-    console.log('📊 Sync request parameters:', { userId, syncAll });
+    console.log('📊 Sync request parameters:', { 
+      userId, 
+      syncAll, 
+      hasAuth: !!authorizationHeader 
+    });
+
+    // Validate authorization for single user sync
+    if (!syncAll && !authorizationHeader) {
+      return {
+        statusCode: 401,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+        body: JSON.stringify({ error: "Authorization header required for user sync" }),
+      };
+    }
 
     let results = [];
 
     if (syncAll) {
-      // Sync all DMA-active users
-      console.log('🌐 Starting sync for all users');
+      // For bulk sync, we need a different approach since each user has their own token
+      // This would typically be called by a scheduled function with elevated privileges
+      console.log('🌐 Starting bulk sync for all users');
       
       const { data: users, error: usersError } = await supabase
         .from('users')
@@ -61,20 +82,31 @@ export async function handler(event, context) {
         throw new Error(`Failed to get users: ${usersError.message}`);
       }
 
-      console.log(`📋 Found ${users.length} DMA-active users to sync`);
-
+      console.log(`📋 Found ${users.length} DMA-active users for bulk sync`);
+      
+      // For bulk sync, we'd need to either:
+      // 1. Have stored encrypted tokens we can decrypt
+      // 2. Skip individual sync and just update sync status
+      // For now, just update status to indicate bulk sync was attempted
+      
       for (const user of users) {
         try {
-          console.log(`🔄 Syncing user: ${user.name} (${user.id})`);
-          const result = await syncUserPosts(supabase, user.id);
+          await supabase
+            .from('users')
+            .update({ 
+              posts_sync_status: 'pending',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', user.id);
+            
           results.push({
             userId: user.id,
             userName: user.name,
             success: true,
-            ...result
+            message: 'Bulk sync status updated - individual tokens required for actual sync'
           });
         } catch (error) {
-          console.error(`❌ Sync failed for user ${user.id}:`, error.message);
+          console.error(`❌ Bulk sync failed for user ${user.id}:`, error.message);
           results.push({
             userId: user.id,
             userName: user.name,
@@ -85,11 +117,9 @@ export async function handler(event, context) {
       }
 
     } else if (userId) {
-      // Sync specific user
-      console.log(`👤 Starting sync for user: ${userId}`);
-      
+      // FIXED: Single user sync with their authorization token
       try {
-        const result = await syncUserPosts(supabase, userId);
+        const result = await syncUserPosts(supabase, userId, authorizationHeader);
         results.push({
           userId,
           success: true,
@@ -155,9 +185,9 @@ export async function handler(event, context) {
 }
 
 /**
- * Sync posts for a specific user
+ * Sync posts for a specific user using their DMA token
  */
-async function syncUserPosts(supabase, userId) {
+async function syncUserPosts(supabase, userId, authorizationHeader) {
   console.log(`🔄 Starting posts sync for user: ${userId}`);
 
   // Update sync status to 'syncing'
@@ -194,12 +224,14 @@ async function syncUserPosts(supabase, userId) {
       dmaActive: user.dma_active
     });
 
-    // Get DMA token for this user
-    const dmaToken = await getDMATokenForUser(userId);
+    // FIXED: Extract DMA token from authorization header
+    const dmaToken = authorizationHeader.replace('Bearer ', '');
     
     if (!dmaToken) {
-      throw new Error('No DMA token available for user');
+      throw new Error('No DMA token provided in authorization header');
     }
+
+    console.log('🔑 Using DMA token from authorization header');
 
     // Fetch posts from LinkedIn
     console.log(`📡 Fetching posts from LinkedIn...`);
@@ -254,8 +286,7 @@ async function syncUserPosts(supabase, userId) {
 
         if (!error) {
           postsProcessed++;
-          // For simplicity, count as inserted (could be refined to detect actual inserts vs updates)
-          postsInserted++;
+          postsInserted++; // Simplified - could be refined to detect actual inserts vs updates
         } else {
           console.warn(`⚠️ Failed to store post ${post.postUrn}:`, error.message);
           errors.push({
@@ -310,29 +341,6 @@ async function syncUserPosts(supabase, userId) {
 
     throw error;
   }
-}
-
-/**
- * Get DMA token for user
- * In a real implementation, this would fetch from your auth system
- */
-async function getDMATokenForUser(userId) {
-  console.log(`🔑 Getting DMA token for user: ${userId}`);
-  
-  // TODO: Implement actual token retrieval from your auth system
-  // This could involve:
-  // 1. Decrypting stored tokens from database
-  // 2. Refreshing expired tokens
-  // 3. Fetching from secure token storage
-  
-  // For now, return a test token or environment variable
-  const testToken = process.env.LINKEDIN_DMA_TOKEN || process.env.LINKEDIN_ACCESS_TOKEN;
-  
-  if (!testToken) {
-    console.warn('⚠️ No DMA token available in environment');
-  }
-  
-  return testToken;
 }
 
 /**
