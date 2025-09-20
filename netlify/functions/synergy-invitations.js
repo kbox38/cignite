@@ -225,7 +225,70 @@ async function acceptInvitation(supabase, invitationId, userId) {
     throw new Error('Invitation not found or already processed');
   }
 
-  // Update invitation status
+  // Create partnership (ensure consistent ordering: smaller ID first)
+  const aUserId = invitation.from_user_id < invitation.to_user_id ? 
+    invitation.from_user_id : invitation.to_user_id;
+  const bUserId = invitation.from_user_id < invitation.to_user_id ? 
+    invitation.to_user_id : invitation.from_user_id;
+
+  // ✅ FIX: Check if partnership already exists before creating
+  const { data: existingPartnership } = await supabase
+    .from('synergy_partners')
+    .select('id, partnership_status')
+    .eq('a_user_id', aUserId)
+    .eq('b_user_id', bUserId)
+    .single();
+
+  let partnership = existingPartnership;
+
+  if (!existingPartnership) {
+    // Partnership doesn't exist, create it
+    console.log(`Creating new partnership between ${aUserId} and ${bUserId}`);
+    
+    const { data: newPartnership, error: partnershipError } = await supabase
+      .from('synergy_partners')
+      .insert({
+        a_user_id: aUserId,
+        b_user_id: bUserId,
+        partnership_status: 'active',
+        partnership_type: 'mutual'
+      })
+      .select()
+      .single();
+
+    if (partnershipError) {
+      throw new Error(`Failed to create partnership: ${partnershipError.message}`);
+    }
+
+    partnership = newPartnership;
+    console.log(`✅ New partnership created: ${partnership.id}`);
+  } else {
+    // Partnership exists, reactivate if needed
+    console.log(`Partnership already exists: ${existingPartnership.id}, status: ${existingPartnership.partnership_status}`);
+    
+    if (existingPartnership.partnership_status !== 'active') {
+      const { data: updatedPartnership, error: updateError } = await supabase
+        .from('synergy_partners')
+        .update({ 
+          partnership_status: 'active',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingPartnership.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        throw new Error(`Failed to reactivate partnership: ${updateError.message}`);
+      }
+
+      partnership = updatedPartnership;
+      console.log(`✅ Partnership reactivated: ${partnership.id}`);
+    } else {
+      console.log(`✅ Partnership already active: ${partnership.id}`);
+    }
+  }
+
+  // Update invitation status AFTER successful partnership handling
   const { error: updateError } = await supabase
     .from('synergy_invitations')
     .update({ 
@@ -238,28 +301,7 @@ async function acceptInvitation(supabase, invitationId, userId) {
     throw new Error(`Failed to update invitation: ${updateError.message}`);
   }
 
-  // Create partnership (ensure consistent ordering: smaller ID first)
-  const aUserId = invitation.from_user_id < invitation.to_user_id ? 
-    invitation.from_user_id : invitation.to_user_id;
-  const bUserId = invitation.from_user_id < invitation.to_user_id ? 
-    invitation.to_user_id : invitation.from_user_id;
-
-  const { data: partnership, error: partnershipError } = await supabase
-    .from('synergy_partners')
-    .insert({
-      a_user_id: aUserId,
-      b_user_id: bUserId,
-      partnership_status: 'active',
-      partnership_type: 'mutual'
-    })
-    .select()
-    .single();
-
-  if (partnershipError) {
-    throw new Error(`Failed to create partnership: ${partnershipError.message}`);
-  }
-
-  console.log(`✅ Partnership created between users ${aUserId} and ${bUserId}`);
+  console.log(`✅ Invitation ${invitationId} accepted, partnership: ${partnership.id}`);
 
   return {
     statusCode: 200,
@@ -270,7 +312,7 @@ async function acceptInvitation(supabase, invitationId, userId) {
     body: JSON.stringify({
       success: true,
       partnership,
-      message: "Partnership created successfully"
+      message: existingPartnership ? "Partnership reactivated successfully" : "Partnership created successfully"
     }),
   };
 }
