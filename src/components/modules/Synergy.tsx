@@ -867,43 +867,6 @@ const Synergy: React.FC = () => {
                           </div>
                         )}
                       </div>
-
-                      {/* Engagement Metrics */}
-                      <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                        <div className="flex items-center space-x-4">
-                          <div className="flex items-center space-x-1 text-red-500">
-                            <Heart className="h-4 w-4" />
-                            <span className="text-sm">{formatNumber(post.likesCount)}</span>
-                          </div>
-                          <div className="flex items-center space-x-1 text-blue-500">
-                            <MessageSquare className="h-4 w-4" />
-                            <span className="text-sm">{formatNumber(post.commentsCount)}</span>
-                          </div>
-                          <div className="flex items-center space-x-1 text-green-500">
-                            <Share className="h-4 w-4" />
-                            <span className="text-sm">{formatNumber(post.sharesCount)}</span>
-                          </div>
-                          {post.impressions && (
-                            <div className="flex items-center space-x-1 text-purple-500">
-                              <Eye className="h-4 w-4" />
-                              <span className="text-sm">{formatNumber(post.impressions)}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Performance Tier */}
-                        {post.performanceTier && post.performanceTier !== 'UNKNOWN' && (
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            post.performanceTier === 'HIGH' 
-                              ? 'bg-green-100 text-green-800'
-                              : post.performanceTier === 'MEDIUM'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {post.performanceTier} Performance
-                          </span>
-                        )}
-                      </div>
                     </motion.div>
                   ))}
                 </div>
