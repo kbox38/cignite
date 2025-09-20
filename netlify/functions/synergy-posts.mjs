@@ -1,5 +1,5 @@
 // netlify/functions/synergy-posts.mjs
-// Fixed synergy-posts function with correct LinkedIn DMA API calls
+// Fetch real LinkedIn posts using the same method as PostPulse
 
 export async function handler(event, context) {
   const startTime = Date.now();
@@ -41,7 +41,7 @@ export async function handler(event, context) {
 
   try {
     const { authorization } = event.headers;
-    const { partnerUserId, limit = "5", currentUserId } = event.queryStringParameters || {};
+    const { partnerUserId, limit = "3", currentUserId } = event.queryStringParameters || {};
 
     console.log("=== SYNERGY POSTS DEBUG ===");
     console.log("🔍 Query Parameters:", {
@@ -90,10 +90,16 @@ export async function handler(event, context) {
 
     // If no cached posts or cache is stale, fetch from LinkedIn
     if (!cachedPosts || isCacheStale(cachedPosts.fetchedAt)) {
-      console.log('🔄 Fetching fresh posts from LinkedIn...');
+      console.log('🔄 Fetching fresh posts from LinkedIn using PostPulse method...');
       
       try {
-        const freshPosts = await fetchPostsFromLinkedIn(token, partnerUserId, parseInt(limit));
+        // Get partner's token to fetch their posts
+        const partnerToken = await getPartnerToken(partnerUserId);
+        if (!partnerToken) {
+          throw new Error('Partner token not found - partner may not have completed DMA authentication');
+        }
+
+        const freshPosts = await fetchPartnerPostsFromLinkedInSnapshot(partnerToken, partnerUserId, parseInt(limit));
         console.log('✅ Fresh posts fetched:', freshPosts.length);
         
         // Cache the posts
@@ -184,251 +190,219 @@ export async function handler(event, context) {
 }
 
 /**
- * Fetch posts from LinkedIn DMA API with correct endpoint
+ * Fetch partner posts using LinkedIn Snapshot API (EXACT same method as PostPulse)
  */
-async function fetchPostsFromLinkedIn(token, partnerUserId, limit = 5) {
+async function fetchPartnerPostsFromLinkedInSnapshot(userToken, userId, limit = 3) {
+  console.log(`📡 Fetching posts from LinkedIn Snapshot API for user: ${userId}`);
+  
   try {
-    console.log('🔗 Fetching posts from LinkedIn for user:', partnerUserId);
-
-    // First, get the partner's DMA member URN
-    const memberUrn = await getPartnerMemberUrn(partnerUserId);
-    if (!memberUrn) {
-      throw new Error('Partner member URN not found');
-    }
-
-    console.log('👤 Partner member URN:', memberUrn);
-
-    // Try multiple approaches to get posts data
-    const posts = [];
+    // EXACT same API call as PostPulse
+    const snapshotUrl = 'https://api.linkedin.com/rest/memberSnapshotData?q=criteria&domain=MEMBER_SHARE_INFO';
     
-    // Approach 1: Try Member Snapshot with MEMBER_SHARE_INFO domain
-    try {
-      console.log('🔍 Trying Member Snapshot API...');
-      const snapshotPosts = await fetchPostsFromSnapshot(token, memberUrn, limit);
-      posts.push(...snapshotPosts);
-      console.log(`📊 Found ${snapshotPosts.length} posts from snapshot`);
-    } catch (snapshotError) {
-      console.warn('⚠️ Snapshot API failed:', snapshotError.message);
+    console.log(`📞 Calling LinkedIn Snapshot API: ${snapshotUrl}`);
+    
+    const response = await fetch(snapshotUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${userToken}`,
+        'LinkedIn-Version': '202312',
+        'X-Restli-Protocol-Version': '2.0.0'
+      }
+    });
+
+    console.log(`📊 LinkedIn Snapshot API response status: ${response.status}`);
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.log('📭 No posts found in Snapshot API (404 - normal for new users)');
+        return [];
+      }
+      
+      const errorText = await response.text();
+      console.error('❌ LinkedIn Snapshot API error response:', errorText);
+      throw new Error(`LinkedIn Snapshot API error: ${response.status} - ${errorText}`);
     }
 
-    // Approach 2: Try Member Changelog if snapshot failed
-    if (posts.length === 0) {
+    const data = await response.json();
+    console.log(`📋 Snapshot API response:`, {
+      hasElements: !!data.elements,
+      elementsCount: data.elements?.length || 0,
+      firstElementDomain: data.elements?.[0]?.snapshotDomain,
+      snapshotDataCount: data.elements?.[0]?.snapshotData?.length || 0
+    });
+
+    if (!data.elements || !data.elements[0] || !data.elements[0].snapshotData) {
+      console.log('📭 No snapshot data found for MEMBER_SHARE_INFO domain');
+      return [];
+    }
+
+    const shareInfo = data.elements[0].snapshotData;
+    console.log(`📝 Processing ${shareInfo.length} posts from snapshot data`);
+
+    const posts = [];
+
+    // Process snapshot data to extract posts (EXACT same logic as PostPulse)
+    for (let index = 0; index < Math.min(shareInfo.length, 50); index++) {
       try {
-        console.log('🔍 Trying Member Changelog API...');
-        const changelogPosts = await fetchPostsFromChangelog(token, memberUrn, limit);
-        posts.push(...changelogPosts);
-        console.log(`📊 Found ${changelogPosts.length} posts from changelog`);
-      } catch (changelogError) {
-        console.warn('⚠️ Changelog API failed:', changelogError.message);
+        const item = shareInfo[index];
+        const post = await extractPostFromSnapshotItem(item, index);
+        
+        if (post) {
+          posts.push(post);
+          
+          // Limit to latest posts for synergy partners
+          if (posts.length >= limit) {
+            break;
+          }
+        }
+        
+      } catch (error) {
+        console.warn(`⚠️ Error processing snapshot item ${index}:`, error.message);
+        // Continue processing other items
       }
     }
 
-    // If still no posts, create some demo data
-    if (posts.length === 0) {
-      console.log('📝 No posts found via API, creating demo posts');
-      const demoPosts = createDemoPosts(partnerUserId);
-      posts.push(...demoPosts);
-    }
-
-    console.log(`✅ Total posts processed: ${posts.length}`);
+    console.log(`✅ Successfully processed ${posts.length} posts from ${shareInfo.length} snapshot items`);
     
-    // Sort posts by creation date (newest first)
+    // Sort by date (newest first) and return limited results
     posts.sort((a, b) => b.createdAtMs - a.createdAtMs);
-    
     return posts.slice(0, limit);
 
   } catch (error) {
-    console.error('❌ Failed to fetch posts from LinkedIn:', error);
-    
-    // Return demo posts instead of throwing error
-    console.log('🔄 Returning demo posts due to API error');
-    return createDemoPosts(partnerUserId).slice(0, limit);
+    console.error('❌ Error fetching posts from LinkedIn Snapshot API:', error);
+    throw error;
   }
 }
 
 /**
- * Fetch posts from Member Snapshot API
+ * Extract post data from LinkedIn Snapshot item (EXACT same logic as PostPulse)
  */
-async function fetchPostsFromSnapshot(token, memberUrn, limit = 5) {
-  const snapshotResponse = await fetch(
-    `https://api.linkedin.com/rest/memberSnapshots?q=criteria&profiles=${encodeURIComponent(memberUrn)}&domains=MEMBER_SHARE_INFO`,
-    {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'LinkedIn-Version': '202405'
-      }
-    }
-  );
-
-  if (!snapshotResponse.ok) {
-    const errorText = await snapshotResponse.text();
-    throw new Error(`Snapshot API error: ${snapshotResponse.status} ${snapshotResponse.statusText} - ${errorText}`);
-  }
-
-  const snapshotData = await snapshotResponse.json();
-  console.log('📊 Snapshot response:', {
-    hasElements: !!snapshotData.elements,
-    elementsCount: snapshotData.elements?.length || 0
-  });
-
-  if (!snapshotData.elements || snapshotData.elements.length === 0) {
-    return [];
-  }
-
-  // Process snapshot data to extract posts
-  const posts = [];
-  
-  for (const element of snapshotData.elements) {
-    if (element.snapshotData && element.snapshotData.length > 0) {
-      for (const snapshot of element.snapshotData) {
-        try {
-          // Parse the snapshot data
-          const postData = typeof snapshot === 'string' ? JSON.parse(snapshot) : snapshot;
-          
-          if (postData.shareUrn || postData.ugcPostUrn || postData.activityUrn) {
-            const processedPost = processPostData(postData);
-            if (processedPost) {
-              posts.push(processedPost);
-            }
-          }
-        } catch (parseError) {
-          console.warn('⚠️ Failed to parse post data:', parseError.message);
-        }
-      }
-    }
-  }
-
-  return posts;
-}
-
-/**
- * Fetch posts from Member Changelog API
- */
-async function fetchPostsFromChangelog(token, memberUrn, limit = 5) {
-  const changelogResponse = await fetch(
-    `https://api.linkedin.com/rest/memberChangelog?q=criteria&profiles=${encodeURIComponent(memberUrn)}&count=${limit}`,
-    {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'LinkedIn-Version': '202405'
-      }
-    }
-  );
-
-  if (!changelogResponse.ok) {
-    const errorText = await changelogResponse.text();
-    throw new Error(`Changelog API error: ${changelogResponse.status} ${changelogResponse.statusText} - ${errorText}`);
-  }
-
-  const changelogData = await changelogResponse.json();
-  console.log('📊 Changelog response:', {
-    hasElements: !!changelogData.elements,
-    elementsCount: changelogData.elements?.length || 0
-  });
-
-  if (!changelogData.elements || changelogData.elements.length === 0) {
-    return [];
-  }
-
-  // Process changelog data to extract posts
-  const posts = [];
-  
-  for (const element of changelogData.elements) {
-    try {
-      if (element.changelogData) {
-        const changeData = typeof element.changelogData === 'string' ? 
-          JSON.parse(element.changelogData) : element.changelogData;
-        
-        if (changeData.entityUrn && changeData.entityUrn.includes('share') || 
-            changeData.entityUrn && changeData.entityUrn.includes('ugcPost')) {
-          const processedPost = processPostData(changeData);
-          if (processedPost) {
-            posts.push(processedPost);
-          }
-        }
-      }
-    } catch (parseError) {
-      console.warn('⚠️ Failed to parse changelog data:', parseError.message);
-    }
-  }
-
-  return posts;
-}
-
-/**
- * Process individual post data with full text extraction
- */
-function processPostData(postData) {
+async function extractPostFromSnapshotItem(item, index) {
   try {
-    const postUrn = postData.shareUrn || postData.ugcPostUrn || postData.activityUrn || postData.entityUrn;
-    const createdAtMs = postData.createdAt || postData.created?.time || postData.createdTime || Date.now();
-    
-    // Extract text content (both preview and full)
-    let textPreview = '';
-    let fullText = '';
-    
-    if (postData.text) {
-      fullText = postData.text;
-    } else if (postData.commentary) {
-      fullText = postData.commentary;
-    } else if (postData.content && postData.content.commentary) {
-      fullText = postData.content.commentary;
-    } else if (postData.description) {
-      fullText = postData.description;
+    // ENHANCED: Try multiple field name variations for content (same as PostPulse)
+    const content = 
+      item['ShareCommentary'] ||  // LinkedIn's actual field name
+      item['Commentary'] || 
+      item['Share Commentary'] ||
+      item['comment'] || 
+      item['content'] || 
+      item['text'] ||
+      item['shareCommentary'] ||
+      item['post_content'] ||
+      '';
+
+    // Only process items with content
+    if (!content || content.trim().length === 0) {
+      return null;
     }
 
-    textPreview = fullText.length > 200 ? fullText.substring(0, 200) + '...' : fullText;
+    // ENHANCED: Try multiple field name variations for URL
+    const shareUrl = 
+      item['ShareLink'] ||       // LinkedIn's actual field name
+      item['SharedUrl'] ||       // Alternative LinkedIn field
+      item['Share URL'] || 
+      item['share_url'] || 
+      item['shareUrl'] || 
+      item['URL'] || 
+      item['url'] ||
+      item['permalink'] ||
+      item['link'] ||
+      '';
 
-    // Extract media type
+    // Extract date (EXACT same logic as PostPulse)
+    let shareDate = 
+      item['Share Date'] ||
+      item['Date'] ||
+      item['created_at'] ||
+      item['timestamp'] ||
+      item['shareDate'];
+
+    // Convert date to timestamp
+    let createdAtMs;
+    if (shareDate) {
+      if (typeof shareDate === 'string') {
+        createdAtMs = new Date(shareDate).getTime();
+      } else if (typeof shareDate === 'number') {
+        createdAtMs = shareDate;
+      } else {
+        createdAtMs = Date.now();
+      }
+    } else {
+      createdAtMs = Date.now();
+    }
+
+    // ENHANCED: Extract media information (same as PostPulse)
+    const mediaUrl = 
+      item['MediaUrl'] ||        // LinkedIn's media field
+      item['Media URL'] ||
+      item['media_url'] ||
+      item['mediaUrl'] ||
+      item['image'] ||
+      item['ImageUrl'] ||
+      '';
+
+    // Determine media type from URL or field
     let mediaType = 'TEXT';
-    if (postData.content) {
-      if (postData.content.media) {
+    if (mediaUrl) {
+      const urlLower = mediaUrl.toLowerCase();
+      if (urlLower.includes('image') || urlLower.match(/\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i)) {
         mediaType = 'IMAGE';
-      } else if (postData.content.article) {
-        mediaType = 'ARTICLE';
-      } else if (postData.content.video) {
+      } else if (urlLower.includes('video') || urlLower.match(/\.(mp4|mov|avi|wmv|webm)(\?|$)/i)) {
         mediaType = 'VIDEO';
+      } else if (urlLower.match(/\.(pdf|doc|docx|ppt|pptx)(\?|$)/i)) {
+        mediaType = 'DOCUMENT';
+      } else {
+        mediaType = 'ARTICLE';
       }
     }
 
-    // Extract engagement metrics
-    const engagement = postData.socialDetail || postData.engagement || {};
+    // Extract engagement metrics (same as PostPulse)
+    const likesCount = parseInt(item['LikesCount'] || item['Likes Count'] || item['likes'] || '0');
+    const commentsCount = parseInt(item['CommentsCount'] || item['Comments Count'] || item['comments'] || '0');
+    const sharesCount = parseInt(item['SharesCount'] || item['Shares Count'] || item['shares'] || '0');
+
+    // Extract hashtags from content
+    const hashtags = extractHashtags(content);
     
-    // Extract hashtags from text
-    const hashtags = extractHashtags(fullText);
-    
-    // Extract mentions from text
-    const mentions = extractMentions(fullText);
+    // Extract mentions from content
+    const mentions = extractMentions(content);
+
+    // Generate post URN (similar to PostPulse)
+    const postUrn = shareUrl ? 
+      `urn:li:activity:${shareUrl.split('/').pop()}` : 
+      `urn:li:activity:${Date.now()}-${index}`;
 
     // Generate LinkedIn post ID for external link
-    const linkedinPostId = generateLinkedInPostId(postUrn);
+    const linkedinPostId = shareUrl ? shareUrl.split('/').pop() : null;
+
+    // Create full text and preview (same as PostPulse)
+    const fullText = content;
+    const textPreview = fullText.length > 200 ? fullText.substring(0, 200) + '...' : fullText;
 
     const processedPost = {
       postUrn: postUrn,
       linkedinPostId: linkedinPostId,
-      createdAtMs: typeof createdAtMs === 'number' ? createdAtMs : new Date(createdAtMs).getTime(),
-      textPreview: textPreview || 'No content available',
-      fullText: fullText || 'No content available',
+      createdAtMs: createdAtMs,
+      textPreview: textPreview,
+      fullText: fullText, // IMPORTANT: Include full text for modal
       mediaType: mediaType,
       hashtags: hashtags,
       mentions: mentions,
-      visibility: postData.visibility || 'PUBLIC',
-      likesCount: engagement.numLikes || engagement.likes || Math.floor(Math.random() * 50),
-      commentsCount: engagement.numComments || engagement.comments || Math.floor(Math.random() * 20),
-      sharesCount: engagement.numShares || engagement.shares || Math.floor(Math.random() * 10),
-      impressions: engagement.numViews || engagement.impressions || Math.floor(Math.random() * 1000),
-      clicks: engagement.numClicks || engagement.clicks || Math.floor(Math.random() * 100),
-      savesCount: engagement.numSaves || Math.floor(Math.random() * 5),
-      engagementRate: calculateEngagementRate(engagement),
-      reachScore: engagement.numViews || Math.floor(Math.random() * 1000),
-      algorithmScore: calculateAlgorithmScore(engagement),
+      visibility: item['Visibility'] || 'PUBLIC',
+      likesCount: likesCount,
+      commentsCount: commentsCount,
+      sharesCount: sharesCount,
+      impressions: likesCount + commentsCount + sharesCount, // Approximate
+      clicks: 0,
+      savesCount: 0,
+      engagementRate: calculateEngagementRate(likesCount, commentsCount, sharesCount),
+      reachScore: likesCount + commentsCount + sharesCount,
+      algorithmScore: calculateAlgorithmScore(likesCount, commentsCount, sharesCount),
       sentimentScore: 0,
       repurposeEligible: isRepurposeEligible(createdAtMs),
       repurposeDate: getRepurposeDate(createdAtMs),
-      performanceTier: calculatePerformanceTier(engagement),
-      rawData: postData,
+      performanceTier: 'UNKNOWN', // Don't show performance indicators
+      rawData: item,
       fetchedAt: new Date().toISOString()
     };
 
@@ -438,7 +412,8 @@ function processPostData(postData) {
       fullTextLength: processedPost.fullText?.length || 0,
       textPreviewLength: processedPost.textPreview?.length || 0,
       mediaType: processedPost.mediaType,
-      createdAt: new Date(processedPost.createdAtMs).toISOString()
+      createdAt: new Date(processedPost.createdAtMs).toISOString(),
+      engagement: `${likesCount}/${commentsCount}/${sharesCount}`
     });
 
     return processedPost;
@@ -450,97 +425,7 @@ function processPostData(postData) {
 }
 
 /**
- * Create demo posts when API fails
- */
-function createDemoPosts(partnerUserId) {
-  const now = Date.now();
-  const demoPosts = [
-    {
-      postUrn: `urn:li:activity:demo-${Date.now()}-1`,
-      linkedinPostId: null,
-      createdAtMs: now - (2 * 60 * 60 * 1000), // 2 hours ago
-      textPreview: "Just wrapped up an amazing project with my team! The collaboration and innovation we achieved together was incredible. Working with such talented people always pushes me to...",
-      fullText: "Just wrapped up an amazing project with my team! The collaboration and innovation we achieved together was incredible. Working with such talented people always pushes me to be better. Grateful for the opportunity to learn and grow. What's your secret to successful teamwork? I'd love to hear your thoughts! #TeamWork #Innovation #Growth #Collaboration",
-      mediaType: 'TEXT',
-      hashtags: ['TeamWork', 'Innovation', 'Growth', 'Collaboration'],
-      mentions: [],
-      visibility: 'PUBLIC',
-      likesCount: 0,
-      commentsCount: 0,
-      sharesCount: 0,
-      impressions: 0,
-      clicks: 0,
-      savesCount: 0,
-      engagementRate: 0,
-      reachScore: 0,
-      algorithmScore: 0,
-      sentimentScore: 0,
-      repurposeEligible: false,
-      repurposeDate: new Date(now + 29 * 24 * 60 * 60 * 1000).toISOString(),
-      performanceTier: 'UNKNOWN',
-      rawData: {},
-      fetchedAt: new Date().toISOString()
-    },
-    {
-      postUrn: `urn:li:activity:demo-${Date.now()}-2`,
-      linkedinPostId: null,
-      createdAtMs: now - (5 * 60 * 60 * 1000), // 5 hours ago
-      textPreview: "Excited to share some insights from the latest industry conference! The keynote on AI and future of work was particularly thought-provoking. Key takeaways...",
-      fullText: "Excited to share some insights from the latest industry conference! The keynote on AI and future of work was particularly thought-provoking. Key takeaways:\n\n1. AI will augment, not replace human creativity\n2. Continuous learning is more important than ever\n3. Emotional intelligence remains uniquely human\n\nWhat trends are you seeing in your industry? #AI #FutureOfWork #Learning #EmotionalIntelligence",
-      mediaType: 'TEXT',
-      hashtags: ['AI', 'FutureOfWork', 'Learning', 'EmotionalIntelligence'],
-      mentions: [],
-      visibility: 'PUBLIC',
-      likesCount: 0,
-      commentsCount: 0,
-      sharesCount: 0,
-      impressions: 0,
-      clicks: 0,
-      savesCount: 0,
-      engagementRate: 0,
-      reachScore: 0,
-      algorithmScore: 0,
-      sentimentScore: 0,
-      repurposeEligible: false,
-      repurposeDate: new Date(now + 27 * 24 * 60 * 60 * 1000).toISOString(),
-      performanceTier: 'UNKNOWN',
-      rawData: {},
-      fetchedAt: new Date().toISOString()
-    },
-    {
-      postUrn: `urn:li:activity:demo-${Date.now()}-3`,
-      linkedinPostId: null,
-      createdAtMs: now - (8 * 60 * 60 * 1000), // 8 hours ago
-      textPreview: "Monday motivation: Sometimes the best ideas come from the most unexpected places. Last week, a casual conversation with a stranger at a coffee shop...",
-      fullText: "Monday motivation: Sometimes the best ideas come from the most unexpected places. Last week, a casual conversation with a stranger at a coffee shop sparked a solution to a problem I'd been wrestling with for weeks.\n\nReminder to always stay open to new perspectives and conversations. You never know where inspiration will strike! ☕️✨\n\n#MondayMotivation #Inspiration #Networking #Ideas #Coffee",
-      mediaType: 'TEXT',
-      hashtags: ['MondayMotivation', 'Inspiration', 'Networking', 'Ideas', 'Coffee'],
-      mentions: [],
-      visibility: 'PUBLIC',
-      likesCount: 0,
-      commentsCount: 0,
-      sharesCount: 0,
-      impressions: 0,
-      clicks: 0,
-      savesCount: 0,
-      engagementRate: 0,
-      reachScore: 0,
-      algorithmScore: 0,
-      sentimentScore: 0,
-      repurposeEligible: false,
-      repurposeDate: new Date(now + 23 * 24 * 60 * 60 * 1000).toISOString(),
-      performanceTier: 'UNKNOWN',
-      rawData: {},
-      fetchedAt: new Date().toISOString()
-    }
-  ];
-
-  console.log(`📝 Created ${demoPosts.length} demo posts for partner: ${partnerUserId}`);
-  return demoPosts;
-}
-
-/**
- * Helper functions
+ * Helper functions (same as PostPulse)
  */
 function extractHashtags(text) {
   if (!text) return [];
@@ -554,26 +439,14 @@ function extractMentions(text) {
   return mentions ? mentions.map(mention => mention.substring(1)) : [];
 }
 
-function generateLinkedInPostId(postUrn) {
-  if (!postUrn) return null;
-  // Extract activity ID from URN for LinkedIn URL
-  const match = postUrn.match(/urn:li:activity:(\d+)/);
-  return match ? match[1] : null;
+function calculateEngagementRate(likes, comments, shares) {
+  const total = likes + comments + shares;
+  const estimated_views = Math.max(total * 10, 100); // Estimate views
+  return Math.round((total / estimated_views) * 100 * 100) / 100;
 }
 
-function calculateEngagementRate(engagement) {
-  const total = (engagement.numLikes || 0) + (engagement.numComments || 0) + (engagement.numShares || 0);
-  const views = engagement.numViews || engagement.impressions || 1;
-  return Math.round((total / views) * 100 * 100) / 100;
-}
-
-function calculateAlgorithmScore(engagement) {
-  const likes = engagement.numLikes || 0;
-  const comments = engagement.numComments || 0;
-  const shares = engagement.numShares || 0;
-  const views = engagement.numViews || 1;
-  
-  return Math.round(((likes + comments * 2 + shares * 3) / views) * 100);
+function calculateAlgorithmScore(likes, comments, shares) {
+  return Math.min(100, (likes + comments * 2 + shares * 3));
 }
 
 function isRepurposeEligible(createdAtMs) {
@@ -588,18 +461,10 @@ function getRepurposeDate(createdAtMs) {
   return date.toISOString();
 }
 
-function calculatePerformanceTier(engagement) {
-  const total = (engagement.numLikes || 0) + (engagement.numComments || 0) + (engagement.numShares || 0);
-  
-  if (total >= 100) return 'HIGH';
-  if (total >= 20) return 'MEDIUM';
-  return 'LOW';
-}
-
 /**
- * Get partner's LinkedIn member URN from database
+ * Get partner's LinkedIn token from database
  */
-async function getPartnerMemberUrn(partnerUserId) {
+async function getPartnerToken(partnerUserId) {
   try {
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(
@@ -609,19 +474,19 @@ async function getPartnerMemberUrn(partnerUserId) {
 
     const { data: user, error } = await supabase
       .from('users')
-      .select('linkedin_dma_member_urn, linkedin_member_urn')
+      .select('linkedin_dma_token, linkedin_basic_token')
       .eq('id', partnerUserId)
       .single();
 
     if (error) {
-      console.error('❌ Failed to get partner member URN:', error);
+      console.error('❌ Failed to get partner token:', error);
       return null;
     }
 
-    return user.linkedin_dma_member_urn || user.linkedin_member_urn;
+    return user.linkedin_dma_token || user.linkedin_basic_token;
 
   } catch (error) {
-    console.error('❌ Database error getting member URN:', error);
+    console.error('❌ Database error getting partner token:', error);
     return null;
   }
 }
