@@ -1,7 +1,6 @@
 /**
  * Netlify Function: sync-user-posts.mjs
- * Syncs user posts from LinkedIn DMA APIs and stores them in the database
- * FIXED: Uses Authorization header for user's DMA token
+ * FIXED: Uses LinkedIn Snapshot API with MEMBER_SHARE_INFO domain (same as PostPulse)
  * Location: netlify/functions/sync-user-posts.mjs
  */
 
@@ -70,7 +69,6 @@ export async function handler(event, context) {
 
     if (syncAll) {
       // For bulk sync, we need a different approach since each user has their own token
-      // This would typically be called by a scheduled function with elevated privileges
       console.log('🌐 Starting bulk sync for all users');
       
       const { data: users, error: usersError } = await supabase
@@ -84,11 +82,7 @@ export async function handler(event, context) {
 
       console.log(`📋 Found ${users.length} DMA-active users for bulk sync`);
       
-      // For bulk sync, we'd need to either:
-      // 1. Have stored encrypted tokens we can decrypt
-      // 2. Skip individual sync and just update sync status
-      // For now, just update status to indicate bulk sync was attempted
-      
+      // For bulk sync, we'd need stored tokens - for now just update status
       for (const user of users) {
         try {
           await supabase
@@ -233,9 +227,9 @@ async function syncUserPosts(supabase, userId, authorizationHeader) {
 
     console.log('🔑 Using DMA token from authorization header');
 
-    // Fetch posts from LinkedIn
-    console.log(`📡 Fetching posts from LinkedIn...`);
-    const posts = await fetchUserPostsFromLinkedIn(dmaToken, userId, user.linkedin_dma_member_urn);
+    // FIXED: Fetch posts using LinkedIn Snapshot API (like PostPulse)
+    console.log(`📡 Fetching posts from LinkedIn Snapshot API...`);
+    const posts = await fetchUserPostsFromLinkedInSnapshot(dmaToken, userId);
     
     console.log(`📝 Fetched ${posts.length} posts for user ${userId}`);
 
@@ -344,19 +338,19 @@ async function syncUserPosts(supabase, userId, authorizationHeader) {
 }
 
 /**
- * Fetch user posts from LinkedIn DMA APIs
+ * FIXED: Fetch user posts using LinkedIn Snapshot API (MEMBER_SHARE_INFO domain)
+ * This is the same approach used by PostPulse
  */
-async function fetchUserPostsFromLinkedIn(userToken, userId, dmaUrn) {
-  console.log(`📡 Fetching posts from LinkedIn for user: ${userId}`);
-  console.log(`🔍 DMA URN: ${dmaUrn}`);
+async function fetchUserPostsFromLinkedInSnapshot(userToken, userId) {
+  console.log(`📡 Fetching posts from LinkedIn Snapshot API for user: ${userId}`);
   
   try {
-    // Use LinkedIn changelog API to get recent activity
-    const changelogUrl = 'https://api.linkedin.com/v2/changelog';
+    // FIXED: Use the correct Snapshot API endpoint with MEMBER_SHARE_INFO domain
+    const snapshotUrl = 'https://api.linkedin.com/rest/memberSnapshotData?q=criteria&domain=MEMBER_SHARE_INFO';
     
-    console.log(`📞 Calling LinkedIn changelog API...`);
+    console.log(`📞 Calling LinkedIn Snapshot API: ${snapshotUrl}`);
     
-    const changelogResponse = await fetch(changelogUrl, {
+    const response = await fetch(snapshotUrl, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${userToken}`,
@@ -365,114 +359,157 @@ async function fetchUserPostsFromLinkedIn(userToken, userId, dmaUrn) {
       }
     });
 
-    console.log(`📊 LinkedIn API response status: ${changelogResponse.status}`);
+    console.log(`📊 LinkedIn Snapshot API response status: ${response.status}`);
 
-    if (!changelogResponse.ok) {
-      const errorText = await changelogResponse.text();
-      console.error('❌ LinkedIn API error response:', errorText);
-      throw new Error(`LinkedIn API error: ${changelogResponse.status} - ${errorText}`);
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.log('📭 No posts found in Snapshot API (404 - normal for new users)');
+        return [];
+      }
+      
+      const errorText = await response.text();
+      console.error('❌ LinkedIn Snapshot API error response:', errorText);
+      throw new Error(`LinkedIn Snapshot API error: ${response.status} - ${errorText}`);
     }
 
-    const changelogData = await changelogResponse.json();
-    console.log(`📋 Changelog response:`, {
-      hasElements: !!changelogData.elements,
-      elementsCount: changelogData.elements?.length || 0,
-      paging: changelogData.paging
+    const data = await response.json();
+    console.log(`📋 Snapshot API response:`, {
+      hasElements: !!data.elements,
+      elementsCount: data.elements?.length || 0,
+      firstElementDomain: data.elements?.[0]?.snapshotDomain,
+      snapshotDataCount: data.elements?.[0]?.snapshotData?.length || 0
     });
 
-    if (!changelogData.elements || changelogData.elements.length === 0) {
-      console.log('📭 No changelog elements found');
+    if (!data.elements || !data.elements[0] || !data.elements[0].snapshotData) {
+      console.log('📭 No snapshot data found for MEMBER_SHARE_INFO domain');
       return [];
     }
 
+    const shareInfo = data.elements[0].snapshotData;
+    console.log(`📝 Processing ${shareInfo.length} posts from snapshot data`);
+
     const posts = [];
 
-    // Process changelog elements to extract posts
-    for (const element of changelogData.elements) {
+    // Process snapshot data to extract posts (same logic as PostPulse)
+    for (let index = 0; index < Math.min(shareInfo.length, 50); index++) {
       try {
-        // Check if this element represents a post or article
-        const isPost = element.resourceName?.includes('posts') || 
-                       element.resourceName?.includes('socialActions') ||
-                       element.resourceName?.includes('shares') ||
-                       element.resourceName?.includes('ugcPosts');
-        
-        if (!isPost) {
-          continue;
-        }
-
-        console.log('📝 Processing post element:', {
-          resourceName: element.resourceName,
-          method: element.method,
-          activityId: element.activityId
-        });
-
-        // Extract post data from the element
-        const post = await extractPostFromElement(element, userToken);
+        const item = shareInfo[index];
+        const post = await extractPostFromSnapshotItem(item, index);
         
         if (post) {
           posts.push(post);
+          
+          // Limit to latest 5 posts for synergy partners
+          if (posts.length >= 5) {
+            break;
+          }
         }
         
       } catch (error) {
-        console.warn('⚠️ Error processing changelog element:', error.message);
-        // Continue processing other elements
+        console.warn(`⚠️ Error processing snapshot item ${index}:`, error.message);
+        // Continue processing other items
       }
     }
 
-    console.log(`✅ Successfully processed ${posts.length} posts from ${changelogData.elements.length} elements`);
+    console.log(`✅ Successfully processed ${posts.length} posts from ${shareInfo.length} snapshot items`);
     return posts;
 
   } catch (error) {
-    console.error('❌ Error fetching posts from LinkedIn:', error);
+    console.error('❌ Error fetching posts from LinkedIn Snapshot API:', error);
     throw error;
   }
 }
 
 /**
- * Extract post data from changelog element
+ * Extract post data from LinkedIn Snapshot item (same logic as PostPulse)
  */
-async function extractPostFromElement(element, userToken) {
+async function extractPostFromSnapshotItem(item, index) {
   try {
-    const activity = element.activity || {};
-    const createdAt = element.capturedAt || element.processedAt || Date.now();
-    
-    // Generate a post URN from the element
-    const postUrn = element.resourceUri || 
-                    `urn:li:activity:${element.activityId}` ||
-                    `urn:li:post:${element.id}` ||
-                    `urn:li:share:${Date.now()}`;
+    // ENHANCED: Try multiple field name variations for content (same as PostPulse)
+    const content = 
+      item['ShareCommentary'] ||  // LinkedIn's actual field name
+      item['Commentary'] || 
+      item['Share Commentary'] ||
+      item['comment'] || 
+      item['content'] || 
+      item['text'] ||
+      item['shareCommentary'] ||
+      item['post_content'] ||
+      '';
 
-    // Extract text content from various possible locations
-    const textContent = activity.message?.text || 
-                       activity.content?.text || 
-                       activity.commentary?.text ||
-                       activity.shareText ||
-                       element.content?.text ||
-                       '';
+    // ENHANCED: Try multiple field name variations for URL
+    const shareUrl = 
+      item['ShareLink'] ||       // LinkedIn's actual field name
+      item['SharedUrl'] ||       // Alternative LinkedIn field
+      item['Share URL'] || 
+      item['share_url'] || 
+      item['shareUrl'] || 
+      item['URL'] || 
+      item['url'] ||
+      item['permalink'] ||
+      item['link'] ||
+      '';
 
-    // Determine media type from content structure
+    // Extract date
+    const shareDate = 
+      item['Share Date'] ||
+      item['Date'] ||
+      item['created_at'] ||
+      item['timestamp'] ||
+      item['shareDate'] ||
+      Date.now();
+
+    // ENHANCED: Extract media information
+    const mediaUrl = 
+      item['MediaUrl'] ||        // LinkedIn's media field
+      item['Media URL'] ||
+      item['media_url'] ||
+      item['mediaUrl'] ||
+      item['image'] ||
+      item['ImageUrl'] ||
+      '';
+
+    // Determine media type from URL or field
     let mediaType = 'TEXT';
-    if (activity.content?.media || element.content?.media) {
-      mediaType = 'IMAGE';
-    } else if (activity.content?.article || element.content?.article) {
-      mediaType = 'ARTICLE';
-    } else if (activity.content?.video || element.content?.video) {
-      mediaType = 'VIDEO';
-    } else if (activity.content?.poll || element.content?.poll) {
-      mediaType = 'POLL';
+    if (mediaUrl) {
+      const urlLower = mediaUrl.toLowerCase();
+      if (urlLower.includes('image') || urlLower.match(/\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i)) {
+        mediaType = 'IMAGE';
+      } else if (urlLower.includes('video') || urlLower.match(/\.(mp4|mov|avi|wmv|webm)(\?|$)/i)) {
+        mediaType = 'VIDEO';
+      } else if (urlLower.match(/\.(pdf|doc|docx|ppt|pptx)(\?|$)/i)) {
+        mediaType = 'DOCUMENT';
+      }
+    }
+
+    if (!shareUrl && !content) {
+      return null; // Skip items without URL or content
+    }
+
+    // Extract URN from URL if available
+    let postUrn = '';
+    if (shareUrl) {
+      const urnMatch = shareUrl.match(/activity[\/\-](\d+)/);
+      if (urnMatch) {
+        postUrn = `urn:li:activity:${urnMatch[1]}`;
+      } else {
+        postUrn = `urn:li:share:${Date.now()}-${index}`;
+      }
+    } else {
+      postUrn = `urn:li:post:${Date.now()}-${index}`;
     }
 
     // Create post object with extracted data
     const post = {
       postUrn: postUrn,
-      linkedinPostId: element.activityId || element.id,
-      createdAtMs: new Date(createdAt).getTime(),
-      textPreview: textContent.substring(0, 500), // Limit to 500 chars for preview
+      linkedinPostId: shareUrl ? shareUrl.match(/activity[\/\-](\d+)/)?.[1] || `snapshot-${index}` : `snapshot-${index}`,
+      createdAtMs: new Date(shareDate).getTime(),
+      textPreview: content.substring(0, 500), // Limit to 500 chars for preview
       mediaType: mediaType,
-      mediaUrls: extractMediaUrls(activity.content || element.content),
-      hashtags: extractHashtags(textContent),
-      mentions: extractMentions(textContent),
-      visibility: 'PUBLIC', // Default assumption, could be refined
+      mediaUrls: mediaUrl ? [mediaUrl] : [],
+      hashtags: extractHashtags(content),
+      mentions: extractMentions(content),
+      visibility: 'PUBLIC', // Default assumption
       
       // Engagement metrics (initialized to 0 - would need separate API calls for real data)
       likesCount: 0,
@@ -489,54 +526,30 @@ async function extractPostFromElement(element, userToken) {
       sentimentScore: 0,
       
       // Repurpose eligibility (30+ days old)
-      repurposeEligible: (Date.now() - new Date(createdAt).getTime()) > (30 * 24 * 60 * 60 * 1000),
+      repurposeEligible: (Date.now() - new Date(shareDate).getTime()) > (30 * 24 * 60 * 60 * 1000),
       repurposeDate: null,
       repurposedCount: 0,
       performanceTier: 'UNKNOWN',
       
       // Store raw data for debugging and future processing
-      rawData: element
+      rawData: item
     };
 
-    console.log('✅ Extracted post:', {
+    console.log(`✅ Extracted post ${index + 1}:`, {
       postUrn: post.postUrn,
       createdAt: new Date(post.createdAtMs).toISOString(),
       textLength: post.textPreview.length,
       mediaType: post.mediaType,
-      hasHashtags: post.hashtags.length > 0,
-      hasMentions: post.mentions.length > 0
+      hasShareUrl: !!shareUrl,
+      hasContent: !!content
     });
 
     return post;
 
   } catch (error) {
-    console.error('❌ Error extracting post from element:', error);
+    console.error(`❌ Error extracting post from snapshot item ${index}:`, error);
     return null;
   }
-}
-
-/**
- * Extract media URLs from content object
- */
-function extractMediaUrls(content) {
-  if (!content) return [];
-  
-  const urls = [];
-  
-  // Check for media in various content structures
-  if (content.media?.elements) {
-    content.media.elements.forEach(mediaElement => {
-      if (mediaElement.media?.identifiers) {
-        mediaElement.media.identifiers.forEach(identifier => {
-          if (identifier.identifier) {
-            urls.push(identifier.identifier);
-          }
-        });
-      }
-    });
-  }
-  
-  return urls;
 }
 
 /**
@@ -571,8 +584,8 @@ function extractMentions(text) {
 
 // Export helper functions for potential reuse
 export { 
-  fetchUserPostsFromLinkedIn, 
-  extractPostFromElement, 
+  fetchUserPostsFromLinkedInSnapshot, 
+  extractPostFromSnapshotItem, 
   extractHashtags, 
   extractMentions 
 };
