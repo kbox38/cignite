@@ -181,7 +181,15 @@ export async function handler(event, context) {
 
     // Create or update user - ENHANCED DATABASE LOGIC
     console.log('🔄 Creating or updating user...');
-    const user = await createOrUpdateUserEnhanced(profileInfo, tokenData.access_token, dmaUrn, isDMA);
+    // Create or update user
+const user = await createOrUpdateUserEnhanced(
+  profileInfo,
+  dmaUrn, 
+  tokenData.access_token,
+  isDMA
+);
+
+console.log('✅ User processed:', user.id);
     
     if (!user) {
       console.error('❌ Failed to create or update user');
@@ -440,10 +448,10 @@ async function getDmaUrnEnhanced(accessToken) {
   }
 }
 
-// Enhanced createOrUpdateUserEnhanced function with improved user lookup
+// Fixed createOrUpdateUserEnhanced function - initialize Supabase internally
 // Location: netlify/functions/linkedin-oauth-callback.js
 
-async function createOrUpdateUserEnhanced(profileInfo, dmaUrn, accessToken, isDmaFlow, supabase) {
+async function createOrUpdateUserEnhanced(profileInfo, dmaUrn, accessToken, isDmaFlow) {
   console.log('🔍 ENHANCED: Starting user lookup/creation process');
   console.log('🔍 DEBUG: isDmaFlow:', isDmaFlow);
   console.log('🔍 DEBUG: profileInfo:', JSON.stringify(profileInfo, null, 2));
@@ -451,11 +459,122 @@ async function createOrUpdateUserEnhanced(profileInfo, dmaUrn, accessToken, isDm
   console.log('🔍 DEBUG: accessToken length:', accessToken?.length || 0);
 
   try {
+    // Initialize Supabase client inside the function
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    console.log('✅ Supabase client initialized');
+
     const now = new Date().toISOString();
     let existingUser = null;
 
-    // ENHANCED USER LOOKUP LOGIC
-    if (isDmaFlow) {
+    // BASIC OAUTH FLOW - Create/Update User with Profile Data
+    if (!isDmaFlow) {
+      console.log('🔍 BASIC FLOW: Looking for existing user...');
+      
+      // Step 1: Look by LinkedIn URN
+      if (profileInfo.linkedinUrn) {
+        console.log('🔍 BASIC STEP 1: Looking up by LinkedIn URN...');
+        const { data: userByLinkedinUrn } = await supabase
+          .from('users')
+          .select('*')
+          .eq('linkedin_member_urn', profileInfo.linkedinUrn)
+          .single();
+        
+        if (userByLinkedinUrn) {
+          existingUser = userByLinkedinUrn;
+          console.log('✅ Found user by LinkedIn URN:', existingUser.id);
+        }
+      }
+      
+      // Step 2: Look by email
+      if (!existingUser && profileInfo.email && !profileInfo.email.includes('linkedin-growth.app')) {
+        console.log('🔍 BASIC STEP 2: Looking up by email...');
+        const { data: userByEmail } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', profileInfo.email)
+          .single();
+        
+        if (userByEmail) {
+          existingUser = userByEmail;
+          console.log('✅ Found user by email:', existingUser.id);
+        }
+      }
+
+      if (existingUser) {
+        // Update existing user with profile data
+        console.log('✅ BASIC FLOW: Updating existing user with profile data');
+        
+        const updateData = {
+          name: profileInfo.name,
+          given_name: profileInfo.given_name,
+          family_name: profileInfo.family_name,
+          email: profileInfo.email,
+          avatar_url: profileInfo.picture,
+          linkedin_member_urn: profileInfo.linkedinUrn,
+          last_login: now,
+          updated_at: now
+        };
+
+        const { data: updatedUser, error: updateError } = await supabase
+          .from('users')
+          .update(updateData)
+          .eq('id', existingUser.id)
+          .select('*')
+          .single();
+
+        if (updateError) {
+          console.error('❌ Error updating user:', updateError);
+          throw updateError;
+        }
+
+        console.log('✅ Basic user updated successfully:', updatedUser.id);
+        return updatedUser;
+
+      } else {
+        // Create new user with profile data
+        console.log('🆕 BASIC FLOW: Creating new user with profile data');
+        
+        const newUserData = {
+          email: profileInfo.email,
+          name: profileInfo.name || 'LinkedIn User',
+          given_name: profileInfo.given_name || '',
+          family_name: profileInfo.family_name || '',
+          avatar_url: profileInfo.picture,
+          linkedin_member_urn: profileInfo.linkedinUrn,
+          linkedin_dma_member_urn: null,
+          linkedin_dma_token: null,
+          dma_active: false,
+          dma_consent_date: null,
+          last_login: now,
+          account_status: 'active',
+          subscription_tier: 'free',
+          created_at: now,
+          updated_at: now,
+        };
+
+        const { data: newUser, error: createError } = await supabase
+          .from('users')
+          .insert([newUserData])
+          .select('*')
+          .single();
+
+        if (createError) {
+          console.error('❌ Error creating new basic user:', createError);
+          throw createError;
+        }
+
+        console.log('✅ New basic user created:', newUser.id);
+        return newUser;
+      }
+    }
+
+    // DMA OAUTH FLOW - Find Existing User and Add DMA Data
+    else {
       console.log('🔍 DMA FLOW: Starting comprehensive user lookup...');
       
       // Step 1: Look for user by DMA URN (if they've done DMA before)
@@ -516,160 +635,50 @@ async function createOrUpdateUserEnhanced(profileInfo, dmaUrn, accessToken, isDm
           .limit(10);
         
         if (recentBasicUsers && recentBasicUsers.length > 0) {
-          // Try to match by name similarity if we have profile info
-          if (profileInfo?.name) {
-            const matchingUser = recentBasicUsers.find(user => 
-              user.name && user.name.toLowerCase().includes(profileInfo.name.toLowerCase().split(' ')[0])
-            );
-            if (matchingUser) {
-              existingUser = matchingUser;
-              console.log('✅ Found user by name matching:', existingUser.id);
-            }
-          }
-          
-          // Fallback: use most recent Basic user (within last 10 minutes)
-          if (!existingUser) {
-            const recentUser = recentBasicUsers[0];
-            const userAge = Date.now() - new Date(recentUser.created_at).getTime();
-            if (userAge < 10 * 60 * 1000) { // 10 minutes
-              existingUser = recentUser;
-              console.log('✅ Using most recent Basic user (within 10 min):', existingUser.id);
-            }
+          // Use most recent Basic user (within last 15 minutes)
+          const recentUser = recentBasicUsers[0];
+          const userAge = Date.now() - new Date(recentUser.created_at).getTime();
+          if (userAge < 15 * 60 * 1000) { // 15 minutes
+            existingUser = recentUser;
+            console.log('✅ Using most recent Basic user (within 15 min):', existingUser.id);
           }
         }
       }
 
-      // Step 5: Last resort - look for any user without DMA data
-      if (!existingUser) {
-        console.log('🔍 DMA STEP 5: Last resort lookup...');
-        const { data: anyUserWithoutDMA } = await supabase
-          .from('users')
-          .select('*')
-          .is('linkedin_dma_member_urn', null)
-          .order('updated_at', { ascending: false })
-          .limit(1);
+      if (existingUser) {
+        // Update existing user with DMA data
+        console.log('✅ DMA FLOW: Adding DMA data to existing user');
         
-        if (anyUserWithoutDMA && anyUserWithoutDMA.length > 0) {
-          existingUser = anyUserWithoutDMA[0];
-          console.log('⚠️ Using last resort user match:', existingUser.id);
-        }
-      }
+        const updateData = {
+          linkedin_dma_member_urn: dmaUrn,
+          linkedin_dma_token: accessToken,
+          dma_active: true,
+          dma_consent_date: now,
+          last_login: now,
+          updated_at: now
+        };
 
-    } else {
-      // Basic OAuth flow - simpler lookup
-      console.log('🔍 BASIC FLOW: Standard user lookup...');
-      
-      // Step 1: Look by LinkedIn URN
-      if (profileInfo.linkedinUrn) {
-        console.log('🔍 BASIC STEP 1: Looking up by LinkedIn URN...');
-        const { data: userByLinkedinUrn } = await supabase
+        const { data: updatedUser, error: updateError } = await supabase
           .from('users')
+          .update(updateData)
+          .eq('id', existingUser.id)
           .select('*')
-          .eq('linkedin_member_urn', profileInfo.linkedinUrn)
           .single();
+
+        if (updateError) {
+          console.error('❌ Error updating user with DMA:', updateError);
+          throw updateError;
+        }
+
+        console.log('✅ User updated with DMA data successfully:', updatedUser.id);
+        console.log('🔍 DEBUG: DMA status:', updatedUser.dma_active);
+        console.log('🔍 DEBUG: DMA token stored:', !!updatedUser.linkedin_dma_token);
         
-        if (userByLinkedinUrn) {
-          existingUser = userByLinkedinUrn;
-          console.log('✅ Found user by LinkedIn URN:', existingUser.id);
-        }
-      }
-      
-      // Step 2: Look by email
-      if (!existingUser && profileInfo.email && !profileInfo.email.includes('linkedin-growth.app')) {
-        console.log('🔍 BASIC STEP 2: Looking up by email...');
-        const { data: userByEmail } = await supabase
-          .from('users')
-          .select('*')
-          .eq('email', profileInfo.email)
-          .single();
-        
-        if (userByEmail) {
-          existingUser = userByEmail;
-          console.log('✅ Found user by email:', existingUser.id);
-        }
-      }
-    }
+        return updatedUser;
 
-    // UPDATE EXISTING USER
-    if (existingUser) {
-      console.log('✅ Found existing user:', existingUser.id);
-      console.log('🔍 DEBUG: Current user DMA status:', existingUser.dma_active);
-      console.log('🔍 DEBUG: Current user DMA URN:', existingUser.linkedin_dma_member_urn);
-      console.log('🔍 DEBUG: Current user DMA token:', !!existingUser.linkedin_dma_token);
-      
-      // Prepare update data
-      const updateData = {
-        last_login: now,
-        updated_at: now
-      };
-
-      // Update profile info if we have better data (mainly for Basic OAuth)
-      if (!isDmaFlow) {
-        // Basic OAuth - update profile data
-        if (profileInfo.name && profileInfo.name !== 'LinkedIn User (DMA)') {
-          updateData.name = profileInfo.name;
-        }
-        if (profileInfo.given_name && profileInfo.given_name !== 'LinkedIn') {
-          updateData.given_name = profileInfo.given_name;
-        }
-        if (profileInfo.family_name && profileInfo.family_name !== 'User') {
-          updateData.family_name = profileInfo.family_name;
-        }
-        if (profileInfo.picture) {
-          updateData.avatar_url = profileInfo.picture;
-        }
-        if (profileInfo.linkedinUrn) {
-          updateData.linkedin_member_urn = profileInfo.linkedinUrn;
-        }
-        if (profileInfo.email && !profileInfo.email.includes('linkedin-growth.app')) {
-          updateData.email = profileInfo.email;
-        }
-        console.log('✅ BASIC STEP: Updated profile data on existing user');
-      }
-
-      // Handle DMA token and URN storage (DMA OAuth)
-      if (isDmaFlow && dmaUrn) {
-        updateData.linkedin_dma_member_urn = dmaUrn;
-        updateData.linkedin_dma_token = accessToken;
-        updateData.dma_active = true;
-        updateData.dma_consent_date = now;
-        console.log('✅ DMA STEP: Setting DMA active, URN, and TOKEN on existing user');
-        console.log('🔍 DEBUG: Storing DMA token with length:', accessToken?.length || 0);
-      }
-
-      console.log('🔍 DEBUG: Final update data:', JSON.stringify(updateData, null, 2));
-      console.log('🔍 DEBUG: Updating user ID:', existingUser.id);
-
-      const updateResult = await supabase
-        .from('users')
-        .update(updateData)
-        .eq('id', existingUser.id)
-        .select('*');
-
-      if (updateResult.error) {
-        console.error('❌ Error updating user:', updateResult.error);
-        throw updateResult.error;
-      }
-
-      if (!updateResult.data || updateResult.data.length === 0) {
-        console.error('❌ CRITICAL: Update returned no data');
-        throw new Error('Update operation returned no data');
-      }
-
-      const updatedUser = updateResult.data[0];
-      console.log('✅ User updated successfully');
-      console.log('🔍 DEBUG: Updated user DMA status:', updatedUser.dma_active);
-      console.log('🔍 DEBUG: Updated user DMA URN:', updatedUser.linkedin_dma_member_urn);
-      console.log('🔍 DEBUG: Updated user DMA token stored:', !!updatedUser.linkedin_dma_token);
-      
-      return updatedUser;
-      
-    } else {
-      // CREATE NEW USER (only if absolutely no user found)
-      console.log('📝 No existing user found - creating new user...');
-      
-      if (isDmaFlow) {
-        console.log('🆕 DMA FLOW: Creating new user (should be rare!)...');
+      } else {
+        // This should be rare - create DMA-only user
+        console.log('🆕 DMA FLOW: Creating DMA-only user (edge case)');
         
         const newUserData = {
           email: profileInfo?.email || `dma-user-${Date.now()}@linkedin-growth.app`,
@@ -689,65 +698,18 @@ async function createOrUpdateUserEnhanced(profileInfo, dmaUrn, accessToken, isDm
           updated_at: now,
         };
 
-        console.log('🔍 DEBUG: Creating new DMA user with data:', JSON.stringify(newUserData, null, 2));
-
-        const createResult = await supabase
+        const { data: newUser, error: createError } = await supabase
           .from('users')
           .insert([newUserData])
-          .select('*');
+          .select('*')
+          .single();
 
-        if (createResult.error) {
-          console.error('❌ Error creating new DMA user:', createResult.error);
-          throw createResult.error;
+        if (createError) {
+          console.error('❌ Error creating new DMA user:', createError);
+          throw createError;
         }
 
-        const newUser = createResult.data[0];
         console.log('✅ New DMA user created:', newUser.id);
-        
-        return newUser;
-        
-      } else {
-        // Basic OAuth flow - create normal user
-        console.log('🆕 BASIC FLOW: Creating new basic user...');
-        
-        if (!profileInfo.email) {
-          console.error('❌ Cannot create user without email in basic flow');
-          throw new Error('Email is required for user creation in basic flow');
-        }
-
-        const newUserData = {
-          email: profileInfo.email,
-          name: profileInfo.name || 'LinkedIn User',
-          given_name: profileInfo.given_name || '',
-          family_name: profileInfo.family_name || '',
-          avatar_url: profileInfo.picture,
-          linkedin_member_urn: profileInfo.linkedinUrn,
-          linkedin_dma_member_urn: null,
-          linkedin_dma_token: null,
-          dma_active: false,
-          dma_consent_date: null,
-          last_login: now,
-          account_status: 'active',
-          subscription_tier: 'free',
-          created_at: now,
-          updated_at: now,
-        };
-
-        console.log('🔍 DEBUG: Creating new basic user with data:', JSON.stringify(newUserData, null, 2));
-
-        const createResult = await supabase
-          .from('users')
-          .insert([newUserData])
-          .select('*');
-
-        if (createResult.error) {
-          console.error('❌ Error creating new basic user:', createResult.error);
-          throw createResult.error;
-        }
-
-        const newUser = createResult.data[0];
-        console.log('✅ New basic user created:', newUser.id);
-        
         return newUser;
       }
     }
@@ -758,6 +720,7 @@ async function createOrUpdateUserEnhanced(profileInfo, dmaUrn, accessToken, isDm
     throw error;
   }
 }
+
 
 // Enable changelog generation for DMA users
 async function enableChangelogGeneration(accessToken) {
