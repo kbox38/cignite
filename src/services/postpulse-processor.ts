@@ -139,7 +139,7 @@ export const repurposePost = async (post: PostData) => {
   }
 };
 
-// ENHANCED: Enhanced snapshot processing with media extraction
+// ENHANCED: Enhanced snapshot processing with media extraction AND DATE FILTERING
 const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[] => {
   if (DEBUG) {
     console.log('🔍 SNAPSHOT DEBUG: Starting analysis...');
@@ -147,38 +147,62 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
       isArray: Array.isArray(snapshotData),
       length: snapshotData?.length,
       dataType: typeof snapshotData,
-      firstItemKeys: snapshotData?.[0] ? Object.keys(snapshotData[0]) : [],
-      sampleItem: snapshotData?.[0]
+      firstItemKeys: snapshotData?.[0] ? Object.keys(snapshotData[0]) : []
     });
   }
-  
-  const posts: PostData[] = [];
-  const shareInfo = snapshotData || [];
-  
-  if (DEBUG) console.log(`🔍 SNAPSHOT DEBUG: Processing ${shareInfo.length} items`);
-  
-  shareInfo.forEach((item: any, index: number) => {
-    if (DEBUG) {
-      console.log(`🔍 SNAPSHOT DEBUG: Item ${index}:`, {
-        keys: Object.keys(item || {}),
-        hasShareURL: !!(item['Share URL'] || item['share_url'] || item.shareUrl || item['URL'] || item.url),
-        hasContent: !!(item['ShareCommentary'] || item['Commentary'] || item['comment'] || item['content'] || item['text']),
-        hasDate: !!(item['Date'] || item['created_at'] || item['timestamp']),
-        hasMedia: !!(item['MediaUrl'] || item['Media URL'] || item['media_url']),
-        sampleFields: {
-          shareCommentary: typeof item['ShareCommentary'],
-          commentary: typeof item['Commentary'],
-          shareUrl: typeof item['Share URL'],
-          mediaUrl: typeof item['MediaUrl'],
-          date: typeof item['Date']
-        }
-      });
-    }
 
+  if (!Array.isArray(snapshotData) || snapshotData.length === 0) {
+    if (DEBUG) console.log('🔍 SNAPSHOT DEBUG: Empty or invalid data structure');
+    return [];
+  }
+
+  // CRITICAL FIX: Calculate 365 days ago (1 year) cutoff
+  const now = Date.now();
+  const oneYearAgo = now - (365 * 24 * 60 * 60 * 1000);
+  
+  if (DEBUG) {
+    console.log('🔍 DATE FILTER: One year cutoff:', {
+      now: new Date(now).toISOString(),
+      oneYearAgo: new Date(oneYearAgo).toISOString(),
+      cutoffDays: 365
+    });
+  }
+
+  const posts = snapshotData.map((item: any, index: number) => {
     try {
-      // ENHANCED: Try multiple field name variations for content
+      // Extract date first for filtering
+      const shareDate = 
+        item['Share Date'] ||
+        item['Date'] ||
+        item['shareDate'] ||
+        item['created_at'] ||
+        item['timestamp'] ||
+        item['createdAt'] ||
+        '';
+
+      let createdAtMs = 0;
+      if (shareDate) {
+        const parsedDate = new Date(shareDate);
+        if (!isNaN(parsedDate.getTime())) {
+          createdAtMs = parsedDate.getTime();
+        }
+      }
+
+      // CRITICAL FIX: Filter out posts older than 1 year
+      if (createdAtMs > 0 && createdAtMs < oneYearAgo) {
+        if (DEBUG) console.log(`🔍 DATE FILTER: Skipping old post from ${new Date(createdAtMs).toISOString()}`);
+        return null; // Skip this post - too old
+      }
+
+      // If no date found, skip the post (suspicious)
+      if (createdAtMs === 0) {
+        if (DEBUG) console.log(`🔍 DATE FILTER: Skipping post with no date at index ${index}`);
+        return null;
+      }
+
+      // Extract content
       const content = 
-        item['ShareCommentary'] ||  // LinkedIn's actual field name
+        item['ShareCommentary'] ||
         item['Commentary'] || 
         item['Share Commentary'] ||
         item['comment'] || 
@@ -188,10 +212,10 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
         item['post_content'] ||
         '';
 
-      // ENHANCED: Try multiple field name variations for URL
+      // Extract URL
       const shareUrl = 
-        item['ShareLink'] ||       // LinkedIn's actual field name
-        item['SharedUrl'] ||       // Alternative LinkedIn field
+        item['ShareLink'] ||
+        item['SharedUrl'] ||
         item['Share URL'] || 
         item['share_url'] || 
         item['shareUrl'] || 
@@ -201,9 +225,9 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
         item['link'] ||
         '';
 
-      // ENHANCED: Extract media information
+      // Extract media information
       const mediaUrl = 
-        item['MediaUrl'] ||        // LinkedIn's media field
+        item['MediaUrl'] ||
         item['Media URL'] ||
         item['media_url'] ||
         item['mediaUrl'] ||
@@ -211,107 +235,78 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
         item['ImageUrl'] ||
         '';
 
-      // Determine media type from URL or field
-      let mediaType: 'image' | 'video' | 'document' | 'unknown' = 'unknown';
+      // Determine media type
+      let mediaType: 'text' | 'image' | 'video' | 'document' | 'unknown' = 'text';
       if (mediaUrl) {
         const urlLower = mediaUrl.toLowerCase();
-        if (urlLower.includes('image') || urlLower.match(/\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i)) {
+        if (urlLower.includes('image') || urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
           mediaType = 'image';
-        } else if (urlLower.includes('video') || urlLower.match(/\.(mp4|mov|avi|wmv|webm)(\?|$)/i)) {
+        } else if (urlLower.includes('video') || urlLower.match(/\.(mp4|avi|mov|wmv)$/i)) {
           mediaType = 'video';
-        } else if (urlLower.match(/\.(pdf|doc|docx|ppt|pptx)(\?|$)/i)) {
+        } else if (urlLower.includes('document') || urlLower.match(/\.(pdf|doc|docx|ppt|pptx)$/i)) {
           mediaType = 'document';
+        } else {
+          mediaType = 'unknown';
         }
       }
 
-      // ENHANCED: Try multiple field name variations for date
-      const dateStr = 
-        item['Date'] || 
-        item['Created Date'] ||
-        item['created_at'] || 
-        item['timestamp'] ||
-        item['published_at'] ||
-        item['date'] ||
-        '';
+      // Extract engagement data
+      const likes = parseInt(item['LikesCount'] || item['Likes Count'] || item['likes'] || '0');
+      const comments = parseInt(item['CommentsCount'] || item['Comments Count'] || item['comments'] || '0');
+      const shares = parseInt(item['SharesCount'] || item['Shares Count'] || item['shares'] || item['reposts'] || '0');
 
-      // ENHANCED: Try multiple field name variations for engagement metrics
-      const likesCount = parseInt(
-        item['Likes Count'] || 
-        item['likes_count'] || 
-        item['likes'] || 
-        item['reactions'] ||
-        '0'
-      ) || 0;
+      // Generate ID from URL or fallback
+      const urlMatch = shareUrl?.match(/activity-(\d+)/);
+      const id = urlMatch ? `activity-${urlMatch[1]}` : `snapshot-${index}-${createdAtMs}`;
 
-      const commentsCount = parseInt(
-        item['Comments Count'] || 
-        item['comments_count'] || 
-        item['comments'] ||
-        '0'
-      ) || 0;
-
-      const sharesCount = parseInt(
-        item['Shares Count'] || 
-        item['shares_count'] || 
-        item['shares'] ||
-        item['reposts'] ||
-        '0'
-      ) || 0;
-
-      // Skip items without content or minimal content
-      if (!content || content.trim().length < 3) {
-        if (DEBUG) console.log(`🔍 SNAPSHOT DEBUG: Skipping item ${index}: no content (${content?.length || 0} chars)`);
-        return;
-      }
-
-      // Parse date
-      let createdAt = Date.now();
-      if (dateStr) {
-        const parsedDate = new Date(dateStr).getTime();
-        if (!isNaN(parsedDate)) {
-          createdAt = parsedDate;
-        }
-      }
-
-      // Generate ID using browser-compatible hash (NO CRYPTO)
-      const postId = shareUrl ? 
-        shareUrl.split('/').pop() || `snapshot_${index}` : 
-        `snapshot_${simpleHash(content)}`;
-
-      if (DEBUG) {
-        console.log(`🔍 SNAPSHOT DEBUG: Creating post ${index}:`, {
-          postId: postId.substring(0, 30),
-          contentLength: content.length,
-          contentPreview: content.substring(0, 100),
+      if (DEBUG && index < 3) {
+        console.log(`🔍 SNAPSHOT DEBUG: Processing item ${index}:`, {
+          hasContent: !!content,
           hasUrl: !!shareUrl,
-          hasMedia: !!mediaUrl,
+          hasDate: !!shareDate,
+          createdAt: new Date(createdAtMs).toISOString(),
+          withinOneYear: createdAtMs >= oneYearAgo,
           mediaType: mediaType,
-          mediaUrlPreview: mediaUrl?.substring(0, 50),
-          createdAt: new Date(createdAt).toISOString(),
-          engagement: { likes: likesCount, comments: commentsCount, shares: sharesCount }
+          engagement: { likes, comments, shares }
         });
       }
 
-      posts.push({
-        id: postId,
-        content: content.trim(),
-        createdAt: createdAt,
-        likes: likesCount,
-        comments: commentsCount,
-        reposts: sharesCount,
-        url: shareUrl || `https://linkedin.com/in/you/recent-activity/shares/`,
-        author: 'You',
+      return {
+        id,
+        content: content || 'No content available',
+        createdAt: createdAtMs,
+        url: shareUrl || '',
+        likes,
+        comments,
+        reposts: shares,
         mediaUrl: mediaUrl || undefined,
-        mediaType: mediaUrl ? mediaType : undefined
-      });
+        mediaType: mediaType
+      };
 
     } catch (error) {
       if (DEBUG) console.warn(`🔍 SNAPSHOT DEBUG: Error processing item ${index}:`, error);
+      return null;
     }
-  });
+  })
+  .filter((post): post is PostData => post !== null); // Remove null entries (filtered out posts)
 
-  if (DEBUG) console.log(`🔍 SNAPSHOT DEBUG: Final result: ${posts.length} posts extracted`);
-  return posts;
+  // Sort by date (newest first) and limit to most recent posts
+  const sortedPosts = posts.sort((a, b) => b.createdAt - a.createdAt);
+  const limitedPosts = sortedPosts.slice(0, 90); // Keep top 90 most recent
+
+  if (DEBUG) {
+    console.log(`🔍 SNAPSHOT DEBUG: Final result:`, {
+      totalProcessed: snapshotData.length,
+      validPosts: posts.length,
+      finalPosts: limitedPosts.length,
+      dateRange: limitedPosts.length > 0 ? {
+        newest: new Date(limitedPosts[0].createdAt).toISOString(),
+        oldest: new Date(limitedPosts[limitedPosts.length - 1].createdAt).toISOString()
+      } : 'No posts'
+    });
+  }
+
+  return limitedPosts;
 };
 
 // MAIN FETCH FUNCTION - SNAPSHOT ONLY
