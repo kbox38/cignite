@@ -1,3 +1,4 @@
+// netlify/functions/linkedin-snapshot.js
 exports.handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -71,6 +72,89 @@ exports.handler = async (event, context) => {
       totalSnapshotData: data.elements?.reduce((sum, el) => sum + (el.snapshotData?.length || 0), 0)
     });
 
+    // ⭐ CRITICAL FIX: Server-side date filtering for last year posts
+    if (domain === 'MEMBER_SHARE_INFO' && data.elements?.length > 0) {
+      console.log('🔍 Applying server-side date filtering for last year...');
+      
+      // Calculate 365 days ago (1 year) cutoff
+      const now = Date.now();
+      const oneYearAgo = now - (365 * 24 * 60 * 60 * 1000);
+      
+      console.log('Date filter parameters:', {
+        now: new Date(now).toISOString(),
+        oneYearAgo: new Date(oneYearAgo).toISOString(),
+        cutoffDays: 365
+      });
+
+      // Filter each element's snapshotData
+      data.elements = data.elements.map(element => {
+        if (element.snapshotDomain === 'MEMBER_SHARE_INFO' && element.snapshotData) {
+          const originalCount = element.snapshotData.length;
+          
+          // Filter posts by date
+          const filteredSnapshotData = element.snapshotData.filter((item, index) => {
+            try {
+              // Extract date from multiple possible field names
+              const shareDate = 
+                item['Share Date'] ||
+                item['Date'] ||
+                item['shareDate'] ||
+                item['created_at'] ||
+                item['timestamp'] ||
+                item['createdAt'] ||
+                '';
+
+              if (!shareDate) {
+                console.log(`⚠️ No date found for item ${index}, skipping`);
+                return false; // Skip items without dates
+              }
+
+              const parsedDate = new Date(shareDate);
+              if (isNaN(parsedDate.getTime())) {
+                console.log(`⚠️ Invalid date format for item ${index}: ${shareDate}`);
+                return false; // Skip items with invalid dates
+              }
+
+              const postTime = parsedDate.getTime();
+              const isWithinOneYear = postTime >= oneYearAgo;
+              
+              if (!isWithinOneYear && index < 5) { // Log first few filtered items
+                console.log(`🚫 Filtering out old post from ${parsedDate.toISOString()}`);
+              }
+              
+              return isWithinOneYear;
+            } catch (error) {
+              console.warn(`Error processing date for item ${index}:`, error);
+              return false; // Skip items with processing errors
+            }
+          });
+
+          // Sort by date (newest first) and limit to 100 most recent
+          const sortedData = filteredSnapshotData.sort((a, b) => {
+            const dateA = new Date(a['Share Date'] || a['Date'] || a['shareDate'] || 0).getTime();
+            const dateB = new Date(b['Share Date'] || b['Date'] || b['shareDate'] || 0).getTime();
+            return dateB - dateA; // Newest first
+          }).slice(0, 100); // Limit to most recent 100 posts
+
+          console.log(`📊 Date filtering results:`, {
+            originalCount,
+            filteredCount: filteredSnapshotData.length,
+            finalCount: sortedData.length,
+            dateRange: sortedData.length > 0 ? {
+              newest: new Date(sortedData[0]['Share Date'] || sortedData[0]['Date'] || sortedData[0]['shareDate'] || 0).toISOString(),
+              oldest: new Date(sortedData[sortedData.length - 1]['Share Date'] || sortedData[sortedData.length - 1]['Date'] || sortedData[sortedData.length - 1]['shareDate'] || 0).toISOString()
+            } : 'No posts in range'
+          });
+
+          return {
+            ...element,
+            snapshotData: sortedData
+          };
+        }
+        return element;
+      });
+    }
+
     // Enhanced logging for debugging data structure
     if (data.elements?.length > 0) {
       const firstElement = data.elements[0];
@@ -80,29 +164,31 @@ exports.handler = async (event, context) => {
         dataLength: firstElement.snapshotData?.length,
         firstDataItemKeys: firstElement.snapshotData?.[0] ? Object.keys(firstElement.snapshotData[0]) : []
       });
+
+      // Log sample dates from first few items
+      if (firstElement.snapshotData?.length > 0) {
+        console.log('Sample post dates from snapshot:');
+        firstElement.snapshotData.slice(0, 5).forEach((item, idx) => {
+          const date = item['Share Date'] || item['Date'] || item['shareDate'] || 'No date';
+          console.log(`  Post ${idx + 1}: ${date}`);
+        });
+      }
     }
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({
-        ...data,
-        success: true,
-        domain: domain,
-        timestamp: new Date().toISOString()
-      })
+      body: JSON.stringify(data)
     };
 
   } catch (error) {
-    console.error('Error in LinkedIn Snapshot function:', error);
-    
+    console.error('LinkedIn Snapshot API function error:', error);
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
         error: 'Internal server error',
-        details: error.message,
-        timestamp: new Date().toISOString()
+        details: error.message 
       })
     };
   }

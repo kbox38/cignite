@@ -139,11 +139,11 @@ export const repurposePost = async (post: PostData) => {
   }
 };
 
-// ENHANCED: Enhanced snapshot processing with media extraction AND DATE FILTERING
+// SIMPLIFIED: Enhanced snapshot processing (data already filtered server-side)
 const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[] => {
   if (DEBUG) {
-    console.log('🔍 SNAPSHOT DEBUG: Starting analysis...');
-    console.log('🔍 SNAPSHOT DEBUG: Raw data structure:', {
+    console.log('🔍 CLIENT PROCESSING: Starting analysis of pre-filtered data...');
+    console.log('🔍 CLIENT PROCESSING: Raw data structure:', {
       isArray: Array.isArray(snapshotData),
       length: snapshotData?.length,
       dataType: typeof snapshotData,
@@ -152,25 +152,14 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
   }
 
   if (!Array.isArray(snapshotData) || snapshotData.length === 0) {
-    if (DEBUG) console.log('🔍 SNAPSHOT DEBUG: Empty or invalid data structure');
+    if (DEBUG) console.log('🔍 CLIENT PROCESSING: Empty or invalid data structure');
     return [];
   }
 
-  // CRITICAL FIX: Calculate 365 days ago (1 year) cutoff
-  const now = Date.now();
-  const oneYearAgo = now - (365 * 24 * 60 * 60 * 1000);
-  
-  if (DEBUG) {
-    console.log('🔍 DATE FILTER: One year cutoff:', {
-      now: new Date(now).toISOString(),
-      oneYearAgo: new Date(oneYearAgo).toISOString(),
-      cutoffDays: 365
-    });
-  }
-
+  // Data is already filtered server-side for last year, just process it
   const posts = snapshotData.map((item: any, index: number) => {
     try {
-      // Extract date first for filtering
+      // Extract date (already validated server-side)
       const shareDate = 
         item['Share Date'] ||
         item['Date'] ||
@@ -180,24 +169,12 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
         item['createdAt'] ||
         '';
 
-      let createdAtMs = 0;
+      let createdAtMs = Date.now(); // fallback to now
       if (shareDate) {
         const parsedDate = new Date(shareDate);
         if (!isNaN(parsedDate.getTime())) {
           createdAtMs = parsedDate.getTime();
         }
-      }
-
-      // CRITICAL FIX: Filter out posts older than 1 year
-      if (createdAtMs > 0 && createdAtMs < oneYearAgo) {
-        if (DEBUG) console.log(`🔍 DATE FILTER: Skipping old post from ${new Date(createdAtMs).toISOString()}`);
-        return null; // Skip this post - too old
-      }
-
-      // If no date found, skip the post (suspicious)
-      if (createdAtMs === 0) {
-        if (DEBUG) console.log(`🔍 DATE FILTER: Skipping post with no date at index ${index}`);
-        return null;
       }
 
       // Extract content
@@ -260,12 +237,11 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
       const id = urlMatch ? `activity-${urlMatch[1]}` : `snapshot-${index}-${createdAtMs}`;
 
       if (DEBUG && index < 3) {
-        console.log(`🔍 SNAPSHOT DEBUG: Processing item ${index}:`, {
+        console.log(`🔍 CLIENT PROCESSING: Processing item ${index}:`, {
           hasContent: !!content,
           hasUrl: !!shareUrl,
           hasDate: !!shareDate,
           createdAt: new Date(createdAtMs).toISOString(),
-          withinOneYear: createdAtMs >= oneYearAgo,
           mediaType: mediaType,
           engagement: { likes, comments, shares }
         });
@@ -284,29 +260,30 @@ const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[
       };
 
     } catch (error) {
-      if (DEBUG) console.warn(`🔍 SNAPSHOT DEBUG: Error processing item ${index}:`, error);
+      if (DEBUG) console.warn(`🔍 CLIENT PROCESSING: Error processing item ${index}:`, error);
       return null;
     }
   })
-  .filter((post): post is PostData => post !== null); // Remove null entries (filtered out posts)
+  .filter((post): post is PostData => post !== null); // Remove null entries
 
-  // Sort by date (newest first) and limit to most recent posts
+  // Data is already sorted server-side, but ensure newest first and limit
   const sortedPosts = posts.sort((a, b) => b.createdAt - a.createdAt);
-  const limitedPosts = sortedPosts.slice(0, 90); // Keep top 90 most recent
+  const finalPosts = sortedPosts.slice(0, 90); // Keep top 90 most recent
 
   if (DEBUG) {
-    console.log(`🔍 SNAPSHOT DEBUG: Final result:`, {
+    console.log(`🔍 CLIENT PROCESSING: Final result:`, {
       totalProcessed: snapshotData.length,
       validPosts: posts.length,
-      finalPosts: limitedPosts.length,
-      dateRange: limitedPosts.length > 0 ? {
-        newest: new Date(limitedPosts[0].createdAt).toISOString(),
-        oldest: new Date(limitedPosts[limitedPosts.length - 1].createdAt).toISOString()
+      finalPosts: finalPosts.length,
+      dateRange: finalPosts.length > 0 ? {
+        newest: new Date(finalPosts[0].createdAt).toISOString(),
+        oldest: new Date(finalPosts[finalPosts.length - 1].createdAt).toISOString(),
+        spanDays: Math.round((finalPosts[0].createdAt - finalPosts[finalPosts.length - 1].createdAt) / (1000 * 60 * 60 * 24))
       } : 'No posts'
     });
   }
 
-  return limitedPosts;
+  return finalPosts;
 };
 
 // MAIN FETCH FUNCTION - SNAPSHOT ONLY
