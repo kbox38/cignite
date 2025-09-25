@@ -134,7 +134,7 @@ exports.handler = async (event, context) => {
             const dateA = new Date(a['Share Date'] || a['Date'] || a['shareDate'] || 0).getTime();
             const dateB = new Date(b['Share Date'] || b['Date'] || b['shareDate'] || 0).getTime();
             return dateB - dateA; // Newest first
-          }).slice(0, 100); // Limit to most recent 100 posts
+          }); // Limit to most recent 100 posts
 
           console.log(`📊 Date filtering results:`, {
             originalCount,
