@@ -390,7 +390,7 @@ async function sendInvitation(supabase, requestBody) {
       .insert({
         from_user_id: fromUserId,
         to_user_id: toUserId,
-        invitation_message: message || 'Would you like to be synergy partners?',
+        message: message || 'Would you like to be synergy partners?',
         invitation_status: 'pending',
         sent_at: new Date().toISOString()
       })
@@ -436,7 +436,7 @@ async function getNotifications(supabase, requestBody) {
       .select(`
         id,
         from_user_id,
-        invitation_message,
+        message,
         invitation_status,
         sent_at,
         from_user:users!synergy_invitations_from_user_id_fkey(
