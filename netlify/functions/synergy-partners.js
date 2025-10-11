@@ -380,7 +380,7 @@ async function searchUsers(supabase, requestBody) {
  */
 async function sendInvitation(supabase, requestBody) {
   try {
-    const { fromUserId, toUserId, message } = requestBody;
+    const { userId: fromUserId, targetUserId: toUserId, message } = requestBody;
     
     console.log('📧 Sending invitation:', { fromUserId, toUserId });
 
