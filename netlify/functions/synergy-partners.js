@@ -392,7 +392,7 @@ async function sendInvitation(supabase, requestBody) {
         to_user_id: toUserId,
         message: message || 'Would you like to be synergy partners?',
         invitation_status: 'pending',
-        sent_at: new Date().toISOString()
+        created_at: new Date().toISOString()
       })
       .select()
       .single();
@@ -438,7 +438,7 @@ async function getNotifications(supabase, requestBody) {
         from_user_id,
         message,
         invitation_status,
-        sent_at,
+        created_at,
         from_user:users!synergy_invitations_from_user_id_fkey(
           id,
           name,
@@ -448,7 +448,7 @@ async function getNotifications(supabase, requestBody) {
       `)
       .eq('to_user_id', userId)
       .eq('invitation_status', 'pending')
-      .order('sent_at', { ascending: false });
+      .order('created_at', { ascending: false });
 
     if (notifError) {
       throw notifError;
