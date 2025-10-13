@@ -1,4 +1,6 @@
-// netlify/functions/linkedin-oauth-start.js - Restored two-step OAuth flow
+// netlify/functions/linkedin-oauth-start.js - Fixed with unique state
+import crypto from 'crypto';
+
 export async function handler(event, context) {
   console.log('=== OAUTH START ===');
   console.log('Query parameters:', event.queryStringParameters);
@@ -36,9 +38,16 @@ export async function handler(event, context) {
     
   console.log('🔍 DEBUG: Redirect URI:', redirectUri);
   
-  // Generate OAuth URL with appropriate state
-  const state = isBasic ? 'basic' : 'dma';
-  const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}`;
+  // FIXED: Generate unique state with timestamp and random string
+  const timestamp = Date.now();
+  const randomString = crypto.randomBytes(16).toString('hex');
+  const flowType = isBasic ? 'basic' : 'dma';
+  const state = `${flowType}:${timestamp}:${randomString}`;
+  
+  console.log('🔍 DEBUG: Generated unique state:', state);
+  
+  // Generate OAuth URL with unique state
+  const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}`;
   
   console.log('✅ Generated OAuth URL for', isBasic ? 'Basic' : 'DMA');
   console.log('🔍 DEBUG: Auth URL preview:', authUrl.substring(0, 100) + '...');
