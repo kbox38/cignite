@@ -22,17 +22,35 @@ export async function handler(event, context) {
     // ===== DEDUPLICATION CHECK =====
     if (code && processedCodes.has(code)) {
       console.log('⚠️  DUPLICATE REQUEST DETECTED - Code already processed:', code.substring(0, 20));
-      // Return success redirect immediately (code was already processed successfully)
-      const appBaseUrl = process.env.NODE_ENV === 'development' 
-        ? 'http://localhost:5173' 
-        : process.env.URL.replace('/.netlify/functions/linkedin-oauth-callback', '');
-      
+      // Return 200 OK instead of redirect to avoid infinite loop
       return {
-        statusCode: 302,
+        statusCode: 200,
         headers: {
           ...corsHeaders,
-          Location: `${appBaseUrl}?duplicate=true`
-        }
+          'Content-Type': 'text/html'
+        },
+        body: `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Already Authenticated</title>
+              <script>
+                // Close this tab/window if it's a duplicate
+                window.close();
+                // If close fails, show message
+                setTimeout(function() {
+                  document.getElementById('msg').style.display = 'block';
+                }, 100);
+              </script>
+            </head>
+            <body style="font-family: system-ui; padding: 40px; text-align: center;">
+              <div id="msg" style="display: none;">
+                <h2>✅ Already Authenticated</h2>
+                <p>This request was already processed. You can close this window.</p>
+              </div>
+            </body>
+          </html>
+        `
       };
     }
     
