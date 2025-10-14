@@ -2,6 +2,9 @@
 // FIXES: State parsing + DMA registration before URN extraction
 
 // Main OAuth callback handler
+// Track processed codes to prevent duplicates (in-memory cache)
+const processedCodes = new Set();
+
 export async function handler(event, context) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -15,6 +18,30 @@ export async function handler(event, context) {
 
   try {
     const { code, state, error } = event.queryStringParameters || {};
+    
+    // ===== DEDUPLICATION CHECK =====
+    if (code && processedCodes.has(code)) {
+      console.log('⚠️  DUPLICATE REQUEST DETECTED - Code already processed:', code.substring(0, 20));
+      // Return success redirect immediately (code was already processed successfully)
+      const appBaseUrl = process.env.NODE_ENV === 'development' 
+        ? 'http://localhost:5173' 
+        : process.env.URL.replace('/.netlify/functions/linkedin-oauth-callback', '');
+      
+      return {
+        statusCode: 302,
+        headers: {
+          ...corsHeaders,
+          Location: `${appBaseUrl}?duplicate=true`
+        }
+      };
+    }
+    
+    // Mark code as being processed
+    if (code) {
+      processedCodes.add(code);
+      // Clean up after 5 minutes
+      setTimeout(() => processedCodes.delete(code), 5 * 60 * 1000);
+    }
 
     console.log('=== OAUTH CALLBACK START ===');
     console.log('OAuth Type:', state || 'basic');
