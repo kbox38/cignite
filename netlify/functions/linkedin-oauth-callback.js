@@ -20,8 +20,10 @@ export async function handler(event, context) {
     const { code, state, error } = event.queryStringParameters || {};
     
     // ===== DEDUPLICATION CHECK =====
-    if (code && processedCodes.has(code)) {
-      console.log('⚠️  DUPLICATE REQUEST DETECTED - Code already processed:', code.substring(0, 20));
+    // Check if this exact code is currently being processed
+    const processingKey = `processing_${code}`;
+    if (code && processedCodes.has(processingKey)) {
+      console.log('⚠️  DUPLICATE REQUEST DETECTED - Code currently being processed:', code.substring(0, 20));
       // Return 200 OK instead of redirect to avoid infinite loop
       return {
         statusCode: 200,
@@ -33,32 +35,25 @@ export async function handler(event, context) {
           <!DOCTYPE html>
           <html>
             <head>
-              <title>Already Authenticated</title>
+              <title>Processing...</title>
               <script>
                 // Close this tab/window if it's a duplicate
-                window.close();
-                // If close fails, show message
-                setTimeout(function() {
-                  document.getElementById('msg').style.display = 'block';
-                }, 100);
+                setTimeout(() => window.close(), 500);
               </script>
             </head>
             <body style="font-family: system-ui; padding: 40px; text-align: center;">
-              <div id="msg" style="display: none;">
-                <h2>✅ Already Authenticated</h2>
-                <p>This request was already processed. You can close this window.</p>
-              </div>
+              <h2>⏳ Processing...</h2>
+              <p>Your authentication is being processed in another window.</p>
             </body>
           </html>
         `
       };
     }
     
-    // Mark code as being processed
+    // Mark code as being processed (not completed yet)
     if (code) {
-      processedCodes.add(code);
-      // Clean up after 5 minutes
-      setTimeout(() => processedCodes.delete(code), 5 * 60 * 1000);
+      processedCodes.add(processingKey);
+      console.log('🔒 Locked code for processing:', code.substring(0, 20));
     }
 
     console.log('=== OAUTH CALLBACK START ===');
@@ -298,6 +293,12 @@ export async function handler(event, context) {
 
     console.log('✅ OAuth callback completed successfully');
 
+    // Unlock the code now that processing is complete
+    if (code) {
+      processedCodes.delete(`processing_${code}`);
+      console.log('🔓 Unlocked code after successful processing');
+    }
+
     return {
       statusCode: 302,
       headers: {
@@ -309,6 +310,13 @@ export async function handler(event, context) {
   } catch (error) {
     console.error('💥 CRITICAL ERROR in OAuth callback:', error);
     console.error('💥 Error stack:', error.stack);
+    
+    // Unlock the code on error
+    const { code } = event.queryStringParameters || {};
+    if (code) {
+      processedCodes.delete(`processing_${code}`);
+      console.log('🔓 Unlocked code after error');
+    }
     
     return {
       statusCode: 500,
