@@ -1,4 +1,4 @@
-// src/components/auth/AuthFlow.tsx - AUTO DMA OAUTH ENABLED
+// src/components/auth/AuthFlow.tsx - Fixed with scroll support
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../stores/authStore';
 import { Button } from '../ui/Button';
@@ -25,7 +25,6 @@ export const AuthFlow = () => {
   const [currentStep, setCurrentStep] = useState<'basic' | 'dma'>('basic');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasAutoStartedDma, setHasAutoStartedDma] = useState(false);
 
   // Define auth steps
   const steps: AuthStep[] = [
@@ -62,28 +61,6 @@ export const AuthFlow = () => {
     }
   }, [isBasicAuthenticated, dmaToken, currentStep]);
 
-  // ===== NEW: AUTO-START DMA OAUTH AFTER BASIC COMPLETES =====
-  useEffect(() => {
-    // Only auto-start if:
-    // 1. Basic auth is complete
-    // 2. DMA token is missing
-    // 3. We haven't already auto-started (prevent loops)
-    // 4. We're not currently authenticating
-    if (isBasicAuthenticated && !dmaToken && !hasAutoStartedDma && !isAuthenticating) {
-      console.log('AuthFlow: Basic OAuth complete, auto-starting DMA OAuth in 2 seconds...');
-      
-      // Show transition message for 2 seconds
-      setIsAuthenticating(true);
-      
-      // Wait 2 seconds, then redirect to DMA OAuth
-      setTimeout(() => {
-        setHasAutoStartedDma(true);
-        console.log('AuthFlow: Redirecting to DMA OAuth...');
-        window.location.href = '/.netlify/functions/linkedin-oauth-start?type=dma';
-      }, 2000);
-    }
-  }, [isBasicAuthenticated, dmaToken, hasAutoStartedDma, isAuthenticating]);
-
   // Auto-redirect when fully authenticated
   useEffect(() => {
     if (isFullyAuthenticated) {
@@ -112,7 +89,6 @@ export const AuthFlow = () => {
   const handleRetry = () => {
     setError(null);
     setIsAuthenticating(false);
-    setHasAutoStartedDma(false); // Reset auto-start flag
   };
 
   const handleStartOver = () => {
@@ -120,7 +96,6 @@ export const AuthFlow = () => {
     setCurrentStep('basic');
     setError(null);
     setIsAuthenticating(false);
-    setHasAutoStartedDma(false); // Reset auto-start flag
   };
 
   const renderStepCard = (step: AuthStep, isActive: boolean) => (
@@ -167,58 +142,55 @@ export const AuthFlow = () => {
             </div>
           ) : isActive ? (
             <div className="space-y-3">
-              {/* Show transition message during auto-redirect */}
-              {step.id === 'dma' && isAuthenticating && isBasicAuthenticated ? (
-                <div className="flex items-center justify-center space-x-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <LoadingSpinner size="sm" />
-                  <span className="text-blue-800 font-medium">
-                    Preparing advanced analytics setup...
-                  </span>
-                </div>
-              ) : (
-                <Button
-                  onClick={() => handleOAuthStart(step.id)}
-                  disabled={isAuthenticating}
-                  className="w-full"
-                >
-                  {isAuthenticating ? (
-                    <>
-                      <LoadingSpinner className="mr-2" size="sm" />
-                      Connecting...
-                    </>
-                  ) : (
-                    `Connect ${step.title}`
-                  )}
-                </Button>
-              )}
+              <Button
+                onClick={() => handleOAuthStart(step.id)}
+                disabled={isAuthenticating}
+                className="w-full"
+              >
+                {isAuthenticating ? (
+                  <>
+                    <LoadingSpinner className="w-4 h-4 mr-2" />
+                    Connecting...
+                  </>
+                ) : (
+                  `Connect ${step.title}`
+                )}
+              </Button>
               
               {error && (
-                <div className="text-red-600 text-sm flex items-center justify-between">
-                  <span>{error}</span>
+                <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg">
+                  <p className="font-medium mb-1">Connection failed</p>
+                  <p>{error}</p>
                   <button
                     onClick={handleRetry}
-                    className="underline hover:no-underline"
+                    className="mt-2 text-red-700 underline hover:no-underline"
                   >
-                    Retry
+                    Try again
                   </button>
                 </div>
               )}
             </div>
-          ) : null}
+          ) : (
+            <div className="text-gray-500 text-sm">
+              Complete previous step first
+            </div>
+          )}
         </div>
       </div>
     </Card>
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50 flex items-center justify-center p-6">
-      <div className="max-w-4xl w-full">
+    // FIXED: Added proper scrolling container with custom classes
+    <div className="auth-flow-container min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50">
+      <div className="container mx-auto px-4 py-8 max-w-2xl">
+        {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent mb-3">
-            Complete Your Setup
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+            Connect Your LinkedIn Account
           </h1>
-          <p className="text-gray-600 text-lg">
-            Two simple steps to unlock your LinkedIn growth potential
+          <p className="text-lg text-gray-600">
+            We need to connect to LinkedIn in two steps to provide you with comprehensive analytics and insights.
           </p>
         </div>
 
@@ -240,7 +212,7 @@ export const AuthFlow = () => {
           </div>
         </div>
 
-        {/* Auth steps */}
+        {/* Auth steps - FIXED: Added auth-step-card class */}
         <div className="space-y-6 mb-8">
           {steps.map(step => (
             <div key={step.id} className="auth-step-card">
@@ -249,21 +221,9 @@ export const AuthFlow = () => {
           ))}
         </div>
 
-        {/* Auto-redirect notification */}
-        {isBasicAuthenticated && !dmaToken && isAuthenticating && (
-          <div className="mb-8 p-4 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg text-white text-center">
-            <div className="flex items-center justify-center space-x-3">
-              <LoadingSpinner size="sm" />
-              <span className="font-medium">
-                Step 1 Complete! Automatically starting Step 2...
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Footer actions */}
-        <div className="text-center space-y-4">
-          {(isBasicAuthenticated || dmaToken) && !isAuthenticating && (
+        {/* Footer actions - FIXED: Added auth-footer-padding class */}
+        <div className="text-center space-y-4 auth-footer-padding">
+          {(isBasicAuthenticated || dmaToken) && (
             <button
               onClick={handleStartOver}
               className="text-gray-500 hover:text-gray-700 text-sm underline"
@@ -284,14 +244,12 @@ export const AuthFlow = () => {
 
         {/* Debug info (only in development) */}
         {process.env.NODE_ENV === 'development' && (
-          <div className="mt-8 p-4 bg-gray-100 rounded-lg text-xs font-mono">
+          <div className="mt-8 mb-8 p-4 bg-gray-100 rounded-lg text-xs font-mono">
             <p className="font-bold mb-2">Debug Info:</p>
             <p>Basic Auth: {isBasicAuthenticated ? '✓' : '✗'}</p>
             <p>DMA Token: {dmaToken ? '✓' : '✗'}</p>
             <p>Fully Auth: {isFullyAuthenticated ? '✓' : '✗'}</p>
             <p>Current Step: {currentStep}</p>
-            <p>Auto-Started DMA: {hasAutoStartedDma ? '✓' : '✗'}</p>
-            <p>Is Authenticating: {isAuthenticating ? '✓' : '✗'}</p>
             <p>Access Token: {accessToken ? `${accessToken.substring(0, 20)}...` : 'None'}</p>
           </div>
         )}
