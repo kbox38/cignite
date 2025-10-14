@@ -20,10 +20,9 @@ export async function handler(event, context) {
     const { code, state, error } = event.queryStringParameters || {};
     
     // ===== DEDUPLICATION CHECK =====
-    // Check if this exact code is currently being processed
-    const processingKey = `processing_${code}`;
-    if (code && processedCodes.has(processingKey)) {
-      console.log('⚠️  DUPLICATE REQUEST DETECTED - Code currently being processed:', code.substring(0, 20));
+    // Check if this code has already been processed or is being processed
+    if (code && processedCodes.has(code)) {
+      console.log('⚠️  DUPLICATE REQUEST DETECTED - Code already used:', code.substring(0, 20));
       // Return 200 OK instead of redirect to avoid infinite loop
       return {
         statusCode: 200,
@@ -42,18 +41,20 @@ export async function handler(event, context) {
               </script>
             </head>
             <body style="font-family: system-ui; padding: 40px; text-align: center;">
-              <h2>⏳ Processing...</h2>
-              <p>Your authentication is being processed in another window.</p>
+              <h2>⏳ Already Processing</h2>
+              <p>Your authentication is being processed. This window will close automatically.</p>
             </body>
           </html>
         `
       };
     }
     
-    // Mark code as being processed (not completed yet)
+    // Mark code as used (permanently until cleanup)
     if (code) {
-      processedCodes.add(processingKey);
-      console.log('🔒 Locked code for processing:', code.substring(0, 20));
+      processedCodes.add(code);
+      // Clean up after 5 minutes
+      setTimeout(() => processedCodes.delete(code), 5 * 60 * 1000);
+      console.log('🔒 Marked code as used:', code.substring(0, 20));
     }
 
     console.log('=== OAUTH CALLBACK START ===');
