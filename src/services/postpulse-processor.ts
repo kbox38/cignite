@@ -1,5 +1,5 @@
 // Debug flag - set to true for detailed logging
-const DEBUG = false;
+const DEBUG = true;
 
 // Simple hash function for browser compatibility (NO CRYPTO IMPORT)
 const simpleHash = (str: string): string => {
