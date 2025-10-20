@@ -1,0 +1,186 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Root layout fix for footer overlap */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Main app container - ENHANCED */
+.app-container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  width: 100vw; /* FIXED: Ensure full width */
+}
+
+/* Content area that grows and scrolls - ENHANCED */
+.main-content-area {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+  width: 100%; /* FIXED: Ensure full width */
+}
+
+/* Ensure sidebar doesn't get cut off - ENHANCED */
+.sidebar-container {
+  height: 100vh;
+  overflow-y: auto;
+  flex-shrink: 0;
+  position: relative; /* FIXED: Proper positioning */
+}
+
+/* AI Analysis text formatting */
+.ai-analysis-content h3 {
+  @apply text-lg font-bold text-blue-600 mt-4 mb-2;
+}
+
+.ai-analysis-content h4 {
+  @apply text-base font-semibold text-purple-600 mt-3 mb-2;
+}
+
+.ai-analysis-content p {
+  @apply text-gray-900 mb-2 leading-relaxed;
+}
+
+.ai-analysis-content strong {
+  @apply font-semibold text-gray-900;
+}
+
+.ai-analysis-content ul {
+  @apply list-disc list-inside mb-3 space-y-1;
+}
+
+.ai-analysis-content li {
+  @apply text-gray-900;
+}
+
+/* Z-Index Layer System - ENHANCED AND FIXED */
+.z-dropdown { z-index: 10000 !important; }    /* Notification dropdown (highest) */
+.z-modal { z-index: 1000; }                   /* Modals and overlays */  
+.z-toast { z-index: 900; }                    /* Toast notifications */
+.z-backdrop { z-index: 800; }                 /* Modal backdrops */
+.z-sidebar { z-index: 100; }                  /* Sidebar and navigation */
+.z-header { z-index: 90; }                    /* Header elements */
+.z-tooltip { z-index: 80; }                   /* Tooltips */
+.z-default { z-index: 10; }                   /* Default elevated elements */
+.z-card { z-index: 1 !important; }            /* Card components (lowest) */
+
+/* Additional utility classes for proper layout */
+.layout-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.content-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100vh;
+}
+
+/* Responsive design fixes */
+@media (max-width: 768px) {
+  .app-container {
+    height: 100vh;
+    height: -webkit-fill-available; /* For iOS Safari */
+  }
+  
+  .main-content-area {
+    overflow-x: hidden; /* Prevent horizontal scroll on mobile */
+  }
+}
+
+/* Scrollbar styling for better UX */
+.main-content-area::-webkit-scrollbar {
+  width: 6px;
+}
+
+.main-content-area::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.main-content-area::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.main-content-area::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Fix for potential layout shifts */
+* {
+  box-sizing: border-box;
+}
+
+/* Ensure proper stacking context for notifications */
+.notification-container {
+  position: relative;
+  z-index: 10000;
+}
+
+/* Dashboard card specific fixes */
+.dashboard-card {
+  position: relative;
+  z-index: 1;
+}
+
+/* Prevent content overflow in flex containers */
+.flex-container {
+  min-width: 0;
+}
+
+/* Animation performance improvements */
+.motion-card {
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* FIXED: AuthFlow scroll improvements */
+.auth-flow-container {
+  height: 100vh;
+  height: -webkit-fill-available; /* For iOS Safari */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+}
+
+/* Custom scrollbar for auth flow */
+.auth-flow-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.auth-flow-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.auth-flow-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.auth-flow-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Ensure buttons are always accessible */
+.auth-step-card {
+  min-height: fit-content;
+  margin-bottom: 1.5rem;
+}
+
+/* Add padding to ensure footer content is visible */
+.auth-footer-padding {
+  padding-bottom: 3rem;
+  min-height: fit-content;
+}
