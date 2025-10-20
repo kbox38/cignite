@@ -1,5 +1,5 @@
 // Debug flag - set to true for detailed logging
-const DEBUG = false;
+const DEBUG = true;
 
 // Simple hash function for browser compatibility (NO CRYPTO IMPORT)
 const simpleHash = (str: string): string => {
@@ -141,6 +141,19 @@ export const repurposePost = async (post: PostData) => {
 
 // SIMPLIFIED: Enhanced snapshot processing (data already filtered server-side)
 const extractSnapshotPosts = (snapshotData: any, showAllTime = false): PostData[] => {
+  // Add at the start of extractSnapshotPosts function:
+if (DEBUG && snapshotData.length > 0) {
+  console.log('🔍 RAW API RESPONSE - First post item:', JSON.stringify(snapshotData[0], null, 2));
+  console.log('🔍 Available fields:', Object.keys(snapshotData[0]));
+  console.log('🔍 Engagement fields check:', {
+    LikesCount: snapshotData[0]['LikesCount'],
+    'Likes Count': snapshotData[0]['Likes Count'],
+    CommentsCount: snapshotData[0]['CommentsCount'],
+    'Comments Count': snapshotData[0]['Comments Count'],
+    SharesCount: snapshotData[0]['SharesCount'],
+    'Shares Count': snapshotData[0]['Shares Count']
+  });
+}
   if (DEBUG) {
     console.log('🔍 CLIENT PROCESSING: Starting analysis of pre-filtered data...');
     console.log('🔍 CLIENT PROCESSING: Raw data structure:', {
